@@ -9,20 +9,34 @@
     </insert>
 
     <!-- 分页查询菜品 -->
-    <select id="pageQuery" resultType="com.sky.vo.DishVO">
-        select d.* , c.name as categoryName from dish d left outer join category c on d.category_id = c.id
+    <select id="pageQuery" resultType="com.sky.entity.Dish">
+        select * from dish
         <where>
             <if test="name != null and name != ''">
-                and d.name like c oncat('%',#{name},'%')
+                and name like concat('%',#{name},'%')
             </if>
             <if test="categoryId != null">
-                and d.category_id = #{categoryId}
+                and category_id = #{categoryId}
             </if>
             <if test="status != null">
-                and d.status = #{status}
+                and status = #{status}
             </if>
         </where>
         order by create_time desc
     </select>
+
+    <!-- 根据id删除菜品 -->
+    <delete id="deleteById">
+        delete from dish where id = #{id}
+    </delete>
+
+    <!-- 根据id集合批量删除菜品 -->
+    <delete id="deleteByIds">
+        delete from dish where id in
+        <!--suppress XmlUnresolvedReference -->
+        <foreach collection="list" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
 
 </mapper>
