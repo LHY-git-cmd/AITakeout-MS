@@ -8,6 +8,8 @@ import com.sky.enumeration.OperationType;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
+
 @Mapper
 public interface DishMapper {
 
@@ -32,4 +34,24 @@ public interface DishMapper {
      * @return
      */
     Page<Dish> pageQuery(DishPageQueryDTO dishPageQueryDTO);
+
+    /**
+     * 根据id查询菜品状态
+     * @param id
+     * @return
+     */
+    @Select("select status from dish where id = #{id}")
+    Integer getStatusById(Long id);
+
+    /**
+     * 根据id删除菜品
+     * @param id
+     */
+    void deleteById(Long id);
+
+    /**
+     * 根据id集合批量删除菜品
+     * @param ids
+     */
+    void deleteByIds(List<Long> ids);
 }

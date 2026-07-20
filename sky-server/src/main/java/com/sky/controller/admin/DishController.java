@@ -6,6 +6,10 @@ import com.sky.dto.DishPageQueryDTO;
 import com.sky.result.PageResult;
 import com.sky.result.Result;
 import com.sky.service.DishService;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.extern.slf4j.Slf4j;
@@ -51,5 +55,17 @@ public class DishController {
         return Result.success(pageResult);
     }
 
+    /**
+     * 删除菜品（支持批量删除）
+     * @param ids
+     * @return
+     */
+    @DeleteMapping
+    @ApiOperation("删除菜品")
+    public Result delete(@RequestParam List<Long> ids) {
+        log.info("删除菜品：{}", ids);
+        dishService.deleteBatch(ids);
+        return Result.success();
+    }
 
 }
