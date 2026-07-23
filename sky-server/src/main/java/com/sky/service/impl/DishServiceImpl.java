@@ -13,6 +13,7 @@ import com.sky.mapper.DishMapper;
 import com.sky.mapper.SetmealDishMapper;
 import com.sky.result.PageResult;
 import com.sky.service.DishService;
+import com.sky.vo.DishVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -105,4 +106,52 @@ public class DishServiceImpl implements DishService {
         dishMapper.deleteByIds(ids);
     }
 
+    /**
+     * 根据id查询菜品详情
+     * @param id
+     * @return
+     */
+    public DishVO getById(Long id) {
+        log.info("查询菜品详情：id={}", id);
+
+        // 查询菜品基础信息
+        Dish dish = dishMapper.getById(id);
+
+        // 查询菜品口味信息
+        List<DishFlavor> flavors = dishFlavorMapper.getByDishId(id);
+
+        // 封装成DishVO
+        DishVO dishVO = new DishVO();
+        BeanUtils.copyProperties(dish, dishVO);
+        dishVO.setFlavors(flavors);
+
+        return dishVO;
+    }
+
+    /**
+     * 修改菜品
+     * @param dishDTO
+     */
+    @Transactional
+    public void updateWithFlavor(DishDTO dishDTO) {
+        log.info("修改菜品：{}", dishDTO);
+
+        Dish dish = new Dish();
+        BeanUtils.copyProperties(dishDTO, dish);
+
+        // 更新菜品基础信息
+        dishMapper.update(dish);
+
+        // 删除原有口味
+        dishFlavorMapper.deleteByDishId(dishDTO.getId());
+
+        // 插入新口味
+        List<DishFlavor> flavors = dishDTO.getFlavors();
+        if (flavors != null && flavors.size() > 0) {
+            flavors.forEach(flavor -> {
+                flavor.setDishId(dishDTO.getId());
+            });
+            dishFlavorMapper.insertBatch(flavors);
+        }
+    }
 }
