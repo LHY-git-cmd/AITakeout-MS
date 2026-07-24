@@ -76,4 +76,13 @@
         order by create_time desc
     </select>
 
+    <!-- 更新菜品状态 -->
+    <update id="updateStatus">
+        update dish
+        set status = #{status},
+            update_time = now(),
+            update_user = #{updateUser}
+        where id = #{id}
+    </update>
+
 </mapper>

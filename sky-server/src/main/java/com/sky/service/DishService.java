@@ -43,9 +43,16 @@ public interface DishService {
     void updateWithFlavor(DishDTO dishDTO);
 
     /**
-    *条件查询菜品和口味
-    *@param dish
-    *@return
-     */
+   *条件查询菜品和口味
+   *@param dish
+   *@return
+    */
     List<DishVO> listWithFlavor(Dish dish);
+
+    /**
+     * 菜品起售/停售
+     * @param status
+     * @param id
+     */
+    void startOrStop(Integer status, Long id);
 }

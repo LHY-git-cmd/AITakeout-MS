@@ -83,4 +83,10 @@ public interface DishMapper {
      * @return
      */
     List<Dish> list(Dish dish);
+
+    /**
+     * 更新菜品状态
+     * @param dish
+     */
+    void updateStatus(Dish dish);
 }
