@@ -161,10 +161,10 @@ public class DishServiceImpl implements DishService {
     }
 
     /**
-    条件查询菜品和口味
-    @param dish
-    @return
-    */
+   条件查询菜品和口味
+   @param dish
+   @return
+   */
     public List<DishVO> listWithFlavor(Dish dish) {
         List<Dish> dishList = dishMapper.list(dish);
 
@@ -181,5 +181,22 @@ public class DishServiceImpl implements DishService {
             dishVOList.add(dishVO);
         }
         return dishVOList;
+    }
+
+    /**
+     * 菜品起售/停售
+     * @param status
+     * @param id
+     */
+    @Override
+    public void startOrStop(Integer status, Long id) {
+        log.info("菜品状态变更：菜品ID={}, 状态={}", id, status);
+
+        Dish dish = Dish.builder()
+                .id(id)
+                .status(status)
+                .build();
+
+        dishMapper.updateStatus(dish);
     }
 }
