@@ -27,6 +27,8 @@ public class HttpClientUtil {
 
     static final  int TIMEOUT_MSEC = 5 * 1000;
 
+    
+
     /**
      * 发送GET方式请求
      * @param url
