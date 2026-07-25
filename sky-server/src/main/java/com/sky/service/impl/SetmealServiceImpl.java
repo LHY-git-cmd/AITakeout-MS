@@ -73,15 +73,11 @@ public class SetmealServiceImpl implements SetmealService {
         if (setmealDishes != null && !setmealDishes.isEmpty()) {
             setmealDishes.forEach(dish -> {
                 dish.setSetmealId(setmealId);
-                dish.setCreateTime(LocalDateTime.now());
-                dish.setUpdateTime(LocalDateTime.now());
-                dish.setCreateUser(BaseContext.getCurrentId());
-                dish.setUpdateUser(BaseContext.getCurrentId());
             });
             // 批量插入套餐菜品关联
             setmealDishMapper.insertBatch(setmealDishes);
         }
-        
+
         log.info("新增套餐成功，套餐ID：{}", setmealId);
     }
 
@@ -150,14 +146,10 @@ public class SetmealServiceImpl implements SetmealService {
         if (setmealDishes != null && !setmealDishes.isEmpty()) {
             setmealDishes.forEach(dish -> {
                 dish.setSetmealId(setmealId);
-                dish.setCreateTime(LocalDateTime.now());
-                dish.setUpdateTime(LocalDateTime.now());
-                dish.setCreateUser(BaseContext.getCurrentId());
-                dish.setUpdateUser(BaseContext.getCurrentId());
             });
             setmealDishMapper.insertBatch(setmealDishes);
         }
-        
+
         log.info("修改套餐成功，套餐ID：{}", setmealId);
     }
 

@@ -10,10 +10,10 @@
 
     <!-- 批量插入套餐菜品关系 -->
     <insert id="insertBatch">
-        insert into setmeal_dish (setmeal_id, dish_id, name, price, copies, create_time, update_time, create_user, update_user)
+        insert into setmeal_dish (setmeal_id, dish_id, name, price, copies)
         values
         <foreach collection="list" item="item" separator=",">
-            (#{item.setmealId}, #{item.dishId}, #{item.name}, #{item.price}, #{item.copies}, #{item.createTime}, #{item.updateTime}, #{item.createUser}, #{item.updateUser})
+            (#{item.setmealId}, #{item.dishId}, #{item.name}, #{item.price}, #{item.copies})
         </foreach>
     </insert>
 
