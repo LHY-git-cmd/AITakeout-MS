@@ -1,10 +1,12 @@
 package com.sky.mapper;
 
+import com.github.pagehelper.Page;
 import com.sky.dto.SetmealPageQueryDTO;
 import com.sky.entity.Setmeal;
 import com.sky.vo.DishItemVO;
 import com.sky.vo.SetmealVO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -49,7 +51,7 @@ public interface SetmealMapper {
      * @param setmealPageQueryDTO 分页查询条件
      * @return 套餐详情列表
      */
-    List<SetmealVO> pageQuery(SetmealPageQueryDTO setmealPageQueryDTO);
+    Page<SetmealVO> pageQuery(SetmealPageQueryDTO setmealPageQueryDTO);
 
     /**
      * 根据ID查询套餐
@@ -95,4 +97,19 @@ public interface SetmealMapper {
      * @param id 套餐ID
      */
     void deleteById(Long id);
+
+    /**
+     * 批量删除套餐
+     * 
+     * @param ids 套餐ID列表
+     */
+    void deleteByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * 根据ID列表查询套餐列表
+     * 
+     * @param ids 套餐ID列表
+     * @return 套餐列表
+     */
+    List<Setmeal> getByIds(@Param("ids") List<Long> ids);
 }

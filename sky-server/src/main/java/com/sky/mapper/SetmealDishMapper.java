@@ -36,4 +36,10 @@ public interface SetmealDishMapper {
      * @return
      */
     List<SetmealDish> getBySetmealId(Long setmealId);
+
+    /**
+     * 批量删除套餐菜品关系
+     * @param setmealIds
+     */
+    void deleteBySetmealIds(@Param("setmealIds") List<Long> setmealIds);
 }

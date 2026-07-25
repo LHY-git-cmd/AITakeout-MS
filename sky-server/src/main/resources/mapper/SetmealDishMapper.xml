@@ -22,4 +22,12 @@
         select * from setmeal_dish where setmeal_id = #{setmealId}
     </select>
 
+    <!-- 批量删除套餐菜品关系 -->
+    <delete id="deleteBySetmealIds">
+        DELETE FROM setmeal_dish WHERE setmeal_id IN
+        <foreach collection="setmealIds" item="setmealId" open="(" separator="," close=")">
+            #{setmealId}
+        </foreach>
+    </delete>
+
 </mapper>

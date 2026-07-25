@@ -97,22 +97,27 @@ public class SetmealServiceImpl implements SetmealService {
         
         // 使用PageHelper进行分页
         PageHelper.startPage(setmealPageQueryDTO.getPage(), setmealPageQueryDTO.getPageSize());
-        Page<SetmealVO> page = (Page<SetmealVO>) setmealMapper.pageQuery(setmealPageQueryDTO);
+        Page<SetmealVO> page = setmealMapper.pageQuery(setmealPageQueryDTO);
         
         log.info("分页查询完成，总记录数：{}", page.getTotal());
         return new PageResult(page.getTotal(), page.getResult());
     }
 
     /**
-     * 根据ID查询套餐详情（包含分类名称）
-     * 
+     * 根据ID查询套餐详情（包含分类名称和菜品列表）
+     *
      * @param id 套餐ID
-     * @return 套餐详情视图对象，包含套餐信息和分类名称
+     * @return 套餐详情视图对象，包含套餐信息、分类名称和关联菜品列表
      */
     @Override
     public SetmealVO getByIdWithDish(Long id) {
         log.info("查询套餐详情：套餐ID={}", id);
-        return setmealMapper.getByIdWithDish(id);
+        SetmealVO setmealVO = setmealMapper.getByIdWithDish(id);
+        if (setmealVO != null) {
+            List<SetmealDish> setmealDishes = setmealDishMapper.getBySetmealId(id);
+            setmealVO.setSetmealDishes(setmealDishes);
+        }
+        return setmealVO;
     }
 
     /**
@@ -218,6 +223,35 @@ public class SetmealServiceImpl implements SetmealService {
         setmealDishMapper.deleteBySetmealId(id);
         
         log.info("删除套餐成功，套餐ID：{}", id);
+    }
+
+    /**
+     * 批量删除套餐
+     * 
+     * @param ids 套餐ID列表
+     */
+    @Override
+    @Transactional
+    public void deleteByIds(List<Long> ids) {
+        log.info("批量删除套餐：套餐ID列表={}", ids);
+        
+        // 查询套餐列表
+        List<Setmeal> setmeals = setmealMapper.getByIds(ids);
+        
+        // 检查所有套餐是否都已停售
+        for (Setmeal setmeal : setmeals) {
+            if (setmeal.getStatus() == StatusConstant.ENABLE) {
+                throw new DeletionNotAllowedException(MessageConstant.SETMEAL_ON_SALE);
+            }
+        }
+
+        // 批量删除套餐菜品关联
+        setmealDishMapper.deleteBySetmealIds(ids);
+        
+        // 批量删除套餐基本信息
+        setmealMapper.deleteByIds(ids);
+        
+        log.info("批量删除套餐成功，删除数量：{}", ids.size());
     }
 
     /**

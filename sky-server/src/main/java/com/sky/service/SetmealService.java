@@ -60,6 +60,13 @@ public interface SetmealService {
     void deleteById(Long id);
 
     /**
+     * 批量删除套餐
+     * 
+     * @param ids 套餐ID列表
+     */
+    void deleteByIds(List<Long> ids);
+
+    /**
      * 条件查询套餐列表
      * 
      * @param setmeal 查询条件对象
