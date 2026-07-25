@@ -37,7 +37,7 @@
         </where>
     </select>
 
-    <insert id="insert" parameterType="com.sky.entity.Setmeal">
+    <insert id="insert" parameterType="com.sky.entity.Setmeal" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO setmeal (category_id, name, price, status, description, image, create_time, update_time, create_user, update_user)
         VALUES (#{categoryId}, #{name}, #{price}, #{status}, #{description}, #{image}, #{createTime}, #{updateTime}, #{createUser}, #{updateUser})
     </insert>
@@ -68,5 +68,19 @@
     <delete id="deleteById">
         DELETE FROM setmeal WHERE id = #{id}
     </delete>
+
+    <delete id="deleteByIds">
+        DELETE FROM setmeal WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </delete>
+
+    <select id="getByIds" resultType="com.sky.entity.Setmeal">
+        SELECT * FROM setmeal WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
 
 </mapper>
