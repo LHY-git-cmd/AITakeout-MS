@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.sky.mapper.ShoppingCartMapper">
+
+    <select id="getOne" parameterType="ShoppingCart" resultType="ShoppingCart">
+        select *
+        from shopping_cart
+        where user_id = #{userId}
+        <choose>
+            <when test="dishId != null">
+                and dish_id = #{dishId}
+                and setmeal_id is null
+                <choose>
+                    <when test="dishFlavor != null">
+                        and dish_flavor = #{dishFlavor}
+                    </when>
+                    <otherwise>
+                        and dish_flavor is null
+                    </otherwise>
+                </choose>
+            </when>
+            <otherwise>
+                and setmeal_id = #{setmealId}
+                and dish_id is null
+            </otherwise>
+        </choose>
+        limit 1
+    </select>
+
+</mapper>
