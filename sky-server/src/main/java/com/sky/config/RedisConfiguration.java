@@ -1,5 +1,8 @@
 package com.sky.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.sky.json.JacksonObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -33,7 +36,7 @@ public class RedisConfiguration {
 
         // 使用 GenericJackson2JsonRedisSerializer：自动存储类型信息，反序列化时还原为正确类型
         // 同时传入自定义 JacksonObjectMapper 以支持 LocalDateTime 等 Java 8 时间类型
-        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(new JacksonObjectMapper());
+        GenericJackson2JsonRedisSerializer serializer = createJsonSerializer();
 
         redisTemplate.setValueSerializer(serializer);
         redisTemplate.setHashValueSerializer(serializer);
@@ -49,7 +52,7 @@ public class RedisConfiguration {
 
         // 使用 GenericJackson2JsonRedisSerializer：自动存储类型信息，反序列化时还原为正确类型
         // 同时传入自定义 JacksonObjectMapper 以支持 LocalDateTime 等 Java 8 时间类型
-        GenericJackson2JsonRedisSerializer serializer = new GenericJackson2JsonRedisSerializer(new JacksonObjectMapper());
+        GenericJackson2JsonRedisSerializer serializer = createJsonSerializer();
 
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofHours(1))               // 缓存有效期1小时
@@ -62,5 +65,19 @@ public class RedisConfiguration {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(config)
                 .build();
+    }
+
+    /**
+     * 创建携带Java类型信息的JSON序列化器，保证缓存命中时可以还原为原始对象，
+     * 避免Result、Setmeal等对象被反序列化为LinkedHashMap。
+     */
+    private GenericJackson2JsonRedisSerializer createJsonSerializer() {
+        JacksonObjectMapper objectMapper = new JacksonObjectMapper();
+        objectMapper.activateDefaultTyping(
+                LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
+        return new GenericJackson2JsonRedisSerializer(objectMapper);
     }
 }

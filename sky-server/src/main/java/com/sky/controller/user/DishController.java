@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController("userDishController")
 @RequestMapping("/user/dish")
@@ -46,7 +47,14 @@ public class DishController {
         String key = "dish_" + categoryId;
 
         // 查询redis中是否存在菜品数据
-        List<DishVO> list = (List<DishVO>) redisTemplate.opsForValue().get(key);
+        List<DishVO> list = null;
+        Object cached = redisTemplate.opsForValue().get(key);
+        if (cached instanceof List) {
+            list = ((List<?>) cached).stream()
+                    .filter(DishVO.class::isInstance)
+                    .map(DishVO.class::cast)
+                    .collect(Collectors.toList());
+        }
         if (list != null && !list.isEmpty()) {
             // 如果存在，直接返回，无须查询数据库
             log.info("从Redis缓存中获取菜品数据，数量：{}", list.size());
