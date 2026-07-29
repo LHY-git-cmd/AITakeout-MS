@@ -3,6 +3,26 @@
 
 <mapper namespace="com.sky.mapper.ShoppingCartMapper">
 
+    <select id="list" parameterType="ShoppingCart" resultType="ShoppingCart">
+        select *
+        from shopping_cart
+        <where>
+            <if test="userId != null">
+                and user_id = #{userId}
+            </if>
+            <if test="dishId != null">
+                and dish_id = #{dishId}
+            </if>
+            <if test="setmealId != null">
+                and setmeal_id = #{setmealId}
+            </if>
+            <if test="dishFlavor != null">
+                and dish_flavor = #{dishFlavor}
+            </if>
+        </where>
+        order by create_time desc, id desc
+    </select>
+
     <select id="getOne" parameterType="ShoppingCart" resultType="ShoppingCart">
         select *
         from shopping_cart

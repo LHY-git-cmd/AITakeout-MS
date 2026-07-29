@@ -13,6 +13,11 @@ import java.util.List;
 public interface ShoppingCartMapper {
 
     /**
+     * 动态条件查询购物车数据
+     */
+    List<ShoppingCart> list(ShoppingCart shoppingCart);
+
+    /**
      * 根据条件查询单条购物车数据
      */
     ShoppingCart getOne(ShoppingCart shoppingCart);
