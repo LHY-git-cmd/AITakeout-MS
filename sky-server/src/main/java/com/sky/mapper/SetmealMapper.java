@@ -40,7 +40,7 @@ public interface SetmealMapper {
      * @param setmealId 套餐ID
      * @return 菜品选项列表
      */
-    @Select("select sd.name, sd.copies, d.image, d.description " +
+    @Select("select d.name, sd.copies, d.image, d.description " +
             "from setmeal_dish sd left join dish d on sd.dish_id = d.id " +
             "where sd.setmeal_id = #{setmealId}")
     List<DishItemVO> getDishItemBySetmealId(Long setmealId);

@@ -5,6 +5,7 @@ import com.sky.entity.Setmeal;
 import com.sky.result.Result;
 import com.sky.service.SetmealService;
 import com.sky.vo.DishItemVO;
+import com.sky.vo.SetmealVO;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,15 +42,15 @@ public class SetmealController {
     }
 
     /**
-     * 根据套餐id查询包含的菜品列表
+     * 根据套餐id查询套餐详情（包含套餐信息和菜品列表）
      *
      * @param id
      * @return
      */
     @GetMapping("/dish/{id}")
-    @ApiOperation("根据套餐id查询包含的菜品列表")
-    public Result<List<DishItemVO>> dishList(@PathVariable("id") Long id) {
-        List<DishItemVO> list = setmealService.getDishItemById(id);
-        return Result.success(list);
+    @ApiOperation("根据套餐id查询套餐详情")
+    public Result<SetmealVO> dishList(@PathVariable("id") Long id) {
+        SetmealVO setmealVO = setmealService.getByIdWithDish(id);
+        return Result.success(setmealVO);
     }
 }
