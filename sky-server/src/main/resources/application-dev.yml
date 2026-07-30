@@ -19,3 +19,5 @@ sky:
   wechat:
     appid: wx97c3724defa2be41
     secret: ${WECHAT_APP_SECRET}
+    # 开发环境没有微信支付商户号时启用模拟支付
+    mock-pay: true

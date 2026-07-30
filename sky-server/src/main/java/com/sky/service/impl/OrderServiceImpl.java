@@ -12,6 +12,7 @@ import com.sky.exception.AddressBookBusinessException;
 import com.sky.exception.OrderBusinessException;
 import com.sky.exception.ShoppingCartBusinessException;
 import com.sky.mapper.*;
+import com.sky.properties.WeChatProperties;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
 import com.sky.utils.WeChatPayUtil;
@@ -51,6 +52,8 @@ public class OrderServiceImpl implements OrderService {
     private AddressBookMapper addressBookMapper;
     @Autowired
     private WeChatPayUtil weChatPayUtil;
+    @Autowired
+    private WeChatProperties weChatProperties;
 
     /**
      * 用户下单
@@ -123,10 +126,19 @@ public class OrderServiceImpl implements OrderService {
      * @param ordersPaymentDTO
      * @return
      */
+    @Transactional
     public OrderPaymentVO payment(OrdersPaymentDTO ordersPaymentDTO) throws Exception {
         // 当前登录用户id
         Long userId = BaseContext.getCurrentId();
+
+        if (Boolean.TRUE.equals(weChatProperties.getMockPay())) {
+            return mockPayment(ordersPaymentDTO, userId);
+        }
+
         User user = userMapper.getById(userId);
+        if (user == null || user.getOpenid() == null) {
+            throw new OrderBusinessException("当前用户不存在或未绑定微信账号");
+        }
 
         //调用微信支付接口，生成预支付交易单
         JSONObject jsonObject = weChatPayUtil.pay(
@@ -144,6 +156,48 @@ public class OrderServiceImpl implements OrderService {
         vo.setPackageStr(jsonObject.getString("package"));
 
         return vo;
+    }
+
+    /**
+     * 开发环境模拟支付，不调用微信商户接口
+     */
+    protected OrderPaymentVO mockPayment(OrdersPaymentDTO ordersPaymentDTO, Long userId) {
+        if (ordersPaymentDTO == null || ordersPaymentDTO.getOrderNumber() == null) {
+            throw new OrderBusinessException("订单号不能为空");
+        }
+
+        Orders order = orderMapper.getByNumber(ordersPaymentDTO.getOrderNumber());
+        if (order == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        if (!userId.equals(order.getUserId())) {
+            throw new OrderBusinessException("无权支付该订单");
+        }
+        if (Orders.PAID.equals(order.getPayStatus())) {
+            throw new OrderBusinessException("该订单已支付");
+        }
+        if (!Orders.PENDING_PAYMENT.equals(order.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        Orders paidOrder = Orders.builder()
+                .id(order.getId())
+                .status(Orders.TO_BE_CONFIRMED)
+                .payStatus(Orders.PAID)
+                .payMethod(ordersPaymentDTO.getPayMethod())
+                .checkoutTime(LocalDateTime.now())
+                .build();
+        orderMapper.update(paidOrder);
+
+        log.info("模拟支付成功：userId={}, orderNumber={}", userId, order.getNumber());
+        return OrderPaymentVO.builder()
+                .mockPay(true)
+                .timeStamp(String.valueOf(System.currentTimeMillis() / 1000))
+                .nonceStr("mock")
+                .signType("MOCK")
+                .packageStr("mock_pay_success")
+                .paySign("mock")
+                .build();
     }
 
     /**
