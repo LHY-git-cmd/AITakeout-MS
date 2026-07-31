@@ -53,6 +53,20 @@ public class WebMvcConfiguration extends WebMvcConfigurationSupport {
     }
 
     /**
+     * 配置跨域
+     *
+     * @param registry
+     */
+    protected void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOriginPatterns("*")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true)
+                .maxAge(3600);
+    }
+
+    /**
      * 通过knife4j生成接口文档
      * @return
      */

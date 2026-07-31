@@ -22,12 +22,15 @@ import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
+import com.sky.websocket.WebSocketServer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.CollectionUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -66,6 +69,8 @@ public class OrderServiceImpl implements OrderService {
     private WeChatPayUtil weChatPayUtil;
     @Autowired
     private WeChatProperties weChatProperties;
+    @Autowired
+    private WebSocketServer webSocketServer;
 
     /**
      * 用户下单
@@ -203,6 +208,8 @@ public class OrderServiceImpl implements OrderService {
                 .checkoutTime(LocalDateTime.now())
                 .build();
         orderMapper.update(paidOrder);
+
+        sendNewOrderReminderAfterCommit(order);
 
         log.info("模拟支付成功：userId={}, orderNumber={}", userId, order.getNumber());
         return OrderPaymentVO.builder()
@@ -439,6 +446,26 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
+     * 客户催单，仅待接单状态的本人订单可以催单
+     */
+    @Override
+    public void reminder(Long id) {
+        Orders order = getExistingOrder(id);
+        checkOrderOwner(order);
+        if (!Orders.TO_BE_CONFIRMED.equals(order.getStatus())) {
+            throw new OrderBusinessException("当前订单状态不能催单");
+        }
+
+        Map<String, Object> message = new HashMap<>();
+        message.put("type", 2);
+        message.put("orderId", order.getId());
+        message.put("content", "订单号：" + order.getNumber());
+        webSocketServer.sendToAllClient(JSON.toJSONString(message));
+        log.info("已推送客户催单提醒：userId={}, orderId={}, orderNumber={}",
+                BaseContext.getCurrentId(), order.getId(), order.getNumber());
+    }
+
+    /**
      * 根据ID查询订单，若订单不存在则抛出异常
      */
     private Orders getExistingOrder(Long id) {
@@ -595,10 +622,22 @@ public class OrderServiceImpl implements OrderService {
      *
      * @param outTradeNo
      */
+    @Transactional
     public void paySuccess(String outTradeNo) {
+
+        if (outTradeNo == null || outTradeNo.trim().isEmpty()) {
+            throw new OrderBusinessException("订单号不能为空");
+        }
 
         // 根据订单号查询订单
         Orders ordersDB = orderMapper.getByNumber(outTradeNo);
+        if (ordersDB == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        // 微信可能重复通知，已处理的订单直接返回，避免重复提醒
+        if (Orders.PAID.equals(ordersDB.getPayStatus())) {
+            return;
+        }
 
         // 根据订单id更新订单的状态、支付方式、支付状态、结账时间
         Orders orders = Orders.builder()
@@ -609,6 +648,33 @@ public class OrderServiceImpl implements OrderService {
                 .build();
 
         orderMapper.update(orders);
+
+        sendNewOrderReminderAfterCommit(ordersDB);
+    }
+
+    /**
+     * 按管理端约定的JSON协议推送来单提醒，并确保事务提交成功后再发送。
+     */
+    private void sendNewOrderReminderAfterCommit(Orders order) {
+        Runnable sendAction = () -> {
+            Map<String, Object> message = new HashMap<>();
+            message.put("type", 1);
+            message.put("orderId", order.getId());
+            message.put("content", "订单号：" + order.getNumber());
+            webSocketServer.sendToAllClient(JSON.toJSONString(message));
+            log.info("已推送来单提醒：orderId={}, orderNumber={}", order.getId(), order.getNumber());
+        };
+
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    sendAction.run();
+                }
+            });
+        } else {
+            sendAction.run();
+        }
     }
 
 }
