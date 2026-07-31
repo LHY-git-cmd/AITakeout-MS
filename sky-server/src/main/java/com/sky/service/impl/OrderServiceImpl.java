@@ -1,6 +1,7 @@
 package com.sky.service.impl;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
@@ -15,6 +16,7 @@ import com.sky.mapper.*;
 import com.sky.properties.WeChatProperties;
 import com.sky.result.PageResult;
 import com.sky.service.OrderService;
+import com.sky.utils.HttpClientUtil;
 import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderStatisticsVO;
@@ -23,6 +25,7 @@ import com.sky.vo.OrderVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
@@ -40,6 +43,15 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class OrderServiceImpl implements OrderService {
+    @Value("${sky.shop.address:}")
+    private String shopAddress;
+
+    @Value("${sky.baidu.ak:}")
+    private String baiduAk;
+
+    @Value("${sky.delivery.max-distance:5000}")
+    private Integer maxDeliveryDistance;
+
     @Autowired
     private OrderMapper orderMapper;
     @Autowired
@@ -63,13 +75,16 @@ public class OrderServiceImpl implements OrderService {
      */
     @Transactional
     public OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) {
+        Long userId = BaseContext.getCurrentId();
+
         //异常情况的处理（收货地址为空、购物车为空）
         AddressBook addressBook = addressBookMapper.getById(ordersSubmitDTO.getAddressBookId());
-        if (addressBook == null) {
+        if (addressBook == null || !userId.equals(addressBook.getUserId())) {
             throw new AddressBookBusinessException(MessageConstant.ADDRESS_BOOK_IS_NULL);
         }
 
-        Long userId = BaseContext.getCurrentId();
+        checkOutOfRange(buildFullAddress(addressBook));
+
         ShoppingCart shoppingCart = new ShoppingCart();
         shoppingCart.setUserId(userId);
 
@@ -198,6 +213,381 @@ public class OrderServiceImpl implements OrderService {
                 .packageStr("mock_pay_success")
                 .paySign("mock")
                 .build();
+    }
+
+    @Override
+    public PageResult pageQuery4User(int pageNum, int pageSize, Integer status) {
+        PageHelper.startPage(pageNum, pageSize);
+
+        OrdersPageQueryDTO queryDTO = new OrdersPageQueryDTO();
+        queryDTO.setUserId(BaseContext.getCurrentId());
+        queryDTO.setStatus(status);
+
+        Page<Orders> page = orderMapper.pageQuery(queryDTO);
+        List<OrderVO> orderVOList = new ArrayList<>();
+        for (Orders order : page.getResult()) {
+            OrderVO orderVO = buildOrderVO(order, true);
+            orderVOList.add(orderVO);
+        }
+        return new PageResult(page.getTotal(), orderVOList);
+    }
+
+    @Override
+    public OrderVO details(Long id) {
+        Orders order = getExistingOrder(id);
+        return buildOrderVO(order, true);
+    }
+
+    @Override
+    public OrderVO detailsForUser(Long id) {
+        Orders order = getExistingOrder(id);
+        checkOrderOwner(order);
+        return buildOrderVO(order, true);
+    }
+
+    @Override
+    @Transactional
+    public void userCancelById(Long id) throws Exception {
+        Orders order = getExistingOrder(id);
+        checkOrderOwner(order);
+        if (!Orders.PENDING_PAYMENT.equals(order.getStatus())
+                && !Orders.TO_BE_CONFIRMED.equals(order.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        Orders updateOrder = Orders.builder()
+                .id(order.getId())
+                .status(Orders.CANCELLED)
+                .cancelReason("用户取消")
+                .cancelTime(LocalDateTime.now())
+                .build();
+        refundIfNecessary(order, updateOrder);
+        orderMapper.update(updateOrder);
+    }
+
+    @Override
+    @Transactional
+    public void repetition(Long id) {
+        Orders order = getExistingOrder(id);
+        checkOrderOwner(order);
+
+        List<OrderDetail> orderDetailList = orderDetailMapper.getByOrderId(id);
+        if (CollectionUtils.isEmpty(orderDetailList)) {
+            throw new OrderBusinessException("订单中没有可重新购买的商品");
+        }
+
+        Long userId = BaseContext.getCurrentId();
+        LocalDateTime createTime = LocalDateTime.now();
+        List<ShoppingCart> shoppingCartList = orderDetailList.stream().map(orderDetail -> {
+            ShoppingCart shoppingCart = new ShoppingCart();
+            BeanUtils.copyProperties(orderDetail, shoppingCart, "id");
+            shoppingCart.setUserId(userId);
+            shoppingCart.setCreateTime(createTime);
+            return shoppingCart;
+        }).collect(Collectors.toList());
+        shoppingCartMapper.insertBatch(shoppingCartList);
+    }
+
+    /**
+     * 订单条件搜索（管理端）
+     * 支持按订单号、手机号、状态、下单时间等条件进行分页查询
+     */
+    @Override
+    public PageResult conditionSearch(OrdersPageQueryDTO ordersPageQueryDTO) {
+        // 使用PageHelper进行分页
+        PageHelper.startPage(ordersPageQueryDTO.getPage(), ordersPageQueryDTO.getPageSize());
+        Page<Orders> page = orderMapper.pageQuery(ordersPageQueryDTO);
+
+        // 将订单列表转换为订单VO列表（不包含订单明细详情）
+        List<OrderVO> orderVOList = page.getResult().stream()
+                .map(order -> buildOrderVO(order, false))
+                .collect(Collectors.toList());
+        return new PageResult(page.getTotal(), orderVOList);
+    }
+
+    /**
+     * 统计各个状态的订单数量
+     * 统计待接单、已接单、派送中的订单数量，用于管理端首页展示
+     */
+    @Override
+    public OrderStatisticsVO statistics() {
+        OrderStatisticsVO orderStatisticsVO = new OrderStatisticsVO();
+        orderStatisticsVO.setToBeConfirmed(orderMapper.countStatus(Orders.TO_BE_CONFIRMED));
+        orderStatisticsVO.setConfirmed(orderMapper.countStatus(Orders.CONFIRMED));
+        orderStatisticsVO.setDeliveryInProgress(orderMapper.countStatus(Orders.DELIVERY_IN_PROGRESS));
+        return orderStatisticsVO;
+    }
+
+    /**
+     * 接单
+     * 将订单状态由"待接单"(2)改为"已接单"(3)
+     */
+    @Override
+    public void confirm(OrdersConfirmDTO ordersConfirmDTO) {
+        Orders order = getExistingOrder(ordersConfirmDTO.getId());
+        // 校验订单状态必须为"待接单"
+        if (!Orders.TO_BE_CONFIRMED.equals(order.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        // 更新订单状态为"已接单"
+        orderMapper.update(Orders.builder()
+                .id(order.getId())
+                .status(Orders.CONFIRMED)
+                .build());
+    }
+
+    /**
+     * 拒单
+     * 将订单状态改为"已取消"(6)，记录拒单原因和取消时间；
+     * 若订单已支付，则调用微信退款接口进行退款
+     */
+    @Override
+    @Transactional
+    public void rejection(OrdersRejectionDTO ordersRejectionDTO) throws Exception {
+        // 校验拒单原因不能为空
+        if (ordersRejectionDTO == null || ordersRejectionDTO.getRejectionReason() == null
+                || ordersRejectionDTO.getRejectionReason().trim().isEmpty()) {
+            throw new OrderBusinessException("拒单原因不能为空");
+        }
+
+        Orders order = getExistingOrder(ordersRejectionDTO.getId());
+        // 校验订单状态必须为"待接单"
+        if (!Orders.TO_BE_CONFIRMED.equals(order.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        // 构建更新订单对象，设置状态为"已取消"、拒单原因和取消时间
+        Orders updateOrder = Orders.builder()
+                .id(order.getId())
+                .status(Orders.CANCELLED)
+                .rejectionReason(ordersRejectionDTO.getRejectionReason())
+                .cancelTime(LocalDateTime.now())
+                .build();
+        // 如需退款则进行退款处理
+        refundIfNecessary(order, updateOrder);
+        orderMapper.update(updateOrder);
+    }
+
+    /**
+     * 取消订单（管理端）
+     * 商家后台取消订单，需填写取消原因；
+     * 若订单已支付，则调用微信退款接口进行退款
+     */
+    @Override
+    @Transactional
+    public void cancel(OrdersCancelDTO ordersCancelDTO) throws Exception {
+        // 校验取消原因不能为空
+        if (ordersCancelDTO == null || ordersCancelDTO.getCancelReason() == null
+                || ordersCancelDTO.getCancelReason().trim().isEmpty()) {
+            throw new OrderBusinessException("取消原因不能为空");
+        }
+
+        Orders order = getExistingOrder(ordersCancelDTO.getId());
+        // 校验订单状态：已取消或已完成的订单不能再取消
+        if (Orders.CANCELLED.equals(order.getStatus()) || Orders.COMPLETED.equals(order.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+
+        // 构建更新订单对象，设置状态为"已取消"、取消原因和取消时间
+        Orders updateOrder = Orders.builder()
+                .id(order.getId())
+                .status(Orders.CANCELLED)
+                .cancelReason(ordersCancelDTO.getCancelReason())
+                .cancelTime(LocalDateTime.now())
+                .build();
+        // 如需退款则进行退款处理
+        refundIfNecessary(order, updateOrder);
+        orderMapper.update(updateOrder);
+    }
+
+    /**
+     * 派送订单
+     * 将订单状态由"已接单"(3)改为"派送中"(4)
+     */
+    @Override
+    public void delivery(Long id) {
+        Orders order = getExistingOrder(id);
+        // 校验订单状态必须为"已接单"
+        if (!Orders.CONFIRMED.equals(order.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+        // 更新订单状态为"派送中"
+        orderMapper.update(Orders.builder()
+                .id(order.getId())
+                .status(Orders.DELIVERY_IN_PROGRESS)
+                .build());
+    }
+
+    /**
+     * 完成订单
+     * 将订单状态由"派送中"(4)改为"已完成"(5)，并记录送达时间
+     */
+    @Override
+    public void complete(Long id) {
+        Orders order = getExistingOrder(id);
+        // 校验订单状态必须为"派送中"
+        if (!Orders.DELIVERY_IN_PROGRESS.equals(order.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+        // 更新订单状态为"已完成"，记录送达时间
+        orderMapper.update(Orders.builder()
+                .id(order.getId())
+                .status(Orders.COMPLETED)
+                .deliveryTime(LocalDateTime.now())
+                .build());
+    }
+
+    /**
+     * 根据ID查询订单，若订单不存在则抛出异常
+     */
+    private Orders getExistingOrder(Long id) {
+        if (id == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        Orders order = orderMapper.getById(id);
+        if (order == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        return order;
+    }
+
+    /**
+     * 校验订单归属，确保当前登录用户是订单的所有者
+     */
+    private void checkOrderOwner(Orders order) {
+        Long userId = BaseContext.getCurrentId();
+        if (userId == null || !userId.equals(order.getUserId())) {
+            throw new OrderBusinessException("无权访问该订单");
+        }
+    }
+
+    /**
+     * 构建订单VO对象
+     * @param order 订单实体
+     * @param includeDetails 是否包含订单明细详情
+     */
+    private OrderVO buildOrderVO(Orders order, boolean includeDetails) {
+        List<OrderDetail> orderDetailList = orderDetailMapper.getByOrderId(order.getId());
+        OrderVO orderVO = new OrderVO();
+        BeanUtils.copyProperties(order, orderVO);
+        // 根据需要是否包含订单明细
+        if (includeDetails) {
+            orderVO.setOrderDetailList(orderDetailList);
+        }
+        // 拼接订单中的菜品描述（如：宫保鸡丁*2；鱼香肉丝*1；）
+        if (!CollectionUtils.isEmpty(orderDetailList)) {
+            String orderDishes = orderDetailList.stream()
+                    .map(detail -> detail.getName() + "*" + detail.getNumber() + ";")
+                    .collect(Collectors.joining());
+            orderVO.setOrderDishes(orderDishes);
+        }
+        return orderVO;
+    }
+
+    /**
+     * 如有必要则进行退款处理
+     * 若订单已支付且非模拟支付环境，则调用微信退款接口
+     * @param order 原订单信息（用于判断支付状态）
+     * @param updateOrder 待更新的订单对象（设置退款后的支付状态）
+     */
+    private void refundIfNecessary(Orders order, Orders updateOrder) throws Exception {
+        // 仅对已支付的订单进行退款
+        if (!Orders.PAID.equals(order.getPayStatus())) {
+            return;
+        }
+
+        // 非模拟支付环境下调用微信退款接口
+        if (!Boolean.TRUE.equals(weChatProperties.getMockPay())) {
+            weChatPayUtil.refund(
+                    order.getNumber(),
+                    order.getNumber(),
+                    new BigDecimal("0.01"),
+                    new BigDecimal("0.01"));
+        }
+        updateOrder.setPayStatus(Orders.REFUND);
+    }
+
+    /**
+     * 校验收货地址是否超出配送范围。未配置百度地图AK时跳过，便于本地开发。
+     */
+    private void checkOutOfRange(String userAddress) {
+        if (baiduAk == null || baiduAk.trim().isEmpty()) {
+            log.warn("未配置BAIDU_MAP_AK，跳过配送范围校验");
+            return;
+        }
+        if (shopAddress == null || shopAddress.trim().isEmpty()) {
+            throw new OrderBusinessException("未配置商家门店地址");
+        }
+
+        Map<String, String> params = new HashMap<>();
+        params.put("address", shopAddress);
+        params.put("output", "json");
+        params.put("ak", baiduAk);
+
+        String shopCoordinateJson = HttpClientUtil.doGet(
+                "https://api.map.baidu.com/geocoding/v3", params);
+        JSONObject shopResult = parseMapResult(shopCoordinateJson, "店铺地址解析失败");
+        String shopCoordinate = getCoordinate(shopResult);
+
+        params.put("address", userAddress);
+        String userCoordinateJson = HttpClientUtil.doGet(
+                "https://api.map.baidu.com/geocoding/v3", params);
+        JSONObject userResult = parseMapResult(userCoordinateJson, "收货地址解析失败");
+        String userCoordinate = getCoordinate(userResult);
+
+        params.clear();
+        params.put("origin", shopCoordinate);
+        params.put("destination", userCoordinate);
+        params.put("steps_info", "0");
+        params.put("ak", baiduAk);
+
+        String routeJson = HttpClientUtil.doGet(
+                "https://api.map.baidu.com/directionlite/v1/driving", params);
+        JSONObject routeResult = parseMapResult(routeJson, "配送路线规划失败");
+        JSONArray routes = routeResult.getJSONObject("result").getJSONArray("routes");
+        if (routes == null || routes.isEmpty()) {
+            throw new OrderBusinessException("未查询到可用配送路线");
+        }
+
+        Integer distance = routes.getJSONObject(0).getInteger("distance");
+        if (distance == null) {
+            throw new OrderBusinessException("配送距离解析失败");
+        }
+        if (distance > maxDeliveryDistance) {
+            throw new OrderBusinessException("超出配送范围");
+        }
+    }
+
+    private JSONObject parseMapResult(String json, String errorMessage) {
+        if (json == null || json.trim().isEmpty()) {
+            throw new OrderBusinessException(errorMessage);
+        }
+        JSONObject jsonObject = JSON.parseObject(json);
+        if (!Integer.valueOf(0).equals(jsonObject.getInteger("status"))) {
+            log.warn("百度地图接口调用失败：{}", jsonObject);
+            throw new OrderBusinessException(errorMessage);
+        }
+        return jsonObject;
+    }
+
+    private String getCoordinate(JSONObject coordinateResult) {
+        JSONObject location = coordinateResult.getJSONObject("result").getJSONObject("location");
+        if (location == null || location.getString("lat") == null || location.getString("lng") == null) {
+            throw new OrderBusinessException("地址坐标解析失败");
+        }
+        return location.getString("lat") + "," + location.getString("lng");
+    }
+
+    private String buildFullAddress(AddressBook addressBook) {
+        return safeText(addressBook.getProvinceName())
+                + safeText(addressBook.getCityName())
+                + safeText(addressBook.getDistrictName())
+                + safeText(addressBook.getDetail());
+    }
+
+    private String safeText(String text) {
+        return text == null ? "" : text;
     }
 
     /**
