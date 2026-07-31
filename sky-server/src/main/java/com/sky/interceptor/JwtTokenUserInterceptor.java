@@ -37,6 +37,13 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
         //1，从请求头中获取令牌
         String token = request.getHeader(jwtProperties.getUserTokenName());
 
+        //1.1、判断令牌是否为空
+        if (token == null || token.isEmpty()) {
+            log.warn("用户端jwt校验：请求头中未携带令牌");
+            response.setStatus(401);
+            return false;
+        }
+
         //2、校验令牌
         try {
             log.info("用户端jwt校验:{}", token);

@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.sky.constant.MessageConstant;
 import com.sky.dto.UserLoginDTO;
 import com.sky.entity.User;
+import com.sky.exception.LoginFailedException;
 import com.sky.mapper.UserMapper;
 import com.sky.properties.WeChatProperties;
 import com.sky.service.UserService;
@@ -34,7 +35,7 @@ public class UserServiceImpl implements UserService {
         String openid = getOpenid(userLoginDTO.getCode());
         
         if (openid == null) {
-            throw new RuntimeException(MessageConstant.LOGIN_FAILED);
+            throw new LoginFailedException(MessageConstant.LOGIN_FAILED);
         }
 
         //判断是否为新用户
@@ -59,7 +60,6 @@ public class UserServiceImpl implements UserService {
         @return
     */
     private String getOpenid(String code) {
-        //调用微信接口服务，获得当前微信用户的openid
         Map<String, String> map = new HashMap<>();
         map.put("appid", weChatProperties.getAppid());
         map.put("secret", weChatProperties.getSecret());
@@ -67,8 +67,24 @@ public class UserServiceImpl implements UserService {
         map.put("grant_type", "authorization_code");
         String json = HttpClientUtil.doGet(WX_LOGIN, map);
 
-        JSONObject jsonObject = JSON.parseObject(json);
-        String openid = jsonObject.getString("openid");
-        return openid;
+        log.info("微信登录返回：{}", json);
+        if (json == null || json.isEmpty()) {
+            log.warn("调用微信接口失败，返回为空");
+            return null;
+        }
+
+        try {
+            JSONObject jsonObject = JSON.parseObject(json);
+            String openid = jsonObject.getString("openid");
+            if (openid == null) {
+                String errcode = jsonObject.getString("errcode");
+                String errmsg = jsonObject.getString("errmsg");
+                log.warn("获取openid失败：errcode={}, errmsg={}", errcode, errmsg);
+            }
+            return openid;
+        } catch (Exception e) {
+            log.error("解析微信登录响应失败", e);
+            return null;
+        }
     }
 }
