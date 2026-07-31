@@ -1,14 +1,15 @@
 package com.sky.mapper;
 
 import com.github.pagehelper.Page;
-import com.sky.dto.GoodsSalesDTO;
+
 import com.sky.dto.OrdersPageQueryDTO;
 import com.sky.entity.Orders;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+
 
 @Mapper
 public interface OrderMapper {
@@ -17,6 +18,17 @@ public interface OrderMapper {
      * @param order
      */
     void insert(Orders order);
+
+    /**
+     * 分页条件查询订单
+     */
+    Page<Orders> pageQuery(OrdersPageQueryDTO ordersPageQueryDTO);
+
+    /**
+     * 根据id查询订单
+     */
+    @Select("select * from orders where id = #{id}")
+    Orders getById(Long id);
 
     /**
      * 根据订单号查询订单
@@ -30,5 +42,19 @@ public interface OrderMapper {
      * @param orders
      */
     void update(Orders orders);
+
+    /**
+     * 根据状态统计订单数量
+     * 用于管理端首页统计各状态的订单数量
+     */
+    @Select("select count(id) from orders where status = #{status}")
+    Integer countStatus(Integer status);
+
+    /**
+     * 查询指定状态且早于指定下单时间的订单
+     */
+    @Select("select * from orders where status = #{status} and order_time < #{orderTime}")
+    List<Orders> getByStatusAndOrderTimeLT(@Param("status") Integer status,
+                                           @Param("orderTime") LocalDateTime orderTime);
 
 }

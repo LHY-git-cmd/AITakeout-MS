@@ -55,4 +55,30 @@ public class OrderController {
         return Result.success(orderPaymentVO);
     }
 
+    @GetMapping("/historyOrders")
+    @ApiOperation("历史订单查询")
+    public Result<PageResult> historyOrders(int page, int pageSize, Integer status) {
+        return Result.success(orderService.pageQuery4User(page, pageSize, status));
+    }
+
+    @GetMapping("/orderDetail/{id}")
+    @ApiOperation("查询订单详情")
+    public Result<OrderVO> details(@PathVariable Long id) {
+        return Result.success(orderService.detailsForUser(id));
+    }
+
+    @PutMapping("/cancel/{id}")
+    @ApiOperation("取消订单")
+    public Result<String> cancel(@PathVariable Long id) throws Exception {
+        orderService.userCancelById(id);
+        return Result.success();
+    }
+
+    @PostMapping("/repetition/{id}")
+    @ApiOperation("再来一单")
+    public Result<String> repetition(@PathVariable Long id) {
+        orderService.repetition(id);
+        return Result.success();
+    }
+
 }
