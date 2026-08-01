@@ -10,6 +10,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 套餐数据访问接口
@@ -112,4 +113,11 @@ public interface SetmealMapper {
      * @return 套餐列表
      */
     List<Setmeal> getByIds(@Param("ids") List<Long> ids);
+
+    /**
+     * 根据条件统计套餐数量
+     * @param map 查询条件
+     * @return 套餐数量
+     */
+    Integer countByMap(Map<String, Object> map);
 }

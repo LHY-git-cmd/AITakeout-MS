@@ -83,4 +83,17 @@
         </foreach>
     </select>
 
+    <select id="countByMap" parameterType="java.util.Map" resultType="java.lang.Integer">
+        select count(id)
+        from setmeal
+        <where>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+            <if test="categoryId != null">
+                and category_id = #{categoryId}
+            </if>
+        </where>
+    </select>
+
 </mapper>
