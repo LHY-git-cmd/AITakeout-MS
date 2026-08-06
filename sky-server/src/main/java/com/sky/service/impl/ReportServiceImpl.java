@@ -6,13 +6,24 @@ import com.sky.exception.OrderBusinessException;
 import com.sky.mapper.OrderMapper;
 import com.sky.mapper.UserMapper;
 import com.sky.service.ReportService;
+import com.sky.service.WorkspaceService;
+import com.sky.vo.BusinessDataVO;
 import com.sky.vo.OrderReportVO;
 import com.sky.vo.SalesTop10ReportVO;
 import com.sky.vo.TurnoverReportVO;
 import com.sky.vo.UserReportVO;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.xssf.usermodel.XSSFRow;
+import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.servlet.ServletOutputStream;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLEncoder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -22,6 +33,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class ReportServiceImpl implements ReportService {
 
     @Autowired
@@ -29,6 +41,9 @@ public class ReportServiceImpl implements ReportService {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private WorkspaceService workspaceService;
 
     /**
      * 统计指定日期范围内每天的营业额
@@ -262,5 +277,87 @@ public class ReportServiceImpl implements ReportService {
                 .nameList(nameList)
                 .numberList(numberList)
                 .build();
+    }
+
+    /**
+     * 导出最近30天的运营数据报表
+     * 报表统计范围为昨天及之前的30个完整自然日
+     *
+     * @param response HTTP响应对象
+     */
+    @Override
+    public void exportBusinessData(HttpServletResponse response) {
+        LocalDate dateEnd = LocalDate.now().minusDays(1);
+        LocalDate dateBegin = dateEnd.minusDays(29);
+
+        //查询最近30天的概览数据
+        BusinessDataVO overviewData = workspaceService.getBusinessData(
+                dateBegin.atStartOfDay(),
+                dateEnd.plusDays(1).atStartOfDay());
+
+        InputStream templateInput = getClass().getClassLoader()
+                .getResourceAsStream("template/运营数据报表模板.xlsx");
+        if (templateInput == null) {
+            throw new OrderBusinessException("运营数据报表模板不存在");
+        }
+
+        String fileName;
+        try {
+            fileName = URLEncoder.encode("运营数据报表.xlsx", "UTF-8")
+                    .replace("+", "%20");
+        } catch (Exception e) {
+            throw new OrderBusinessException("运营数据报表文件名编码失败");
+        }
+
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + fileName);
+        response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+
+        //读取模板、填充概览和每日明细数据，然后写入响应流
+        try (InputStream inputStream = templateInput;
+             XSSFWorkbook workbook = new XSSFWorkbook(inputStream);
+             ServletOutputStream outputStream = response.getOutputStream()) {
+            XSSFSheet sheet = workbook.getSheet("Sheet1");
+            if (sheet == null) {
+                throw new OrderBusinessException("运营数据报表模板缺少Sheet1工作表");
+            }
+
+            //填充报表统计时间
+            sheet.getRow(1).getCell(1)
+                    .setCellValue("时间：" + dateBegin + " 至 " + dateEnd);
+
+            //填充概览数据
+            XSSFRow row = sheet.getRow(3);
+            row.getCell(2).setCellValue(overviewData.getTurnover());
+            row.getCell(4).setCellValue(overviewData.getOrderCompletionRate());
+            row.getCell(6).setCellValue(overviewData.getNewUsers());
+
+            row = sheet.getRow(4);
+            row.getCell(2).setCellValue(overviewData.getValidOrderCount());
+            row.getCell(4).setCellValue(overviewData.getUnitPrice());
+
+            //填充30天的运营数据明细，对应模板第8行至第37行
+            for (int i = 0; i < 30; i++) {
+                LocalDate date = dateBegin.plusDays(i);
+                BusinessDataVO dailyData = workspaceService.getBusinessData(
+                        date.atStartOfDay(),
+                        date.plusDays(1).atStartOfDay());
+
+                row = sheet.getRow(7 + i);
+                row.getCell(1).setCellValue(date.toString());
+                row.getCell(2).setCellValue(dailyData.getTurnover());
+                row.getCell(3).setCellValue(dailyData.getValidOrderCount());
+                row.getCell(4).setCellValue(dailyData.getOrderCompletionRate());
+                row.getCell(5).setCellValue(dailyData.getUnitPrice());
+                row.getCell(6).setCellValue(dailyData.getNewUsers());
+            }
+
+            workbook.write(outputStream);
+            outputStream.flush();
+        } catch (IOException e) {
+            log.error("运营数据报表导出失败", e);
+            throw new OrderBusinessException("运营数据报表导出失败");
+        }
     }
 }
