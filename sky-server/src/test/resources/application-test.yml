@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    druid:
+      driver-class-name: org.h2.Driver
+      url: jdbc:h2:mem:sky_take_out;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+      username: sa
+      password:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 15
+  task:
+    scheduling:
+      enabled: false
+
+sky:
+  jwt:
+    admin-secret-key: test-admin-secret-key-test-admin-secret-key
+    admin-ttl: 7200000
+    admin-token-name: token
+    user-secret-key: test-user-secret-key-test-user-secret-key
+    user-ttl: 7200000
+    user-token-name: authentication
+  alioss:
+    endpoint: test
+    access-key-secret: test
+    access-key-id: test
+    bucket-name: test
+  wechat:
+    appid: test
+    secret: test
+  shop:
+    address: test
+  baidu:
+    ak:
+  delivery:
+    max-distance: 5000
