@@ -19,6 +19,32 @@ spring:
       port: ${sky.redis.port}
       password: ${sky.redis.password}
       database: ${sky.redis.database}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: "0"
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  ai:
+    model:
+      chat: ${AI_CHAT_MODEL:none}
+      embedding: none
+      image: none
+      audio:
+        transcription: none
+        speech: none
+      moderation: none
+    chat:
+      client:
+        enabled: ${AI_ENABLED:false}
+    openai:
+      api-key: ${DEEPSEEK_API_KEY:}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      chat:
+        completions-path: /v1/chat/completions
+        options:
+          model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
+          reasoning-effort: ${DEEPSEEK_REASONING_EFFORT:high}
 
 mybatis:
   #mapper配置文件
@@ -61,3 +87,9 @@ sky:
     ak: ${BAIDU_MAP_AK:}
   delivery:
     max-distance: 5000
+  ai:
+    enabled: ${AI_ENABLED:false}
+    daily-limit: 10
+    context-message-limit: 20
+    retention-days: 90
+    generation-timeout: 60s
