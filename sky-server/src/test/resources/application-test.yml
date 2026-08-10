@@ -13,6 +13,8 @@ spring:
   task:
     scheduling:
       enabled: false
+  flyway:
+    enabled: false
 
 sky:
   jwt:
@@ -36,3 +38,9 @@ sky:
     ak:
   delivery:
     max-distance: 5000
+  ai:
+    enabled: false
+    daily-limit: 10
+    context-message-limit: 20
+    retention-days: 90
+    generation-timeout: 60s
