@@ -9,6 +9,7 @@ import jakarta.websocket.OnOpen;
 import jakarta.websocket.Session;
 import jakarta.websocket.server.PathParam;
 import jakarta.websocket.server.ServerEndpoint;
+import java.nio.channels.ClosedChannelException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -20,7 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class WebSocketServer {
 
-    //存放会话对象（使用ConcurrentHashMap保证线程安全）
     private static final Map<String, Session> sessionMap = new ConcurrentHashMap<>();
 
     /**
@@ -41,8 +41,6 @@ public class WebSocketServer {
 
     /**
      * 收到客户端消息后调用的方法
-     *
-     * @param message 客户端发送过来的消息
      */
     @OnMessage
     public void onMessage(String message, @PathParam("sid") String sid) {
@@ -51,8 +49,6 @@ public class WebSocketServer {
 
     /**
      * 连接关闭调用的方法
-     *
-     * @param sid
      */
     @OnClose
     public void onClose(@PathParam("sid") String sid) {
@@ -60,34 +56,73 @@ public class WebSocketServer {
         log.info("WebSocket客户端断开连接：sid={}, online={}", sid, sessionMap.size());
     }
 
+    /**
+     * 连接异常处理：将IO异常和ClosedChannel视为正常断开，不再输出warn级别日志
+     */
     @OnError
     public void onError(Session session, Throwable error, @PathParam("sid") String sid) {
         sessionMap.remove(sid, session);
-        log.warn("WebSocket连接异常：sid={}", sid, error);
+        if (isDisconnectException(error)) {
+            log.info("WebSocket连接异常断开：sid={}, online={}", sid, sessionMap.size());
+        } else {
+            log.warn("WebSocket连接异常：sid={}", sid, error);
+        }
+        try {
+            if (session.isOpen()) {
+                session.close();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * 判断是否为客户端主动断开导致的异常
+     */
+    private boolean isDisconnectException(Throwable error) {
+        Throwable cause = error;
+        while (cause != null) {
+            if (cause instanceof ClosedChannelException) {
+                return true;
+            }
+            String simpleName = cause.getClass().getSimpleName();
+            if (simpleName.contains("Closed") || simpleName.contains("Broken")) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     /**
      * 群发消息
-     *
-     * @param message 要发送的消息
      */
     public void sendToAllClient(String message) {
         for (Map.Entry<String, Session> entry : sessionMap.entrySet()) {
+            String sid = entry.getKey();
             Session session = entry.getValue();
             if (!session.isOpen()) {
-                sessionMap.remove(entry.getKey(), session);
+                sessionMap.remove(sid, session);
                 continue;
             }
             try {
                 session.getAsyncRemote().sendText(message, result -> {
                     if (!result.isOK()) {
-                        sessionMap.remove(entry.getKey(), session);
-                        log.warn("WebSocket消息发送失败：sid={}", entry.getKey(), result.getException());
+                        Throwable ex = result.getException();
+                        sessionMap.remove(sid, session);
+                        if (ex != null && isDisconnectException(ex)) {
+                            log.info("WebSocket消息发送失败(连接已关闭)：sid={}", sid);
+                        } else {
+                            log.warn("WebSocket消息发送失败：sid={}", sid, ex);
+                        }
                     }
                 });
             } catch (Exception exception) {
-                sessionMap.remove(entry.getKey(), session);
-                log.warn("WebSocket消息发送异常：sid={}", entry.getKey(), exception);
+                sessionMap.remove(sid, session);
+                if (isDisconnectException(exception)) {
+                    log.info("WebSocket消息发送异常(连接已关闭)：sid={}", sid);
+                } else {
+                    log.warn("WebSocket消息发送异常：sid={}", sid, exception);
+                }
             }
         }
     }
