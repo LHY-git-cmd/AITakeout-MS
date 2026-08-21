@@ -9,20 +9,22 @@
     </insert>
 
     <!-- 分页查询菜品 -->
-    <select id="pageQuery" resultType="com.sky.entity.Dish">
-        select * from dish
+    <select id="pageQuery" resultType="com.sky.vo.DishVO">
+        select d.*, c.name as category_name
+        from dish d
+        left join category c on d.category_id = c.id
         <where>
             <if test="name != null and name != ''">
-                and name like concat('%',#{name},'%')
+                and d.name like concat('%',#{name},'%')
             </if>
             <if test="categoryId != null">
-                and category_id = #{categoryId}
+                and d.category_id = #{categoryId}
             </if>
             <if test="status != null">
-                and status = #{status}
+                and d.status = #{status}
             </if>
         </where>
-        order by create_time desc
+        order by d.create_time desc
     </select>
 
     <!-- 根据id删除菜品 -->
