@@ -7,6 +7,7 @@ import com.sky.dto.DishDTO;
 import com.sky.dto.DishPageQueryDTO;
 import com.sky.entity.Dish;
 import com.sky.entity.DishFlavor;
+import com.sky.entity.Setmeal;
 import com.sky.exception.DeletionNotAllowedException;
 import com.sky.mapper.DishFlavorMapper;
 import com.sky.mapper.DishMapper;
@@ -23,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.sky.constant.StatusConstant.DISABLE;
 
 @Slf4j
 @Service
@@ -77,7 +80,7 @@ public class DishServiceImpl implements DishService {
         log.info("菜品分页查询：{}", dishPageQueryDTO);
 
         PageHelper.startPage(dishPageQueryDTO.getPage(), dishPageQueryDTO.getPageSize());
-        Page<Dish> page = dishMapper.pageQuery(dishPageQueryDTO);
+        Page<DishVO> page = dishMapper.pageQuery(dishPageQueryDTO);
 
         return new PageResult(page.getTotal(), page.getResult());
     }
@@ -189,6 +192,7 @@ public class DishServiceImpl implements DishService {
      * @param id
      */
     @Override
+    @Transactional
     public void startOrStop(Integer status, Long id) {
         log.info("菜品状态变更：菜品ID={}, 状态={}", id, status);
 
@@ -198,5 +202,16 @@ public class DishServiceImpl implements DishService {
                 .build();
 
         dishMapper.updateStatus(dish);
+
+        if (DISABLE.equals(status)) {
+            List<Long> setmealIds = setmealDishMapper.getSetmealIdsByDishId(id);
+            if (setmealIds != null && !setmealIds.isEmpty()) {
+                setmealIds.forEach(setmealId -> setmealMapper.update(
+                        Setmeal.builder()
+                                .id(setmealId)
+                                .status(DISABLE)
+                                .build()));
+            }
+        }
     }
 }
