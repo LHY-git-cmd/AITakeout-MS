@@ -17,9 +17,11 @@ import com.sky.result.PageResult;
 import com.sky.service.EmployeeService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Service
@@ -27,6 +29,8 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     @Autowired
     private EmployeeMapper employeeMapper;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     /**
      * 员工登录
@@ -47,10 +51,7 @@ public class EmployeeServiceImpl implements EmployeeService {
             throw new AccountNotFoundException(MessageConstant.ACCOUNT_NOT_FOUND);
         }
 
-        //密码比对
-            // 对前端传过来的密码进行md5加密处理
-        password =DigestUtils.md5DigestAsHex(password.getBytes());
-        if (!password.equals(employee.getPassword())) {
+        if (!matchesPassword(password, employee.getPassword())) {
             //密码错误
             throw new PasswordErrorException(MessageConstant.PASSWORD_ERROR);
         }
@@ -58,6 +59,14 @@ public class EmployeeServiceImpl implements EmployeeService {
         if (employee.getStatus() == StatusConstant.DISABLE) {
             //账号被锁定
             throw new AccountLockedException(MessageConstant.ACCOUNT_LOCKED);
+        }
+
+        // 旧 MD5 密码在首次成功登录后升级，避免要求现有员工重置密码。
+        if (isLegacyMd5(employee.getPassword())) {
+            employeeMapper.update(Employee.builder()
+                    .id(employee.getId())
+                    .password(passwordEncoder.encode(password))
+                    .build());
         }
 
         //3、返回实体对象
@@ -79,7 +88,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setStatus(StatusConstant.ENABLE);
 
         //设置默认密码
-        employee.setPassword(DigestUtils.md5DigestAsHex(PasswordConstant.DEFAULT_PASSWORD.getBytes()));
+        employee.setPassword(passwordEncoder.encode(PasswordConstant.DEFAULT_PASSWORD));
 
 //        //设置当前记录的创建时间和更新时间
 //        employee.setCreateTime(LocalDateTime.now());
@@ -137,5 +146,20 @@ public class EmployeeServiceImpl implements EmployeeService {
 //        employee.setUpdateTime(LocalDateTime.now());
 //        employee.setUpdateUser(BaseContext.getCurrentId());
         employeeMapper.update(employee);
+    }
+
+    private boolean matchesPassword(String rawPassword, String storedPassword) {
+        if (rawPassword == null || storedPassword == null) {
+            return false;
+        }
+        if (isLegacyMd5(storedPassword)) {
+            String md5 = DigestUtils.md5DigestAsHex(rawPassword.getBytes(StandardCharsets.UTF_8));
+            return md5.equalsIgnoreCase(storedPassword);
+        }
+        return passwordEncoder.matches(rawPassword, storedPassword);
+    }
+
+    private boolean isLegacyMd5(String password) {
+        return password != null && password.matches("(?i)^[0-9a-f]{32}$");
     }
 }

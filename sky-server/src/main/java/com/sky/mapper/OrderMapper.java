@@ -46,6 +46,19 @@ public interface OrderMapper {
     void update(Orders orders);
 
     /**
+     * 仅当订单仍处于期望状态时更新，返回实际更新行数。
+     */
+    int updateByExpectedStatus(@Param("order") Orders order,
+                               @Param("expectedStatus") Integer expectedStatus);
+
+    /**
+     * 支付成功时同时校验订单状态和支付状态，保证回调幂等。
+     */
+    int updatePaymentByExpectedStatus(@Param("order") Orders order,
+                                      @Param("expectedStatus") Integer expectedStatus,
+                                      @Param("expectedPayStatus") Integer expectedPayStatus);
+
+    /**
      * 根据状态统计订单数量
      * 用于管理端首页统计各状态的订单数量
      */

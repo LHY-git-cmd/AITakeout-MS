@@ -65,6 +65,8 @@ logging:
 sky:
   web-login:
     enabled: false
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:9528,http://localhost:8081}
   jwt:
     # 设置jwt签名加密时使用的秘钥（至少32个字符）
     admin-secret-key: itcast-itcast-itcast-itcast-itcast

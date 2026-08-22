@@ -34,6 +34,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
@@ -171,6 +172,8 @@ class OrderServiceImplTest {
                 .status(Orders.TO_BE_CONFIRMED)
                 .build();
         when(orderMapper.getById(20L)).thenReturn(order);
+        when(orderMapper.updateByExpectedStatus(any(Orders.class),
+                org.mockito.ArgumentMatchers.eq(Orders.TO_BE_CONFIRMED))).thenReturn(1);
         OrdersConfirmDTO request = new OrdersConfirmDTO();
         request.setId(20L);
 
@@ -178,5 +181,26 @@ class OrderServiceImplTest {
 
         verify(webSocketServer).sendOrderStatusToUser(
                 7L, 20L, Orders.CONFIRMED, "商家已接单");
+    }
+
+    @Test
+    void shouldRejectConcurrentOrderStatusChangeWithoutNotification() {
+        Orders order = Orders.builder()
+                .id(20L)
+                .userId(7L)
+                .number("202608220001")
+                .status(Orders.TO_BE_CONFIRMED)
+                .build();
+        when(orderMapper.getById(20L)).thenReturn(order);
+        when(orderMapper.updateByExpectedStatus(any(Orders.class),
+                org.mockito.ArgumentMatchers.eq(Orders.TO_BE_CONFIRMED))).thenReturn(0);
+        OrdersConfirmDTO request = new OrdersConfirmDTO();
+        request.setId(20L);
+
+        assertThrows(com.sky.exception.OrderBusinessException.class,
+                () -> orderService.confirm(request));
+
+        verify(webSocketServer, never()).sendOrderStatusToUser(
+                any(), any(), any(), any());
     }
 }

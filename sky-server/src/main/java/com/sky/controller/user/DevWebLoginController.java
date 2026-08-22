@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.Valid;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,11 +35,15 @@ public class DevWebLoginController {
 
     @PostMapping("/login/web")
     @Operation(summary = "Web 端手机号演示登录")
-    public Result<UserLoginVO> login(@RequestBody WebUserLoginDTO webUserLoginDTO) {
+    public Result<UserLoginVO> login(@Valid @RequestBody WebUserLoginDTO webUserLoginDTO) {
+        //日志脱敏，记录手机号前三位与后四位
         String maskedPhone = webUserLoginDTO == null ? null : maskPhone(webUserLoginDTO.getPhone());
         log.info("Web 演示登录：{}", maskedPhone);
 
+        //Web 端手机号登录
         User user = userService.webLogin(webUserLoginDTO);
+
+        //为登录用户生成jwt令牌
         Map<String, Object> claims = new HashMap<>();
         claims.put(JwtClaimsConstant.USER_ID, user.getId());
         String token = JwtUtil.createJWT(
@@ -55,6 +60,12 @@ public class DevWebLoginController {
                 .build());
     }
 
+    /**
+     * 手机号脱敏处理
+     *
+     * @param phone 原始手机号
+     * @return 脱敏后的手机号
+     */
     private String maskPhone(String phone) {
         if (phone == null || phone.length() < 7) {
             return phone;

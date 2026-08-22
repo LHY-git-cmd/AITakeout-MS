@@ -69,6 +69,52 @@
         where id = #{id}
     </update>
 
+    <sql id="orderUpdateColumns">
+        <if test="order.cancelReason != null and order.cancelReason != ''">
+            cancel_reason = #{order.cancelReason},
+        </if>
+        <if test="order.rejectionReason != null and order.rejectionReason != ''">
+            rejection_reason = #{order.rejectionReason},
+        </if>
+        <if test="order.cancelTime != null">
+            cancel_time = #{order.cancelTime},
+        </if>
+        <if test="order.payStatus != null">
+            pay_status = #{order.payStatus},
+        </if>
+        <if test="order.payMethod != null">
+            pay_method = #{order.payMethod},
+        </if>
+        <if test="order.checkoutTime != null">
+            checkout_time = #{order.checkoutTime},
+        </if>
+        <if test="order.status != null">
+            status = #{order.status},
+        </if>
+        <if test="order.deliveryTime != null">
+            delivery_time = #{order.deliveryTime},
+        </if>
+    </sql>
+
+    <update id="updateByExpectedStatus">
+        update orders
+        <set>
+            <include refid="orderUpdateColumns"/>
+        </set>
+        where id = #{order.id}
+          and status = #{expectedStatus}
+    </update>
+
+    <update id="updatePaymentByExpectedStatus">
+        update orders
+        <set>
+            <include refid="orderUpdateColumns"/>
+        </set>
+        where id = #{order.id}
+          and status = #{expectedStatus}
+          and pay_status = #{expectedPayStatus}
+    </update>
+
     <select id="sumByMap" resultType="java.lang.Double">
         select sum(amount)
         from orders
