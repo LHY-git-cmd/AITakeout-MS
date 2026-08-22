@@ -15,6 +15,7 @@ import java.util.Set;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -41,7 +42,7 @@ public class DishController {
      */
     @PostMapping
     @Operation(summary = "新增菜品")
-    public Result save(@RequestBody DishDTO dishDTO){
+    public Result save(@Valid @RequestBody DishDTO dishDTO){
         log.info("新增菜品：{}",dishDTO);
         dishService.saveWithFlavor(dishDTO);
 
@@ -59,7 +60,7 @@ public class DishController {
      */
     @GetMapping("/page")
     @Operation(summary = "菜品分页查询")
-    public Result<PageResult> page(DishPageQueryDTO dishPageQueryDTO) {
+    public Result<PageResult> page(@Valid DishPageQueryDTO dishPageQueryDTO) {
         log.info("菜品分页查询：{}", dishPageQueryDTO);
         PageResult pageResult = dishService.pageQuery(dishPageQueryDTO);
         return Result.success(pageResult);
@@ -118,7 +119,7 @@ public class DishController {
      */
     @PutMapping
     @Operation(summary = "修改菜品")
-    public Result update(@RequestBody DishDTO dishDTO) {
+    public Result update(@Valid @RequestBody DishDTO dishDTO) {
         log.info("修改菜品：{}", dishDTO);
         dishService.updateWithFlavor(dishDTO);
 

@@ -13,6 +13,7 @@ import com.sky.vo.UserProfileVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,8 +38,8 @@ public class UserController {
 
     @PostMapping("/login")
     @Operation(summary = "微信登录")
-    public Result<UserLoginVO> login(@RequestBody UserLoginDTO userLoginDTO) {
-        log.info("微信登录：{}", userLoginDTO.getCode());
+    public Result<UserLoginVO> login(@Valid @RequestBody UserLoginDTO userLoginDTO) {
+        log.info("发起微信登录");
 
         //微信登录
         User user = userService.wxLogin(userLoginDTO);

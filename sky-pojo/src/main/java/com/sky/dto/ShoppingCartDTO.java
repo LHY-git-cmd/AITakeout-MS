@@ -1,5 +1,8 @@
 package com.sky.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import java.io.Serializable;
 
@@ -17,6 +20,13 @@ public class ShoppingCartDTO implements Serializable {
     private Long setmealId;
 
     // 菜品口味（仅添加菜品时可能需要）
+    @Size(max = 100, message = "菜品口味长度不能超过100个字符")
     private String dishFlavor;
+
+    @JsonIgnore
+    @AssertTrue(message = "菜品ID和套餐ID必须且只能填写一个")
+    public boolean isTargetValid() {
+        return (dishId == null) != (setmealId == null);
+    }
 
 }

@@ -6,6 +6,7 @@ import com.sky.result.Result;
 import com.sky.service.AddressBookService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -40,7 +41,7 @@ public class AddressBookController {
      */
     @PostMapping
     @Operation(summary = "新增地址")
-    public Result save(@RequestBody AddressBook addressBook) {
+    public Result save(@Valid @RequestBody AddressBook addressBook) {
         addressBookService.save(addressBook);
         return Result.success();
     }
@@ -60,7 +61,7 @@ public class AddressBookController {
      */
     @PutMapping
     @Operation(summary = "根据id修改地址")
-    public Result update(@RequestBody AddressBook addressBook) {
+    public Result update(@Valid @RequestBody AddressBook addressBook) {
         addressBookService.update(addressBook);
         return Result.success();
     }

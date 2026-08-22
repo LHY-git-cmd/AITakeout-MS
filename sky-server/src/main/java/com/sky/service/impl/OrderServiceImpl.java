@@ -244,7 +244,7 @@ public class OrderServiceImpl implements OrderService {
                 .payMethod(ordersPaymentDTO.getPayMethod())
                 .checkoutTime(LocalDateTime.now())
                 .build();
-        orderMapper.update(paidOrder);
+        updatePaymentOrThrow(paidOrder, Orders.PENDING_PAYMENT, Orders.UN_PAID);
 
         sendNewOrderReminderAfterCommit(order);
         sendOrderStatusAfterCommit(order, Orders.TO_BE_CONFIRMED, "支付成功，等待商家接单");
@@ -306,8 +306,9 @@ public class OrderServiceImpl implements OrderService {
                 .cancelReason("用户取消")
                 .cancelTime(LocalDateTime.now())
                 .build();
-        refundIfNecessary(order, updateOrder);
-        orderMapper.update(updateOrder);
+        prepareRefundStatus(order, updateOrder);
+        updateStatusOrThrow(updateOrder, order.getStatus());
+        executeRefundIfNecessary(order);
         sendOrderStatusAfterCommit(order, Orders.CANCELLED, "订单已取消");
     }
 
@@ -389,10 +390,11 @@ public class OrderServiceImpl implements OrderService {
         }
 
         // 更新订单状态为"已接单"
-        orderMapper.update(Orders.builder()
+        Orders updateOrder = Orders.builder()
                 .id(order.getId())
                 .status(Orders.CONFIRMED)
-                .build());
+                .build();
+        updateStatusOrThrow(updateOrder, Orders.TO_BE_CONFIRMED);
         sendOrderStatusAfterCommit(order, Orders.CONFIRMED, "商家已接单");
     }
 
@@ -423,9 +425,9 @@ public class OrderServiceImpl implements OrderService {
                 .rejectionReason(ordersRejectionDTO.getRejectionReason())
                 .cancelTime(LocalDateTime.now())
                 .build();
-        // 如需退款则进行退款处理
-        refundIfNecessary(order, updateOrder);
-        orderMapper.update(updateOrder);
+        prepareRefundStatus(order, updateOrder);
+        updateStatusOrThrow(updateOrder, Orders.TO_BE_CONFIRMED);
+        executeRefundIfNecessary(order);
         sendOrderStatusAfterCommit(order, Orders.CANCELLED, "商家已拒单");
     }
 
@@ -456,9 +458,9 @@ public class OrderServiceImpl implements OrderService {
                 .cancelReason(ordersCancelDTO.getCancelReason())
                 .cancelTime(LocalDateTime.now())
                 .build();
-        // 如需退款则进行退款处理
-        refundIfNecessary(order, updateOrder);
-        orderMapper.update(updateOrder);
+        prepareRefundStatus(order, updateOrder);
+        updateStatusOrThrow(updateOrder, order.getStatus());
+        executeRefundIfNecessary(order);
         sendOrderStatusAfterCommit(order, Orders.CANCELLED, "商家已取消订单");
     }
 
@@ -474,10 +476,11 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
         }
         // 更新订单状态为"派送中"
-        orderMapper.update(Orders.builder()
+        Orders updateOrder = Orders.builder()
                 .id(order.getId())
                 .status(Orders.DELIVERY_IN_PROGRESS)
-                .build());
+                .build();
+        updateStatusOrThrow(updateOrder, Orders.CONFIRMED);
         sendOrderStatusAfterCommit(order, Orders.DELIVERY_IN_PROGRESS, "订单开始配送");
     }
 
@@ -493,11 +496,12 @@ public class OrderServiceImpl implements OrderService {
             throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
         }
         // 更新订单状态为"已完成"，记录送达时间
-        orderMapper.update(Orders.builder()
+        Orders updateOrder = Orders.builder()
                 .id(order.getId())
                 .status(Orders.COMPLETED)
                 .deliveryTime(LocalDateTime.now())
-                .build());
+                .build();
+        updateStatusOrThrow(updateOrder, Orders.DELIVERY_IN_PROGRESS);
         sendOrderStatusAfterCommit(order, Orders.COMPLETED, "订单已送达");
     }
 
@@ -574,21 +578,33 @@ public class OrderServiceImpl implements OrderService {
      * @param order 原订单信息（用于判断支付状态）
      * @param updateOrder 待更新的订单对象（设置退款后的支付状态）
      */
-    private void refundIfNecessary(Orders order, Orders updateOrder) throws Exception {
-        // 仅对已支付的订单进行退款
-        if (!Orders.PAID.equals(order.getPayStatus())) {
-            return;
+    private void prepareRefundStatus(Orders order, Orders updateOrder) {
+        if (Orders.PAID.equals(order.getPayStatus())) {
+            updateOrder.setPayStatus(Orders.REFUND);
         }
+    }
 
-        // 非模拟支付环境下调用微信退款接口
-        if (!Boolean.TRUE.equals(weChatProperties.getMockPay())) {
+    private void executeRefundIfNecessary(Orders order) throws Exception {
+        if (Orders.PAID.equals(order.getPayStatus())
+                && !Boolean.TRUE.equals(weChatProperties.getMockPay())) {
             weChatPayUtil.refund(
                     order.getNumber(),
                     order.getNumber(),
                     new BigDecimal("0.01"),
                     new BigDecimal("0.01"));
         }
-        updateOrder.setPayStatus(Orders.REFUND);
+    }
+
+    private void updateStatusOrThrow(Orders updateOrder, Integer expectedStatus) {
+        if (orderMapper.updateByExpectedStatus(updateOrder, expectedStatus) != 1) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+    }
+
+    private void updatePaymentOrThrow(Orders updateOrder, Integer expectedStatus, Integer expectedPayStatus) {
+        if (orderMapper.updatePaymentByExpectedStatus(updateOrder, expectedStatus, expectedPayStatus) != 1) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
     }
 
     /**
@@ -703,7 +719,15 @@ public class OrderServiceImpl implements OrderService {
                 .checkoutTime(LocalDateTime.now())
                 .build();
 
-        orderMapper.update(orders);
+        int updated = orderMapper.updatePaymentByExpectedStatus(
+                orders, Orders.PENDING_PAYMENT, Orders.UN_PAID);
+        if (updated == 0) {
+            Orders current = orderMapper.getById(ordersDB.getId());
+            if (current != null && Orders.PAID.equals(current.getPayStatus())) {
+                return;
+            }
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
 
         sendNewOrderReminderAfterCommit(ordersDB);
         sendOrderStatusAfterCommit(ordersDB, Orders.TO_BE_CONFIRMED, "支付成功，等待商家接单");

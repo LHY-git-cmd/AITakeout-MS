@@ -12,6 +12,7 @@ import com.sky.vo.OrderVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,7 +36,7 @@ public class OrderController {
      */
     @GetMapping("/conditionSearch")
     @Operation(summary = "订单搜索")
-    public Result<PageResult> conditionSearch(OrdersPageQueryDTO ordersPageQueryDTO) {
+    public Result<PageResult> conditionSearch(@Valid OrdersPageQueryDTO ordersPageQueryDTO) {
         return Result.success(orderService.conditionSearch(ordersPageQueryDTO));
     }
 
@@ -65,7 +66,7 @@ public class OrderController {
      */
     @PutMapping("/confirm")
     @Operation(summary = "接单")
-    public Result<String> confirm(@RequestBody OrdersConfirmDTO ordersConfirmDTO) {
+    public Result<String> confirm(@Valid @RequestBody OrdersConfirmDTO ordersConfirmDTO) {
         orderService.confirm(ordersConfirmDTO);
         return Result.success();
     }
@@ -76,7 +77,7 @@ public class OrderController {
      */
     @PutMapping("/rejection")
     @Operation(summary = "拒单")
-    public Result<String> rejection(@RequestBody OrdersRejectionDTO ordersRejectionDTO) throws Exception {
+    public Result<String> rejection(@Valid @RequestBody OrdersRejectionDTO ordersRejectionDTO) throws Exception {
         orderService.rejection(ordersRejectionDTO);
         return Result.success();
     }
@@ -87,7 +88,7 @@ public class OrderController {
      */
     @PutMapping("/cancel")
     @Operation(summary = "取消订单")
-    public Result<String> cancel(@RequestBody OrdersCancelDTO ordersCancelDTO) throws Exception {
+    public Result<String> cancel(@Valid @RequestBody OrdersCancelDTO ordersCancelDTO) throws Exception {
         orderService.cancel(ordersCancelDTO);
         return Result.success();
     }

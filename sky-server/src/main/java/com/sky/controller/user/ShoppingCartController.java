@@ -7,6 +7,7 @@ import com.sky.service.ShoppingCartService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,7 +33,7 @@ public class ShoppingCartController {
      */
     @PostMapping("/add")
     @Operation(summary = "添加商品到购物车")
-    public Result<String> add(@RequestBody ShoppingCartDTO shoppingCartDTO) {
+    public Result<String> add(@Valid @RequestBody ShoppingCartDTO shoppingCartDTO) {
         log.info("添加商品到购物车：{}", shoppingCartDTO);
         shoppingCartService.addShoppingCart(shoppingCartDTO);
         return Result.success();
@@ -54,7 +55,7 @@ public class ShoppingCartController {
      */
     @PostMapping("/sub")
     @Operation(summary = "减少购物车中的商品数量")
-    public Result<String> sub(@RequestBody ShoppingCartDTO shoppingCartDTO) {
+    public Result<String> sub(@Valid @RequestBody ShoppingCartDTO shoppingCartDTO) {
         log.info("减少购物车中的商品数量：{}", shoppingCartDTO);
         shoppingCartService.subShoppingCart(shoppingCartDTO);
         return Result.success();

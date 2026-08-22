@@ -13,6 +13,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * 订单定时处理任务
@@ -44,7 +45,7 @@ public class OrderTask {
         List<Orders> timeoutOrders = orderMapper.getByStatusAndOrderTimeLT(
                 Orders.PENDING_PAYMENT, timeoutThreshold);
 
-        // 遍历超时订单，逐一更新订单状态为"已取消"
+        List<Orders> transitionedOrders = new ArrayList<>();
         for (Orders order : timeoutOrders) {
             Orders updateOrder = Orders.builder()
                     .id(order.getId())
@@ -52,13 +53,15 @@ public class OrderTask {
                     .cancelReason("订单超时，自动取消")
                     .cancelTime(now)
                     .build();
-            orderMapper.update(updateOrder);
+            if (orderMapper.updateByExpectedStatus(updateOrder, Orders.PENDING_PAYMENT) == 1) {
+                transitionedOrders.add(order);
+            }
         }
 
         // 记录日志
-        if (!timeoutOrders.isEmpty()) {
-            sendStatusAfterCommit(timeoutOrders, Orders.CANCELLED, "订单超时，已自动取消");
-            log.info("定时任务已取消超时未支付订单：count={}", timeoutOrders.size());
+        if (!transitionedOrders.isEmpty()) {
+            sendStatusAfterCommit(transitionedOrders, Orders.CANCELLED, "订单超时，已自动取消");
+            log.info("定时任务已取消超时未支付订单：count={}", transitionedOrders.size());
         }
     }
 
@@ -78,22 +81,24 @@ public class OrderTask {
         List<Orders> deliveryOrders = orderMapper.getByStatusAndOrderTimeLT(
                 Orders.DELIVERY_IN_PROGRESS, deliveryThreshold);
 
-        // 遍历派送超时订单，逐一更新订单状态为"已完成"
+        List<Orders> transitionedOrders = new ArrayList<>();
         for (Orders order : deliveryOrders) {
             Orders updateOrder = Orders.builder()
                     .id(order.getId())
                     .status(Orders.COMPLETED)
                     .deliveryTime(now)
                     .build();
-            orderMapper.update(updateOrder);
+            if (orderMapper.updateByExpectedStatus(updateOrder, Orders.DELIVERY_IN_PROGRESS) == 1) {
+                transitionedOrders.add(order);
+            }
         }
 
 
 
         // 记录日志
-        if (!deliveryOrders.isEmpty()) {
-            sendStatusAfterCommit(deliveryOrders, Orders.COMPLETED, "订单已自动完成");
-            log.info("定时任务已自动完成派送中订单：count={}", deliveryOrders.size());
+        if (!transitionedOrders.isEmpty()) {
+            sendStatusAfterCommit(transitionedOrders, Orders.COMPLETED, "订单已自动完成");
+            log.info("定时任务已自动完成派送中订单：count={}", transitionedOrders.size());
         }
     }
 

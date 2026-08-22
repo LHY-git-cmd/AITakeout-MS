@@ -4,6 +4,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.io.Serializable;
 
@@ -24,9 +27,13 @@ public class AddressBook implements Serializable {
     private Long userId;
 
     //收货人
+    @NotBlank(message = "收货人不能为空")
+    @Size(max = 32, message = "收货人长度不能超过32个字符")
     private String consignee;
 
     //手机号
+    @NotBlank(message = "手机号不能为空")
+    @Pattern(regexp = "^1[3-9]\\d{9}$", message = "手机号格式不正确")
     private String phone;
 
     //性别 0 女 1 男
@@ -51,9 +58,12 @@ public class AddressBook implements Serializable {
     private String districtName;
 
     //详细地址
+    @NotBlank(message = "详细地址不能为空")
+    @Size(max = 255, message = "详细地址长度不能超过255个字符")
     private String detail;
 
     //标签
+    @Size(max = 32, message = "地址标签长度不能超过32个字符")
     private String label;
 
     //是否默认 0否 1是
