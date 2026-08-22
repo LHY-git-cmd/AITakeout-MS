@@ -4,10 +4,12 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.sky.constant.MessageConstant;
 import com.sky.dto.UserLoginDTO;
+import com.sky.dto.WebUserLoginDTO;
 import com.sky.entity.User;
 import com.sky.exception.LoginFailedException;
 import com.sky.mapper.UserMapper;
 import com.sky.properties.WeChatProperties;
+import com.sky.properties.WebLoginProperties;
 import com.sky.service.UserService;
 import com.sky.utils.HttpClientUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,9 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private UserMapper userMapper;
 
+    @Autowired
+    private WebLoginProperties webLoginProperties;
+
     @Override
     public User wxLogin(UserLoginDTO userLoginDTO) {
         String openid = getOpenid(userLoginDTO.getCode());
@@ -51,6 +56,42 @@ public class UserServiceImpl implements UserService {
             userMapper.insert(user);
         }
         
+        return user;
+    }
+
+    @Override
+    public User webLogin(WebUserLoginDTO webUserLoginDTO) {
+        if (!webLoginProperties.isEnabled()) {
+            throw new LoginFailedException("Web 演示登录未启用");
+        }
+        if (webUserLoginDTO == null
+                || webUserLoginDTO.getPhone() == null
+                || !webUserLoginDTO.getPhone().matches("^1\\d{10}$")) {
+            throw new LoginFailedException("请输入正确的手机号");
+        }
+        if (webLoginProperties.getVerificationCode() == null
+                || !webLoginProperties.getVerificationCode().equals(webUserLoginDTO.getCode())) {
+            throw new LoginFailedException("验证码错误");
+        }
+
+        User user = userMapper.getByPhone(webUserLoginDTO.getPhone());
+        if (user == null) {
+            user = User.builder()
+                    .name("演示用户")
+                    .phone(webUserLoginDTO.getPhone())
+                    .createTime(LocalDateTime.now())
+                    .build();
+            userMapper.insert(user);
+        }
+        return user;
+    }
+
+    @Override
+    public User getById(Long id) {
+        User user = userMapper.getById(id);
+        if (user == null) {
+            throw new LoginFailedException("用户不存在");
+        }
         return user;
     }
 

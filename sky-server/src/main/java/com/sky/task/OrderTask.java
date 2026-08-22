@@ -2,11 +2,14 @@ package com.sky.task;
 
 import com.sky.entity.Orders;
 import com.sky.mapper.OrderMapper;
+import com.sky.websocket.WebSocketServer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,6 +24,9 @@ public class OrderTask {
 
     @Autowired
     private OrderMapper orderMapper;
+
+    @Autowired
+    private WebSocketServer webSocketServer;
 
     /**
      * 处理超时未支付订单
@@ -51,6 +57,7 @@ public class OrderTask {
 
         // 记录日志
         if (!timeoutOrders.isEmpty()) {
+            sendStatusAfterCommit(timeoutOrders, Orders.CANCELLED, "订单超时，已自动取消");
             log.info("定时任务已取消超时未支付订单：count={}", timeoutOrders.size());
         }
     }
@@ -85,7 +92,23 @@ public class OrderTask {
 
         // 记录日志
         if (!deliveryOrders.isEmpty()) {
+            sendStatusAfterCommit(deliveryOrders, Orders.COMPLETED, "订单已自动完成");
             log.info("定时任务已自动完成派送中订单：count={}", deliveryOrders.size());
         }
+    }
+
+    private void sendStatusAfterCommit(List<Orders> orders, Integer status, String content) {
+        Runnable action = () -> orders.forEach(order -> webSocketServer.sendOrderStatusToUser(
+                order.getUserId(), order.getId(), status, content));
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 }

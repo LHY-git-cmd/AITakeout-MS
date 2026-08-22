@@ -82,6 +82,10 @@ public class OrderServiceImpl implements OrderService {
     public OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO) {
         Long userId = BaseContext.getCurrentId();
 
+        if (ordersSubmitDTO == null || ordersSubmitDTO.getAddressBookId() == null) {
+            throw new AddressBookBusinessException(MessageConstant.ADDRESS_BOOK_IS_NULL);
+        }
+
         //异常情况的处理（收货地址为空、购物车为空）
         AddressBook addressBook = addressBookMapper.getById(ordersSubmitDTO.getAddressBookId());
         if (addressBook == null || !userId.equals(addressBook.getUserId())) {
@@ -99,11 +103,23 @@ public class OrderServiceImpl implements OrderService {
             throw new ShoppingCartBusinessException(MessageConstant.SHOPPING_CART_IS_NULL);
         }
 
+        int packAmount = shoppingCartList.stream()
+                .mapToInt(cart -> cart.getNumber() == null ? 0 : cart.getNumber())
+                .sum();
+        BigDecimal goodsAmount = shoppingCartList.stream()
+                .map(cart -> cart.getAmount().multiply(BigDecimal.valueOf(cart.getNumber())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal orderAmount = goodsAmount
+                .add(BigDecimal.valueOf(packAmount))
+                .add(BigDecimal.valueOf(6));
+
         //构造订单数据
         Orders order = new Orders();
         BeanUtils.copyProperties(ordersSubmitDTO,order);
+        order.setPackAmount(packAmount);
+        order.setAmount(orderAmount);
         order.setPhone(addressBook.getPhone());
-        order.setAddress(addressBook.getDetail());
+        order.setAddress(buildFullAddress(addressBook));
         order.setConsignee(addressBook.getConsignee());
         order.setNumber(String.valueOf(System.currentTimeMillis()));
         order.setUserId(userId);
@@ -155,6 +171,27 @@ public class OrderServiceImpl implements OrderService {
             return mockPayment(ordersPaymentDTO, userId);
         }
 
+        if (ordersPaymentDTO == null || ordersPaymentDTO.getOrderNumber() == null) {
+            throw new OrderBusinessException("订单号不能为空");
+        }
+
+        Orders order = orderMapper.getByNumber(ordersPaymentDTO.getOrderNumber());
+        if (order == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
+        if (!userId.equals(order.getUserId())) {
+            throw new OrderBusinessException("无权支付该订单");
+        }
+        if (Orders.PAID.equals(order.getPayStatus())) {
+            throw new OrderBusinessException("该订单已支付");
+        }
+        if (!Orders.PENDING_PAYMENT.equals(order.getStatus())) {
+            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+        if (order.getAmount() == null || order.getAmount().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new OrderBusinessException("订单金额异常");
+        }
+
         User user = userMapper.getById(userId);
         if (user == null || user.getOpenid() == null) {
             throw new OrderBusinessException("当前用户不存在或未绑定微信账号");
@@ -162,8 +199,8 @@ public class OrderServiceImpl implements OrderService {
 
         //调用微信支付接口，生成预支付交易单
         JSONObject jsonObject = weChatPayUtil.pay(
-                ordersPaymentDTO.getOrderNumber(), //商户订单号
-                new BigDecimal(0.01), //支付金额，单位 元
+                order.getNumber(), //商户订单号
+                order.getAmount(), //数据库订单金额，单位 元
                 "苍穹外卖订单", //商品描述
                 user.getOpenid() //微信用户的openid
         );
@@ -210,6 +247,7 @@ public class OrderServiceImpl implements OrderService {
         orderMapper.update(paidOrder);
 
         sendNewOrderReminderAfterCommit(order);
+        sendOrderStatusAfterCommit(order, Orders.TO_BE_CONFIRMED, "支付成功，等待商家接单");
 
         log.info("模拟支付成功：userId={}, orderNumber={}", userId, order.getNumber());
         return OrderPaymentVO.builder()
@@ -270,6 +308,7 @@ public class OrderServiceImpl implements OrderService {
                 .build();
         refundIfNecessary(order, updateOrder);
         orderMapper.update(updateOrder);
+        sendOrderStatusAfterCommit(order, Orders.CANCELLED, "订单已取消");
     }
 
     @Override
@@ -285,14 +324,26 @@ public class OrderServiceImpl implements OrderService {
 
         Long userId = BaseContext.getCurrentId();
         LocalDateTime createTime = LocalDateTime.now();
-        List<ShoppingCart> shoppingCartList = orderDetailList.stream().map(orderDetail -> {
+        for (OrderDetail orderDetail : orderDetailList) {
+            ShoppingCart query = ShoppingCart.builder()
+                    .userId(userId)
+                    .dishId(orderDetail.getDishId())
+                    .setmealId(orderDetail.getSetmealId())
+                    .dishFlavor(orderDetail.getDishFlavor())
+                    .build();
+            ShoppingCart existing = shoppingCartMapper.getOne(query);
+            if (existing != null) {
+                existing.setNumber(existing.getNumber() + orderDetail.getNumber());
+                shoppingCartMapper.updateNumber(existing);
+                continue;
+            }
+
             ShoppingCart shoppingCart = new ShoppingCart();
             BeanUtils.copyProperties(orderDetail, shoppingCart, "id");
             shoppingCart.setUserId(userId);
             shoppingCart.setCreateTime(createTime);
-            return shoppingCart;
-        }).collect(Collectors.toList());
-        shoppingCartMapper.insertBatch(shoppingCartList);
+            shoppingCartMapper.insert(shoppingCart);
+        }
     }
 
     /**
@@ -342,6 +393,7 @@ public class OrderServiceImpl implements OrderService {
                 .id(order.getId())
                 .status(Orders.CONFIRMED)
                 .build());
+        sendOrderStatusAfterCommit(order, Orders.CONFIRMED, "商家已接单");
     }
 
     /**
@@ -374,6 +426,7 @@ public class OrderServiceImpl implements OrderService {
         // 如需退款则进行退款处理
         refundIfNecessary(order, updateOrder);
         orderMapper.update(updateOrder);
+        sendOrderStatusAfterCommit(order, Orders.CANCELLED, "商家已拒单");
     }
 
     /**
@@ -406,6 +459,7 @@ public class OrderServiceImpl implements OrderService {
         // 如需退款则进行退款处理
         refundIfNecessary(order, updateOrder);
         orderMapper.update(updateOrder);
+        sendOrderStatusAfterCommit(order, Orders.CANCELLED, "商家已取消订单");
     }
 
     /**
@@ -424,6 +478,7 @@ public class OrderServiceImpl implements OrderService {
                 .id(order.getId())
                 .status(Orders.DELIVERY_IN_PROGRESS)
                 .build());
+        sendOrderStatusAfterCommit(order, Orders.DELIVERY_IN_PROGRESS, "订单开始配送");
     }
 
     /**
@@ -443,6 +498,7 @@ public class OrderServiceImpl implements OrderService {
                 .status(Orders.COMPLETED)
                 .deliveryTime(LocalDateTime.now())
                 .build());
+        sendOrderStatusAfterCommit(order, Orders.COMPLETED, "订单已送达");
     }
 
     /**
@@ -650,6 +706,7 @@ public class OrderServiceImpl implements OrderService {
         orderMapper.update(orders);
 
         sendNewOrderReminderAfterCommit(ordersDB);
+        sendOrderStatusAfterCommit(ordersDB, Orders.TO_BE_CONFIRMED, "支付成功，等待商家接单");
     }
 
     /**
@@ -665,16 +722,29 @@ public class OrderServiceImpl implements OrderService {
             log.info("已推送来单提醒：orderId={}, orderNumber={}", order.getId(), order.getNumber());
         };
 
-        if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    sendAction.run();
-                }
-            });
-        } else {
-            sendAction.run();
+        runAfterCommit(sendAction);
+    }
+
+    private void sendOrderStatusAfterCommit(Orders order, Integer status, String content) {
+        runAfterCommit(() -> {
+            webSocketServer.sendOrderStatusToUser(
+                    order.getUserId(), order.getId(), status, content);
+            log.info("已推送订单状态：userId={}, orderId={}, status={}",
+                    order.getUserId(), order.getId(), status);
+        });
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            action.run();
+            return;
         }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 
 }
