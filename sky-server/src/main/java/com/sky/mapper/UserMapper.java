@@ -15,6 +15,9 @@ public interface UserMapper {
     @Select("select * from user where id = #{id}")
     User getById(Long id);
 
+    @Select("select * from user where phone = #{phone} limit 1")
+    User getByPhone(String phone);
+
     
     void insert(User user);
 

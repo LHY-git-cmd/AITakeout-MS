@@ -3,7 +3,7 @@
 
 <mapper namespace="com.sky.mapper.UserMapper">
 
-    <insert id="insert" parameterType="com.sky.entity.User">
+    <insert id="insert" parameterType="com.sky.entity.User" useGeneratedKeys="true" keyProperty="id">
         insert into user (openid, name,phone,sex,id_number,avatar,create_time)
         values (#{openid}, #{name}, #{phone}, #{sex}, #{idNumber}, #{avatar},#{createTime})
     </insert>

@@ -63,6 +63,8 @@ logging:
         controller: info
 
 sky:
+  web-login:
+    enabled: false
   jwt:
     # 设置jwt签名加密时使用的秘钥（至少32个字符）
     admin-secret-key: itcast-itcast-itcast-itcast-itcast

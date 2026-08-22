@@ -2,6 +2,8 @@ package com.sky.service.impl;
 
 import com.sky.context.BaseContext;
 import com.sky.entity.AddressBook;
+import com.sky.exception.AddressBookBusinessException;
+import com.sky.constant.MessageConstant;
 import com.sky.mapper.AddressBookMapper;
 import com.sky.service.AddressBookService;
 import lombok.extern.slf4j.Slf4j;
@@ -44,8 +46,7 @@ public class AddressBookServiceImpl implements AddressBookService {
      * @return
      */
     public AddressBook getById(Long id) {
-        AddressBook addressBook = addressBookMapper.getById(id);
-        return addressBook;
+        return getOwnedAddress(id);
     }
 
     /**
@@ -54,6 +55,8 @@ public class AddressBookServiceImpl implements AddressBookService {
      * @param addressBook
      */
     public void update(AddressBook addressBook) {
+        getOwnedAddress(addressBook.getId());
+        addressBook.setUserId(BaseContext.getCurrentId());
         addressBookMapper.update(addressBook);
     }
 
@@ -64,6 +67,7 @@ public class AddressBookServiceImpl implements AddressBookService {
      */
     @Transactional
     public void setDefault(AddressBook addressBook) {
+        getOwnedAddress(addressBook.getId());
         //1、将当前用户的所有地址修改为非默认地址 update address_book set is_default = ? where user_id = ?
         addressBook.setIsDefault(0);
         addressBook.setUserId(BaseContext.getCurrentId());
@@ -80,7 +84,19 @@ public class AddressBookServiceImpl implements AddressBookService {
      * @param id
      */
     public void deleteById(Long id) {
+        getOwnedAddress(id);
         addressBookMapper.deleteById(id);
+    }
+
+    private AddressBook getOwnedAddress(Long id) {
+        if (id == null) {
+            throw new AddressBookBusinessException(MessageConstant.ADDRESS_BOOK_IS_NULL);
+        }
+        AddressBook addressBook = addressBookMapper.getByIdAndUserId(id, BaseContext.getCurrentId());
+        if (addressBook == null) {
+            throw new AddressBookBusinessException(MessageConstant.ADDRESS_BOOK_IS_NULL);
+        }
+        return addressBook;
     }
 
 }

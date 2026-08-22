@@ -1,4 +1,7 @@
 sky:
+  web-login:
+    enabled: true
+    verification-code: ${WEB_DEMO_VERIFICATION_CODE:123456}
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: localhost
