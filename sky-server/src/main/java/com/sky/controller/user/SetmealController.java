@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
+/**
+ * 套餐浏览控制器（用户端）
+ * 提供根据分类查询套餐及套餐详情查看功能，支持Redis缓存
+ */
 @RestController("userSetmealController")
 @RequestMapping("/user/setmeal")
 @Tag(name = "C端-套餐浏览接口")
@@ -23,10 +27,10 @@ public class SetmealController {
     private SetmealService setmealService;
 
     /**
-     * 条件查询
+     * 根据分类id查询套餐列表
      *
-     * @param categoryId
-     * @return
+     * @param categoryId 分类ID
+     * @return 套餐列表
      */
     @GetMapping("/list")
     @Operation(summary = "根据分类id查询套餐")
@@ -43,8 +47,8 @@ public class SetmealController {
     /**
      * 根据套餐id查询套餐详情（包含套餐信息和菜品列表）
      *
-     * @param id
-     * @return
+     * @param id 套餐ID
+     * @return 套餐详情
      */
     @GetMapping("/dish/{id}")
     @Operation(summary = "根据套餐id查询套餐详情")

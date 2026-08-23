@@ -1,7 +1,8 @@
 package com.sky.constant;
 
 /**
- * 状态常量，启用或者禁用
+ * 状态常量类
+ * 定义数据状态值，用于标识启用和禁用状态
  */
 public class StatusConstant {
 

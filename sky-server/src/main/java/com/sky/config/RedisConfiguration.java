@@ -17,10 +17,21 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
 
+/**
+ * Redis配置类
+ * 配置RedisTemplate和RedisCacheManager，实现Redis序列化与缓存管理
+ */
 @Configuration
 @Slf4j
 public class RedisConfiguration {
 
+    /**
+     * 配置RedisTemplate Bean
+     * 设置Key为String序列化器，Value为Jackson JSON序列化器
+     *
+     * @param connectionFactory Redis连接工厂
+     * @return 配置好的RedisTemplate实例
+     */
     @Bean
     public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory connectionFactory) {
 
@@ -46,6 +57,13 @@ public class RedisConfiguration {
         return redisTemplate;
     }
 
+    /**
+     * 配置Redis缓存管理器
+     * 设置缓存默认有效期为1小时，使用Jackson JSON序列化
+     *
+     * @param connectionFactory Redis连接工厂
+     * @return 配置好的RedisCacheManager实例
+     */
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory connectionFactory) {
         log.info("初始化RedisCacheManager...");

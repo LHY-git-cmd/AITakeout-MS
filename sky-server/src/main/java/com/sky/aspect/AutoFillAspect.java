@@ -17,7 +17,9 @@ import java.time.LocalDateTime;
 
 
 /**
- * 自定义切面，实现公共字段自动填充处理逻辑
+ * 公共字段自动填充切面
+ * 拦截Mapper层标注@AutoFill注解的方法，在执行前自动填充createTime、updateTime、createUser、updateUser等公共字段
+ * INSERT操作填充全部四个字段，UPDATE操作仅填充updateTime和updateUser
  */
 @Aspect
 @Component
@@ -30,7 +32,8 @@ public class AutoFillAspect {
     public void autoFillPointCut(){}
 
     /**
-     * 前置通知，在通知中进行公共字段的赋值
+     * 前置通知，在Mapper方法执行前为实体对象填充公共字段
+     * 根据@AutoFill注解的操作类型（INSERT/UPDATE），通过反射调用对应的setter方法完成填充
      */
     @Before("autoFillPointCut()")
     public void autoFill(JoinPoint joinPoint){

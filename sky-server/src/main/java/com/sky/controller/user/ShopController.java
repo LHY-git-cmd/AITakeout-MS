@@ -10,6 +10,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 店铺状态控制器（用户端）
+ * 提供店铺营业状态查询接口，从Redis获取状态信息
+ */
 @RestController("userShopController")
 @RequestMapping("/user/shop")
 @Tag(name = "店铺管理")
@@ -21,6 +25,11 @@ public class ShopController {
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
 
+    /**
+     * 查询店铺营业状态
+     *
+     * @return 营业状态（0-打烊，1-营业中）
+     */
     @GetMapping("/status")
     @Operation(summary = "查询店铺营业状态")
     public Result<Integer> getStatus() {

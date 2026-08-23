@@ -6,9 +6,9 @@ import com.sky.json.JacksonObjectMapper;
 import com.sky.properties.CorsProperties;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springdoc.core.models.GroupedOpenApi;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -20,21 +20,23 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.util.List;
 
 /**
- * Web层相关配置。
+ * Web MVC配置类
+ * 注册JWT拦截器、配置CORS跨域、扩展消息转换器及Knife4j接口文档
  */
 @Configuration
 @Slf4j
+@RequiredArgsConstructor
 public class WebMvcConfiguration implements WebMvcConfigurer {
+    private final JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
+    private final JwtTokenUserInterceptor jwtTokenUserInterceptor;
+    private final CorsProperties corsProperties;
 
-    @Autowired
-    private JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
-
-    @Autowired
-    private JwtTokenUserInterceptor jwtTokenUserInterceptor;
-
-    @Autowired
-    private CorsProperties corsProperties;
-
+    /**
+     * 注册自定义拦截器
+     * 管理端拦截/admin/**路径（排除登录接口），用户端拦截/user/**路径（排除登录等公开接口）
+     *
+     * @param registry 拦截器注册器
+     */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         log.info("开始注册自定义拦截器...");
@@ -53,6 +55,11 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .excludePathPatterns("/user/setmeal/dish/**");
     }
 
+    /**
+     * 配置全局CORS跨域
+     *
+     * @param registry CORS注册器
+     */
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
@@ -63,6 +70,11 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .maxAge(3600);
     }
 
+    /**
+     * 配置OpenAPI接口文档基本信息
+     *
+     * @return OpenAPI实例
+     */
     @Bean
     public OpenAPI skyOpenApi() {
         return new OpenAPI().info(new Info()
@@ -71,6 +83,11 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .description("苍穹外卖项目管理端和用户端接口文档"));
     }
 
+    /**
+     * 管理端API分组
+     *
+     * @return GroupedOpenApi实例
+     */
     @Bean
     public GroupedOpenApi adminApi() {
         return GroupedOpenApi.builder()
@@ -79,6 +96,11 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .build();
     }
 
+    /**
+     * 用户端API分组
+     *
+     * @return GroupedOpenApi实例
+     */
     @Bean
     public GroupedOpenApi userApi() {
         return GroupedOpenApi.builder()
@@ -87,6 +109,12 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .build();
     }
 
+    /**
+     * 扩展Spring MVC消息转换器
+     * 使用自定义的JacksonObjectMapper支持Java 8时间类型
+     *
+     * @param converters 消息转换器列表
+     */
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
         log.info("扩展Spring MVC消息转换器...");

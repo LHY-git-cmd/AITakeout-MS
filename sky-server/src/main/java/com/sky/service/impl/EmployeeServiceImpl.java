@@ -24,6 +24,10 @@ import org.springframework.util.DigestUtils;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+/**
+ * 员工业务实现类
+ * 提供员工登录、CRUD、账号启用/禁用等功能，支持MD5旧密码自动升级为BCrypt加密
+ */
 @Service
 public class EmployeeServiceImpl implements EmployeeService {
 
@@ -34,34 +38,32 @@ public class EmployeeServiceImpl implements EmployeeService {
 
     /**
      * 员工登录
+     * 校验账号存在性、密码正确性和账号状态，支持MD5旧密码登录后自动升级
      *
-     * @param employeeLoginDTO
-     * @return
+     * @param employeeLoginDTO 登录信息（含用户名和密码）
+     * @return 登录成功的员工实体
+     * @throws AccountNotFoundException  账号不存在
+     * @throws PasswordErrorException    密码错误
+     * @throws AccountLockedException    账号被锁定
      */
     public Employee login(EmployeeLoginDTO employeeLoginDTO) {
         String username = employeeLoginDTO.getUsername();
         String password = employeeLoginDTO.getPassword();
 
-        //1、根据用户名查询数据库中的数据
         Employee employee = employeeMapper.getByUsername(username);
 
-        //2、处理各种异常情况（用户名不存在、密码不对、账号被锁定）
         if (employee == null) {
-            //账号不存在
             throw new AccountNotFoundException(MessageConstant.ACCOUNT_NOT_FOUND);
         }
 
         if (!matchesPassword(password, employee.getPassword())) {
-            //密码错误
             throw new PasswordErrorException(MessageConstant.PASSWORD_ERROR);
         }
 
         if (employee.getStatus() == StatusConstant.DISABLE) {
-            //账号被锁定
             throw new AccountLockedException(MessageConstant.ACCOUNT_LOCKED);
         }
 
-        // 旧 MD5 密码在首次成功登录后升级，避免要求现有员工重置密码。
         if (isLegacyMd5(employee.getPassword())) {
             employeeMapper.update(Employee.builder()
                     .id(employee.getId())
@@ -69,61 +71,42 @@ public class EmployeeServiceImpl implements EmployeeService {
                     .build());
         }
 
-        //3、返回实体对象
         return employee;
     }
 
     /**
      * 新增员工
-     * @param employeeDTO
+     * 默认启用状态，密码使用BCrypt加密存储，公共字段由AutoFillAspect自动填充
+     *
+     * @param employeeDTO 员工数据传输对象
      */
-
     public void save(EmployeeDTO employeeDTO) {
         Employee employee = new Employee();
-
-        //拷贝属性
         BeanUtils.copyProperties(employeeDTO, employee);
-
-        //设置账号状态
         employee.setStatus(StatusConstant.ENABLE);
-
-        //设置默认密码
         employee.setPassword(passwordEncoder.encode(PasswordConstant.DEFAULT_PASSWORD));
-
-//        //设置当前记录的创建时间和更新时间
-//        employee.setCreateTime(LocalDateTime.now());
-//        employee.setUpdateTime(LocalDateTime.now());
-//
-//        //设置当前创建人id和更新人id
-//        employee.setCreateUser(BaseContext.getCurrentId());
-//        employee.setUpdateUser(BaseContext.getCurrentId());
-
         employeeMapper.insert(employee);
-
     }
 
-
     /**
-     * 分页查询
-     * @param employeePageQueryDTO
-     * @return
+     * 分页查询员工
+     *
+     * @param employeePageQueryDTO 分页查询条件
+     * @return 分页结果
      */
     public PageResult page(EmployeePageQueryDTO employeePageQueryDTO) {
-        //SELECT * FROM employee LIMIT 0,10
-        //开始分页查询
         PageHelper.startPage(employeePageQueryDTO.getPage(), employeePageQueryDTO.getPageSize());
-
-        Page<Employee> page =employeeMapper.pageQuery(employeePageQueryDTO);
-
+        Page<Employee> page = employeeMapper.pageQuery(employeePageQueryDTO);
         long total = page.getTotal();
         List<Employee> records = page.getResult();
-
-        return  new PageResult(total, records);
+        return new PageResult(total, records);
     }
 
-
     /**
-     * 启用禁用员工账号
+     * 启用/禁用员工账号
+     *
+     * @param status 状态（0-禁用，1-启用）
+     * @param id     员工ID
      */
     public void startOrStop(Integer status, Long id){
         Employee employee = Employee.builder()
@@ -133,21 +116,38 @@ public class EmployeeServiceImpl implements EmployeeService {
         employeeMapper.update(employee);
     }
 
-
+    /**
+     * 根据ID查询员工
+     *
+     * @param id 员工ID
+     * @return 员工实体
+     */
     @Override
     public Employee getById(Long id) {
         return employeeMapper.getById(id);
     }
 
+    /**
+     * 编辑员工信息
+     * 公共字段由AutoFillAspect自动填充
+     *
+     * @param employeeDTO 员工数据传输对象
+     */
     @Override
     public void update(EmployeeDTO employeeDTO) {
         Employee employee = new Employee();
-        BeanUtils.copyProperties(employeeDTO, employee);//属性拷贝
-//        employee.setUpdateTime(LocalDateTime.now());
-//        employee.setUpdateUser(BaseContext.getCurrentId());
+        BeanUtils.copyProperties(employeeDTO, employee);
         employeeMapper.update(employee);
     }
 
+    /**
+     * 校验密码是否匹配
+     * 支持MD5旧密码和BCrypt新密码两种格式
+     *
+     * @param rawPassword     原始密码
+     * @param storedPassword  存储的加密密码
+     * @return 是否匹配
+     */
     private boolean matchesPassword(String rawPassword, String storedPassword) {
         if (rawPassword == null || storedPassword == null) {
             return false;
@@ -159,6 +159,12 @@ public class EmployeeServiceImpl implements EmployeeService {
         return passwordEncoder.matches(rawPassword, storedPassword);
     }
 
+    /**
+     * 判断是否为MD5旧密码格式（32位十六进制字符串）
+     *
+     * @param password 存储的密码
+     * @return 是否为MD5格式
+     */
     private boolean isLegacyMd5(String password) {
         return password != null && password.matches("(?i)^[0-9a-f]{32}$");
     }

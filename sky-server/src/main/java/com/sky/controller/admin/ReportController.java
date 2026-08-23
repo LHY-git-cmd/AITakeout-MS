@@ -20,7 +20,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDate;
 
 /**
- * 数据统计相关接口
+ * 数据统计控制器（管理端）
+ * 提供营业额、用户、订单统计及销量排名Top10查询，支持Excel导出
  */
 @RestController
 @RequestMapping("/admin/report")

@@ -8,9 +8,17 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
+/**
+ * 自定义注解，用于标识需要自动填充公共字段的方法
+ * 作用于Mapper层的方法，由AutoFillAspect切面进行处理
+ */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AutoFill {
-    //数据库操作类型：UPDATE INSERT
+    /**
+     * 数据库操作类型：UPDATE INSERT
+     *
+     * @return 操作类型
+     */
     OperationType value();
 }

@@ -2,9 +2,10 @@ package com.sky.task;
 
 import com.sky.entity.Orders;
 import com.sky.mapper.OrderMapper;
+import com.sky.properties.OrderTaskProperties;
 import com.sky.websocket.WebSocketServer;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,7 +14,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 /**
  * 订单定时处理任务
@@ -21,13 +22,11 @@ import java.util.ArrayList;
  */
 @Component
 @Slf4j
+@RequiredArgsConstructor
 public class OrderTask {
-
-    @Autowired
-    private OrderMapper orderMapper;
-
-    @Autowired
-    private WebSocketServer webSocketServer;
+    private final OrderMapper orderMapper;
+    private final WebSocketServer webSocketServer;
+    private final OrderTaskProperties orderTaskProperties;
 
     /**
      * 处理超时未支付订单
@@ -42,21 +41,17 @@ public class OrderTask {
         LocalDateTime timeoutThreshold = now.minusMinutes(15);
 
         // 查询所有状态为"待付款"且下单时间早于超时阈值的订单
-        List<Orders> timeoutOrders = orderMapper.getByStatusAndOrderTimeLT(
-                Orders.PENDING_PAYMENT, timeoutThreshold);
-
-        List<Orders> transitionedOrders = new ArrayList<>();
-        for (Orders order : timeoutOrders) {
-            Orders updateOrder = Orders.builder()
-                    .id(order.getId())
-                    .status(Orders.CANCELLED)
-                    .cancelReason("订单超时，自动取消")
-                    .cancelTime(now)
-                    .build();
-            if (orderMapper.updateByExpectedStatus(updateOrder, Orders.PENDING_PAYMENT) == 1) {
-                transitionedOrders.add(order);
-            }
+        List<Orders> transitionedOrders = orderMapper.getBatchForUpdate(
+                Orders.PENDING_PAYMENT, timeoutThreshold, orderTaskProperties.getBatchSize());
+        if (transitionedOrders.isEmpty()) {
+            return;
         }
+        Orders updateOrder = Orders.builder()
+                .status(Orders.CANCELLED)
+                .cancelReason("订单超时，自动取消")
+                .cancelTime(now)
+                .build();
+        updateBatchOrThrow(updateOrder, transitionedOrders, Orders.PENDING_PAYMENT);
 
         // 记录日志
         if (!transitionedOrders.isEmpty()) {
@@ -78,20 +73,16 @@ public class OrderTask {
         LocalDateTime deliveryThreshold = now.minusHours(1);
 
         // 查询所有状态为"派送中"且下单时间早于派送超时阈值的订单
-        List<Orders> deliveryOrders = orderMapper.getByStatusAndOrderTimeLT(
-                Orders.DELIVERY_IN_PROGRESS, deliveryThreshold);
-
-        List<Orders> transitionedOrders = new ArrayList<>();
-        for (Orders order : deliveryOrders) {
-            Orders updateOrder = Orders.builder()
-                    .id(order.getId())
-                    .status(Orders.COMPLETED)
-                    .deliveryTime(now)
-                    .build();
-            if (orderMapper.updateByExpectedStatus(updateOrder, Orders.DELIVERY_IN_PROGRESS) == 1) {
-                transitionedOrders.add(order);
-            }
+        List<Orders> transitionedOrders = orderMapper.getBatchForUpdate(
+                Orders.DELIVERY_IN_PROGRESS, deliveryThreshold, orderTaskProperties.getBatchSize());
+        if (transitionedOrders.isEmpty()) {
+            return;
         }
+        Orders updateOrder = Orders.builder()
+                .status(Orders.COMPLETED)
+                .deliveryTime(now)
+                .build();
+        updateBatchOrThrow(updateOrder, transitionedOrders, Orders.DELIVERY_IN_PROGRESS);
 
 
 
@@ -102,6 +93,28 @@ public class OrderTask {
         }
     }
 
+    /**
+     * 批量更新订单状态，失败则抛出异常
+     *
+     * @param updateOrder    更新内容
+     * @param orders         订单列表
+     * @param expectedStatus 预期当前状态（乐观并发控制）
+     */
+    private void updateBatchOrThrow(Orders updateOrder, List<Orders> orders, Integer expectedStatus) {
+        List<Long> ids = orders.stream().map(Orders::getId).collect(Collectors.toList());
+        int updated = orderMapper.updateBatchByExpectedStatus(updateOrder, ids, expectedStatus);
+        if (updated != ids.size()) {
+            throw new IllegalStateException("订单批量状态更新数量不一致");
+        }
+    }
+
+    /**
+     * 事务提交后发送订单状态变更通知给所有相关用户
+     *
+     * @param orders  订单列表
+     * @param status  订单状态
+     * @param content 通知内容
+     */
     private void sendStatusAfterCommit(List<Orders> orders, Integer status, String content) {
         Runnable action = () -> orders.forEach(order -> webSocketServer.sendOrderStatusToUser(
                 order.getUserId(), order.getId(), status, content));

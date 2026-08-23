@@ -11,6 +11,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+/**
+ * 地址簿控制器（用户端）
+ * 提供用户地址的增删改查、设置默认地址等功能
+ */
 @RestController
 @RequestMapping("/user/addressBook")
 @Tag(name = "C端地址簿接口")
@@ -22,7 +26,7 @@ public class AddressBookController {
     /**
      * 查询当前登录用户的所有地址信息
      *
-     * @return
+     * @return 地址列表
      */
     @GetMapping("/list")
     @Operation(summary = "查询当前登录用户的所有地址信息")
@@ -36,8 +40,8 @@ public class AddressBookController {
     /**
      * 新增地址
      *
-     * @param addressBook
-     * @return
+     * @param addressBook 地址信息
+     * @return 操作结果
      */
     @PostMapping
     @Operation(summary = "新增地址")
@@ -46,6 +50,12 @@ public class AddressBookController {
         return Result.success();
     }
 
+    /**
+     * 根据id查询地址
+     *
+     * @param id 地址ID
+     * @return 地址信息
+     */
     @GetMapping("/{id}")
     @Operation(summary = "根据id查询地址")
     public Result<AddressBook> getById(@PathVariable Long id) {
@@ -56,8 +66,8 @@ public class AddressBookController {
     /**
      * 根据id修改地址
      *
-     * @param addressBook
-     * @return
+     * @param addressBook 地址信息
+     * @return 操作结果
      */
     @PutMapping
     @Operation(summary = "根据id修改地址")
@@ -69,8 +79,8 @@ public class AddressBookController {
     /**
      * 设置默认地址
      *
-     * @param addressBook
-     * @return
+     * @param addressBook 地址信息（含ID）
+     * @return 操作结果
      */
     @PutMapping("/default")
     @Operation(summary = "设置默认地址")
@@ -82,8 +92,8 @@ public class AddressBookController {
     /**
      * 根据id删除地址
      *
-     * @param id
-     * @return
+     * @param id 地址ID
+     * @return 操作结果
      */
     @DeleteMapping
     @Operation(summary = "根据id删除地址")
@@ -94,11 +104,13 @@ public class AddressBookController {
 
     /**
      * 查询默认地址
+     *
+     * @return 默认地址信息
      */
     @GetMapping("default")
     @Operation(summary = "查询默认地址")
     public Result<AddressBook> getDefault() {
-        //SQL:select * from address_book where user_id = ? and is_default = 1
+        // SQL: select * from address_book where user_id = ? and is_default = 1
         AddressBook addressBook = new AddressBook();
         addressBook.setIsDefault(1);
         addressBook.setUserId(BaseContext.getCurrentId());

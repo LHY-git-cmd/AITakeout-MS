@@ -22,18 +22,23 @@ import java.util.Map;
 
 /**
  * Http工具类
+ * 提供发送GET和POST请求的功能，支持表单和JSON两种请求方式
  */
 public class HttpClientUtil {
 
+    /**
+     * 超时时间（毫秒）
+     */
     static final  int TIMEOUT_MSEC = 5 * 1000;
 
     
 
     /**
      * 发送GET方式请求
-     * @param url
-     * @param paramMap
-     * @return
+     *
+     * @param url       请求URL
+     * @param paramMap  请求参数
+     * @return 响应结果字符串
      */
     public static String doGet(String url,Map<String,String> paramMap){
         // 创建Httpclient对象
@@ -78,11 +83,12 @@ public class HttpClientUtil {
     }
 
     /**
-     * 发送POST方式请求
-     * @param url
-     * @param paramMap
-     * @return
-     * @throws IOException
+     * 发送POST方式请求（表单格式）
+     *
+     * @param url       请求URL
+     * @param paramMap  请求参数
+     * @return 响应结果字符串
+     * @throws IOException IO异常
      */
     public static String doPost(String url, Map<String, String> paramMap) throws IOException {
         // 创建Httpclient对象
@@ -125,11 +131,12 @@ public class HttpClientUtil {
     }
 
     /**
-     * 发送POST方式请求
-     * @param url
-     * @param paramMap
-     * @return
-     * @throws IOException
+     * 发送POST方式请求（JSON格式）
+     *
+     * @param url       请求URL
+     * @param paramMap  请求参数
+     * @return 响应结果字符串
+     * @throws IOException IO异常
      */
     public static String doPost4Json(String url, Map<String, String> paramMap) throws IOException {
         // 创建Httpclient对象
@@ -173,6 +180,11 @@ public class HttpClientUtil {
 
         return resultString;
     }
+    /**
+     * 构建请求配置
+     *
+     * @return 请求配置对象
+     */
     private static RequestConfig builderRequestConfig() {
         return RequestConfig.custom()
                 .setConnectTimeout(TIMEOUT_MSEC)

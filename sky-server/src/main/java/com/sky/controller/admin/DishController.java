@@ -21,7 +21,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * 菜品管理
+ * 菜品管理控制器（管理端）
+ * 提供菜品的CRUD操作、起售/停售及缓存管理
  */
 @RestController
 @RequestMapping("/admin/dish")
@@ -36,9 +37,10 @@ public class DishController {
     private RedisTemplate redisTemplate;
 
     /**
-     *新增菜品
-     *@param dishDTO
-     *@return
+     * 新增菜品（含口味）
+     *
+     * @param dishDTO 菜品数据传输对象
+     * @return 操作结果
      */
     @PostMapping
     @Operation(summary = "新增菜品")
@@ -46,7 +48,7 @@ public class DishController {
         log.info("新增菜品：{}",dishDTO);
         dishService.saveWithFlavor(dishDTO);
 
-        //清除缓存数据
+        // 清除该分类下的菜品缓存
         String key = "dish_"+dishDTO.getCategoryId();
         cleanCache(key);
 
@@ -55,8 +57,9 @@ public class DishController {
 
     /**
      * 菜品分页查询
-     * @param dishPageQueryDTO
-     * @return
+     *
+     * @param dishPageQueryDTO 分页查询条件
+     * @return 分页结果
      */
     @GetMapping("/page")
     @Operation(summary = "菜品分页查询")
@@ -68,8 +71,9 @@ public class DishController {
 
     /**
      * 删除菜品（支持批量删除）
-     * @param ids
-     * @return
+     *
+     * @param ids 菜品ID集合
+     * @return 操作结果
      */
     @DeleteMapping
     @Operation(summary = "删除菜品")
@@ -77,16 +81,17 @@ public class DishController {
         log.info("删除菜品：{}", ids);
         dishService.deleteBatch(ids);
 
-        //将所有菜品缓存数据清理掉，所有以dish_开头的key
+        // 清除所有菜品缓存
         cleanCache("dish_*");
 
         return Result.success();
     }
 
     /**
-     * 根据分类id查询菜品
-     * @param categoryId
-     * @return
+     * 根据分类id查询菜品列表
+     *
+     * @param categoryId 分类ID
+     * @return 菜品视图列表
      */
     @GetMapping("/list")
     @Operation(summary = "根据分类id查询菜品")
@@ -101,8 +106,9 @@ public class DishController {
 
     /**
      * 根据id查询菜品详情
-     * @param id
-     * @return
+     *
+     * @param id 菜品ID
+     * @return 菜品视图对象
      */
     @GetMapping("/{id:\\d+}")
     @Operation(summary = "根据id查询菜品详情")
@@ -113,9 +119,10 @@ public class DishController {
     }
 
     /**
-     * 修改菜品
-     * @param dishDTO
-     * @return
+     * 修改菜品（含口味）
+     *
+     * @param dishDTO 菜品数据传输对象
+     * @return 操作结果
      */
     @PutMapping
     @Operation(summary = "修改菜品")
@@ -130,9 +137,10 @@ public class DishController {
 
     /**
      * 菜品起售/停售
-     * @param status
-     * @param id
-     * @return
+     *
+     * @param status 状态（0-停售，1-起售）
+     * @param id     菜品ID
+     * @return 操作结果
      */
     @PostMapping("/status/{status}")
     @Operation(summary = "菜品起售/停售")
@@ -146,8 +154,9 @@ public class DishController {
     }
 
     /**
-     *清除缓存数据
-     * @param pattern
+     * 清除缓存数据
+     *
+     * @param pattern 缓存key匹配模式
      */
     private void cleanCache(String pattern) {
         Set<String> keys = redisTemplate.keys(pattern);

@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 分类管理
+ * 分类管理控制器（管理端）
+ * 提供菜品分类和套餐分类的CRUD操作及启用/禁用接口
  */
 @RestController
 @RequestMapping("/admin/category")
@@ -28,8 +29,9 @@ public class CategoryController {
 
     /**
      * 新增分类
-     * @param categoryDTO
-     * @return
+     *
+     * @param categoryDTO 分类数据传输对象
+     * @return 操作结果
      */
     @PostMapping
     @Operation(summary = "新增分类")
@@ -41,8 +43,9 @@ public class CategoryController {
 
     /**
      * 分类分页查询
-     * @param categoryPageQueryDTO
-     * @return
+     *
+     * @param categoryPageQueryDTO 分页查询条件
+     * @return 分页结果
      */
     @GetMapping("/page")
     @Operation(summary = "分类分页查询")
@@ -54,8 +57,9 @@ public class CategoryController {
 
     /**
      * 删除分类
-     * @param id
-     * @return
+     *
+     * @param id 分类ID
+     * @return 操作结果
      */
     @DeleteMapping
     @Operation(summary = "删除分类")
@@ -67,8 +71,9 @@ public class CategoryController {
 
     /**
      * 修改分类
-     * @param categoryDTO
-     * @return
+     *
+     * @param categoryDTO 分类数据传输对象
+     * @return 操作结果
      */
     @PutMapping
     @Operation(summary = "修改分类")
@@ -78,10 +83,11 @@ public class CategoryController {
     }
 
     /**
-     * 启用、禁用分类
-     * @param status
-     * @param id
-     * @return
+     * 启用/禁用分类
+     *
+     * @param status 状态（0-禁用，1-启用）
+     * @param id     分类ID
+     * @return 操作结果
      */
     @PostMapping("/status/{status}")
     @Operation(summary = "启用禁用分类")
@@ -91,9 +97,10 @@ public class CategoryController {
     }
 
     /**
-     * 根据类型查询分类
-     * @param type
-     * @return
+     * 根据类型查询分类列表
+     *
+     * @param type 类型（1-菜品分类，2-套餐分类）
+     * @return 分类列表
      */
     @GetMapping("/list")
     @Operation(summary = "根据类型查询分类")

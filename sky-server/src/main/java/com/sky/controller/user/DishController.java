@@ -16,6 +16,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 菜品浏览控制器（用户端）
+ * 提供根据分类查询菜品功能，数据优先从Redis缓存获取
+ */
 @RestController("userDishController")
 @RequestMapping("/user/dish")
 @Slf4j
@@ -28,9 +32,10 @@ public class DishController {
 
     /**
      * 根据分类id查询菜品
+     * 优先从Redis缓存获取，缓存未命中则查询数据库并回写缓存
      *
-     * @param categoryId
-     * @return
+     * @param categoryId 分类ID
+     * @return 菜品视图列表
      */
     @GetMapping("/list")
     @Operation(summary = "根据分类id查询菜品")

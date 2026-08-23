@@ -4,8 +4,6 @@ server:
 spring:
   profiles:
     active: dev
-  main:
-    allow-circular-references: true
   datasource:
     druid:
       driver-class-name: ${sky.datasource.driver-class-name}
@@ -91,6 +89,8 @@ sky:
     ak: ${BAIDU_MAP_AK:}
   delivery:
     max-distance: 5000
+  order-task:
+    batch-size: ${ORDER_TASK_BATCH_SIZE:200}
   ai:
     enabled: ${AI_ENABLED:false}
     daily-limit: 10

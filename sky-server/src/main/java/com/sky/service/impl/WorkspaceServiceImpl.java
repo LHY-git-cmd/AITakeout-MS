@@ -20,6 +20,10 @@ import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 工作台服务实现类
+ * 提供管理端首页各类统计数据的查询，包括营业数据、订单管理、菜品和套餐总览
+ */
 @Service
 @Slf4j
 public class WorkspaceServiceImpl implements WorkspaceService {
