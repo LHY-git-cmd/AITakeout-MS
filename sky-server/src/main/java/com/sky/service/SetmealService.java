@@ -10,65 +10,66 @@ import com.sky.vo.SetmealVO;
 import java.util.List;
 
 /**
- * 套餐服务接口
+ * 套餐业务层接口
+ * 提供套餐的CRUD、起售/停售、菜品选项查询等功能
  */
 public interface SetmealService {
 
     /**
-     * 新增套餐
-     * 
+     * 新增套餐（含关联菜品）
+     *
      * @param setmealDTO 套餐数据传输对象，包含套餐基本信息和关联菜品列表
      */
     void save(SetmealDTO setmealDTO);
 
     /**
      * 分页查询套餐
-     * 
+     *
      * @param setmealPageQueryDTO 分页查询条件
      * @return 分页结果对象
      */
     PageResult pageQuery(SetmealPageQueryDTO setmealPageQueryDTO);
 
     /**
-     * 根据ID查询套餐详情（包含分类名称）
-     * 
+     * 根据ID查询套餐详情（包含分类名称和菜品列表）
+     *
      * @param id 套餐ID
      * @return 套餐详情视图对象
      */
     SetmealVO getByIdWithDish(Long id);
 
     /**
-     * 修改套餐
-     * 
+     * 修改套餐（含关联菜品）
+     *
      * @param setmealDTO 套餐数据传输对象
      */
     void update(SetmealDTO setmealDTO);
 
     /**
-     * 套餐的起售和停售
-     * 
+     * 套餐起售/停售
+     *
      * @param status 状态值，1表示起售，0表示停售
-     * @param id 套餐ID
+     * @param id     套餐ID
      */
     void startOrStop(Integer status, Long id);
 
     /**
      * 删除套餐
-     * 
+     *
      * @param id 套餐ID
      */
     void deleteById(Long id);
 
     /**
      * 批量删除套餐
-     * 
+     *
      * @param ids 套餐ID列表
      */
     void deleteByIds(List<Long> ids);
 
     /**
      * 条件查询套餐列表
-     * 
+     *
      * @param setmeal 查询条件对象
      * @return 符合条件的套餐列表
      */
@@ -76,7 +77,7 @@ public interface SetmealService {
 
     /**
      * 根据套餐ID查询菜品选项
-     * 
+     *
      * @param id 套餐ID
      * @return 菜品选项列表
      */

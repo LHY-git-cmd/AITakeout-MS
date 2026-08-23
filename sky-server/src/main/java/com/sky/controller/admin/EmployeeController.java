@@ -22,7 +22,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 员工管理
+ * 员工管理控制器（管理端）
+ * 提供员工登录、登出、CRUD、账号启停用等功能
  */
 @RestController
 @RequestMapping("/admin/employee")
@@ -36,10 +37,11 @@ public class EmployeeController {
     private JwtProperties jwtProperties;
 
     /**
-     * 登录
+     * 员工登录
+     * 校验账号密码后生成JWT令牌返回
      *
-     * @param employeeLoginDTO
-     * @return
+     * @param employeeLoginDTO 登录信息
+     * @return 登录响应（含token）
      */
     @PostMapping("/login")
     @Operation(summary = "员工登录")
@@ -48,7 +50,7 @@ public class EmployeeController {
 
         Employee employee = employeeService.login(employeeLoginDTO);
 
-        //登录成功后，生成jwt令牌
+        // 登录成功后，生成jwt令牌
         Map<String, Object> claims = new HashMap<>();
         claims.put(JwtClaimsConstant.EMP_ID, employee.getId());
         String token = JwtUtil.createJWT(
@@ -67,9 +69,9 @@ public class EmployeeController {
     }
 
     /**
-     * 退出
+     * 员工退出登录
      *
-     * @return
+     * @return 操作结果
      */
     @PostMapping("/logout")
     @Operation(summary = "员工退出")
@@ -77,11 +79,11 @@ public class EmployeeController {
         return Result.success();
     }
 
-
     /**
      * 新增员工
-     * @param employeeDTO
-     * @return
+     *
+     * @param employeeDTO 员工信息
+     * @return 操作结果
      */
     @PostMapping
     @Operation(summary = "新增员工")
@@ -95,9 +97,10 @@ public class EmployeeController {
 
     /**
      * 员工分页查询
-     * @param employeePageQueryDTO
-     * @return
-     *  */
+     *
+     * @param employeePageQueryDTO 分页查询条件
+     * @return 分页结果
+     */
     @GetMapping("/page")
     @Operation(summary = "员工信息查询")
     public Result<PageResult> page(@Valid EmployeePageQueryDTO employeePageQueryDTO){
@@ -107,10 +110,11 @@ public class EmployeeController {
     }
 
     /**
-     * 启用和禁用员工账号
-     * @param status
-     * @param id
-     * @return
+     * 启用/禁用员工账号
+     *
+     * @param status 状态（0-禁用，1-启用）
+     * @param id     员工ID
+     * @return 操作结果
      */
     @PostMapping("/status/{status}")
     @Operation(summary = "启用禁用员工账号")
@@ -122,8 +126,9 @@ public class EmployeeController {
 
     /**
      * 根据ID查询员工
-     * @param id
-     * @return
+     *
+     * @param id 员工ID
+     * @return 员工信息
      */
     @GetMapping("/{id}")
     @Operation(summary = "根据ID查询员工")
@@ -135,8 +140,9 @@ public class EmployeeController {
 
     /**
      * 编辑员工信息
-     * @param employeeDTO
-     * @return
+     *
+     * @param employeeDTO 员工信息
+     * @return 操作结果
      */
     @PutMapping
     @Operation(summary = "编辑员工信息")
@@ -145,8 +151,5 @@ public class EmployeeController {
         employeeService.update(employeeDTO);
         return Result.success();
     }
-
-
-
 
 }

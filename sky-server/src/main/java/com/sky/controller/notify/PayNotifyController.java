@@ -18,7 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 
 /**
- * 支付回调相关接口
+ * 微信支付回调控制器
+ * 接收微信支付成功回调通知，解密数据后更新订单状态
  */
 @RestController
 @RequestMapping("/notify")
@@ -30,40 +31,42 @@ public class PayNotifyController {
     private WeChatProperties weChatProperties;
 
     /**
-     * 支付成功回调
+     * 微信支付成功回调通知
+     * 读取请求数据、使用APIv3密钥解密，更新订单状态并回复微信
      *
-     * @param request
+     * @param request  HTTP请求
+     * @param response HTTP响应
      */
     @RequestMapping("/paySuccess")
     public void paySuccessNotify(HttpServletRequest request, HttpServletResponse response) throws Exception {
-        //读取数据
+        // 读取数据
         String body = readData(request);
         log.info("支付成功回调：{}", body);
 
-        //数据解密
+        // 数据解密
         String plainText = decryptData(body);
         log.info("解密后的文本：{}", plainText);
 
         JSONObject jsonObject = JSON.parseObject(plainText);
-        String outTradeNo = jsonObject.getString("out_trade_no");//商户平台订单号
-        String transactionId = jsonObject.getString("transaction_id");//微信支付交易号
+        String outTradeNo = jsonObject.getString("out_trade_no");// 商户平台订单号
+        String transactionId = jsonObject.getString("transaction_id");// 微信支付交易号
 
         log.info("商户平台订单号：{}", outTradeNo);
         log.info("微信支付交易号：{}", transactionId);
 
-        //业务处理，修改订单状态、来单提醒
+        // 业务处理，修改订单状态、来单提醒
         orderService.paySuccess(outTradeNo);
 
-        //给微信响应
+        // 给微信响应
         responseToWeixin(response);
     }
 
     /**
-     * 读取数据
+     * 读取请求体数据
      *
-     * @param request
-     * @return
-     * @throws Exception
+     * @param request HTTP请求
+     * @return 请求体字符串
+     * @throws Exception 读取异常
      */
     private String readData(HttpServletRequest request) throws Exception {
         BufferedReader reader = request.getReader();
@@ -79,11 +82,11 @@ public class PayNotifyController {
     }
 
     /**
-     * 数据解密
+     * 使用AES-GCM解密微信回调数据
      *
-     * @param body
-     * @return
-     * @throws Exception
+     * @param body 原始回调JSON
+     * @return 解密后的明文
+     * @throws Exception 解密异常
      */
     private String decryptData(String body) throws Exception {
         JSONObject resultObject = JSON.parseObject(body);
@@ -93,7 +96,7 @@ public class PayNotifyController {
         String associatedData = resource.getString("associated_data");
 
         AesUtil aesUtil = new AesUtil(weChatProperties.getApiV3Key().getBytes(StandardCharsets.UTF_8));
-        //密文解密
+        // 密文解密
         String plainText = aesUtil.decryptToString(associatedData.getBytes(StandardCharsets.UTF_8),
                 nonce.getBytes(StandardCharsets.UTF_8),
                 ciphertext);
@@ -102,8 +105,9 @@ public class PayNotifyController {
     }
 
     /**
-     * 给微信响应
-     * @param response
+     * 回复微信平台确认回调已处理
+     *
+     * @param response HTTP响应
      */
     private void responseToWeixin(HttpServletResponse response) throws Exception{
         response.setStatus(200);

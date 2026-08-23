@@ -11,8 +11,10 @@ import org.apache.ibatis.annotations.Select;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-
-
+/**
+ * 订单数据访问接口
+ * 提供订单的CRUD、状态流转、批量锁定与更新、统计报表等数据库操作
+ */
 @Mapper
 public interface OrderMapper {
     /**
@@ -71,6 +73,20 @@ public interface OrderMapper {
     @Select("select * from orders where status = #{status} and order_time < #{orderTime}")
     List<Orders> getByStatusAndOrderTimeLT(@Param("status") Integer status,
                                            @Param("orderTime") LocalDateTime orderTime);
+
+    /**
+     * 锁定一批待处理订单；调用方必须在事务中执行。
+     */
+    List<Orders> getBatchForUpdate(@Param("status") Integer status,
+                                   @Param("orderTime") LocalDateTime orderTime,
+                                   @Param("batchSize") int batchSize);
+
+    /**
+     * 将已锁定的一批订单一次性转换到目标状态。
+     */
+    int updateBatchByExpectedStatus(@Param("order") Orders order,
+                                    @Param("ids") List<Long> ids,
+                                    @Param("expectedStatus") Integer expectedStatus);
 
     /**
      * 根据条件汇总订单金额

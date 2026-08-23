@@ -17,7 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDateTime;
 
 /**
- * 工作台相关接口
+ * 工作台控制器（管理端）
+ * 提供首页工作台数据查询，包括营业数据、订单管理、菜品和套餐总览
  */
 @RestController
 @RequestMapping("/admin/workspace")
@@ -30,6 +31,7 @@ public class WorkSpaceController {
 
     /**
      * 工作台今日数据查询
+     *
      * @return 今日营业数据
      */
     @GetMapping("/businessData")
@@ -42,6 +44,7 @@ public class WorkSpaceController {
 
     /**
      * 查询订单管理数据
+     *
      * @return 订单管理数据
      */
     @GetMapping("/overviewOrders")
@@ -52,6 +55,7 @@ public class WorkSpaceController {
 
     /**
      * 查询菜品总览
+     *
      * @return 菜品总览数据
      */
     @GetMapping("/overviewDishes")
@@ -62,6 +66,7 @@ public class WorkSpaceController {
 
     /**
      * 查询套餐总览
+     *
      * @return 套餐总览数据
      */
     @GetMapping("/overviewSetmeals")

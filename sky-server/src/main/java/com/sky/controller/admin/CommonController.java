@@ -17,7 +17,8 @@ import java.io.IOException;
 import java.util.UUID;
 
 /**
- * 通用接口
+ * 通用接口控制器（管理端）
+ * 提供文件上传等通用功能，集成阿里云OSS
  */
 @RestController
 @RequestMapping("/admin/common")
@@ -30,9 +31,10 @@ public class CommonController {
 
     /**
      * 文件上传
+     * 上传文件至阿里云OSS，返回文件访问URL
      *
-     * @param file
-     * @return
+     * @param file 上传的文件
+     * @return 文件访问URL
      */
     @PostMapping("/upload")
     @Operation(summary = "文件上传")

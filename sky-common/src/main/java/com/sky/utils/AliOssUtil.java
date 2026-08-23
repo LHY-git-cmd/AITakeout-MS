@@ -9,22 +9,41 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import java.io.ByteArrayInputStream;
 
+/**
+ * 阿里云OSS文件上传工具类
+ * 提供文件上传到阿里云OSS的功能
+ */
 @Data
 @AllArgsConstructor
 @Slf4j
 public class AliOssUtil {
 
+    /**
+     * OSS服务端点
+     */
     private String endpoint;
+
+    /**
+     * 访问密钥ID
+     */
     private String accessKeyId;
+
+    /**
+     * 访问密钥密钥
+     */
     private String accessKeySecret;
+
+    /**
+     * 存储桶名称
+     */
     private String bucketName;
 
     /**
      * 文件上传
      *
-     * @param bytes
-     * @param objectName
-     * @return
+     * @param bytes     文件字节数组
+     * @param objectName 对象名称（包含路径）
+     * @return 文件访问URL
      */
     public String upload(byte[] bytes, String objectName) {
 

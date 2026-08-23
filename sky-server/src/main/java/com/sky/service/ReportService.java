@@ -9,7 +9,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.time.LocalDate;
 
 /**
- * 数据统计业务接口
+ * 数据统计业务层接口
+ * 提供营业额、用户数、订单数、商品销量Top10等统计查询，以及运营数据Excel导出功能
  */
 public interface ReportService {
 

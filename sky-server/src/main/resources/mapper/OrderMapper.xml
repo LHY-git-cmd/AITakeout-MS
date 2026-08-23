@@ -115,6 +115,28 @@
           and pay_status = #{expectedPayStatus}
     </update>
 
+    <select id="getBatchForUpdate" resultType="com.sky.entity.Orders">
+        select *
+        from orders
+        where status = #{status}
+          and order_time &lt; #{orderTime}
+        order by order_time, id
+        limit #{batchSize}
+        for update
+    </select>
+
+    <update id="updateBatchByExpectedStatus">
+        update orders
+        <set>
+            <include refid="orderUpdateColumns"/>
+        </set>
+        where status = #{expectedStatus}
+          and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
     <select id="sumByMap" resultType="java.lang.Double">
         select sum(amount)
         from orders

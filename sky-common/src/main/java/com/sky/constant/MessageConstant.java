@@ -2,6 +2,7 @@ package com.sky.constant;
 
 /**
  * 信息提示常量类
+ * 定义系统中使用的所有错误提示信息和操作提示信息
  */
 public class MessageConstant {
 

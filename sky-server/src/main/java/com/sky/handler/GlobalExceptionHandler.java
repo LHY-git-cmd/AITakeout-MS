@@ -16,6 +16,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    /**
+     * 处理 @Valid 校验失败异常（@RequestBody 上的 @Valid 触发）
+     *
+     * @param ex 参数校验异常
+     * @return 校验失败信息
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Result<String> validationExceptionHandler(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldError() == null
@@ -25,6 +31,12 @@ public class GlobalExceptionHandler {
         return Result.error(message);
     }
 
+    /**
+     * 处理 @Validated 校验异常（方法参数上的约束注解触发）
+     *
+     * @param ex 约束违反异常
+     * @return 校验失败信息
+     */
     @ExceptionHandler(ConstraintViolationException.class)
     public Result<String> constraintViolationExceptionHandler(ConstraintViolationException ex) {
         String message = ex.getConstraintViolations().stream()
@@ -37,8 +49,9 @@ public class GlobalExceptionHandler {
 
     /**
      * 捕获业务异常
-     * @param ex
-     * @return
+     *
+     * @param ex 业务异常
+     * @return 统一错误响应
      */
     @ExceptionHandler
     public Result exceptionHandler(BaseException ex){
@@ -47,9 +60,11 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * 处理sql异常
-     * @param ex
-     * @return
+     * 处理SQL异常
+     * 检测到唯一键冲突时给出友好提示，其余未知异常返回通用错误
+     *
+     * @param ex 其他未捕获的异常
+     * @return 统一错误响应
      */
     @ExceptionHandler
     public Result sqlExceptionHandler(Exception ex){

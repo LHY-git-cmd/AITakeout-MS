@@ -11,6 +11,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
+/**
+ * 分类浏览控制器（用户端）
+ * 提供菜品和套餐分类的查询接口
+ */
 @RestController("userCategoryController")
 @RequestMapping("/user/category")
 @Tag(name = "C端-分类接口")
@@ -20,9 +24,10 @@ public class CategoryController {
     private CategoryService categoryService;
 
     /**
-     * 查询分类
-     * @param type
-     * @return
+     * 查询分类列表
+     *
+     * @param type 分类类型（1-菜品分类，2-套餐分类）
+     * @return 分类列表
      */
     @GetMapping("/list")
     @Operation(summary = "查询分类")

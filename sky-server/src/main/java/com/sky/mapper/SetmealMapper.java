@@ -14,13 +14,14 @@ import java.util.Map;
 
 /**
  * 套餐数据访问接口
+ * 提供套餐的CRUD、分页查询、状态变更及统计方法
  */
 @Mapper
 public interface SetmealMapper {
 
     /**
-     * 根据分类ID查询套餐的数量 
-     * 
+     * 根据分类ID查询套餐的数量
+     *
      * @param id 分类ID
      * @return 套餐数量
      */
@@ -29,7 +30,7 @@ public interface SetmealMapper {
 
     /**
      * 动态条件查询套餐
-     * 
+     *
      * @param setmeal 查询条件对象
      * @return 套餐列表
      */
@@ -37,7 +38,7 @@ public interface SetmealMapper {
 
     /**
      * 根据套餐ID查询菜品选项
-     * 
+     *
      * @param setmealId 套餐ID
      * @return 菜品选项列表
      */
@@ -48,7 +49,7 @@ public interface SetmealMapper {
 
     /**
      * 分页查询套餐
-     * 
+     *
      * @param setmealPageQueryDTO 分页查询条件
      * @return 套餐详情列表
      */
@@ -56,7 +57,7 @@ public interface SetmealMapper {
 
     /**
      * 根据ID查询套餐
-     * 
+     *
      * @param id 套餐ID
      * @return 套餐对象
      */
@@ -65,7 +66,7 @@ public interface SetmealMapper {
 
     /**
      * 根据ID查询套餐详情（包含分类名称）
-     * 
+     *
      * @param id 套餐ID
      * @return 套餐详情视图对象
      */
@@ -73,42 +74,42 @@ public interface SetmealMapper {
 
     /**
      * 更新套餐信息
-     * 
+     *
      * @param setmeal 套餐对象
      */
     void update(Setmeal setmeal);
 
     /**
      * 更新套餐状态
-     * 
+     *
      * @param setmeal 套餐对象（包含ID和状态）
      */
     void updateStatus(Setmeal setmeal);
 
     /**
      * 新增套餐
-     * 
+     *
      * @param setmeal 套餐对象
      */
     void insert(Setmeal setmeal);
 
     /**
      * 根据ID删除套餐
-     * 
+     *
      * @param id 套餐ID
      */
     void deleteById(Long id);
 
     /**
      * 批量删除套餐
-     * 
+     *
      * @param ids 套餐ID列表
      */
     void deleteByIds(@Param("ids") List<Long> ids);
 
     /**
      * 根据ID列表查询套餐列表
-     * 
+     *
      * @param ids 套餐ID列表
      * @return 套餐列表
      */
@@ -116,6 +117,7 @@ public interface SetmealMapper {
 
     /**
      * 根据条件统计套餐数量
+     *
      * @param map 查询条件
      * @return 套餐数量
      */

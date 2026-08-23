@@ -20,10 +20,15 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * 用户业务实现类
+ * 提供微信登录、Web演示登录和用户查询功能，支持微信openid自动注册
+ */
 @Service
 @Slf4j
 public class UserServiceImpl implements UserService {
 
+    /** 微信登录接口地址 */
     public static final String WX_LOGIN = "https://api.weixin.qq.com/sns/jscode2session";
 
     @Autowired
@@ -35,18 +40,24 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private WebLoginProperties webLoginProperties;
 
+    /**
+     * 微信登录
+     * 通过code换取openid，新用户自动注册
+     *
+     * @param userLoginDTO 微信登录信息（包含code）
+     * @return 登录成功的用户实体
+     * @throws LoginFailedException 登录失败
+     */
     @Override
     public User wxLogin(UserLoginDTO userLoginDTO) {
         String openid = getOpenid(userLoginDTO.getCode());
-        
+
         if (openid == null) {
             throw new LoginFailedException(MessageConstant.LOGIN_FAILED);
         }
 
-        //判断是否为新用户
         User user = userMapper.getByOpenid(openid);
 
-        //是新用户完成注册
         if (user == null) {
             user = User.builder()
                     .openid(openid)
@@ -55,10 +66,18 @@ public class UserServiceImpl implements UserService {
             log.info("插入数据{}", JSON.toJSONString(user));
             userMapper.insert(user);
         }
-        
+
         return user;
     }
 
+    /**
+     * 开发环境Web演示登录
+     * 校验手机号格式和验证码，支持自动注册新用户
+     *
+     * @param webUserLoginDTO Web登录信息（含手机号和验证码）
+     * @return 登录成功的用户实体
+     * @throws LoginFailedException 登录失败
+     */
     @Override
     public User webLogin(WebUserLoginDTO webUserLoginDTO) {
         if (!webLoginProperties.isEnabled()) {
@@ -86,6 +105,13 @@ public class UserServiceImpl implements UserService {
         return user;
     }
 
+    /**
+     * 根据ID查询用户
+     *
+     * @param id 用户ID
+     * @return 用户实体
+     * @throws LoginFailedException 用户不存在
+     */
     @Override
     public User getById(Long id) {
         User user = userMapper.getById(id);
@@ -96,10 +122,12 @@ public class UserServiceImpl implements UserService {
     }
 
     /**
-        调用微信接口服务，获取微信用户的openid
-        @param code
-        @return
-    */
+     * 调用微信接口服务，获取微信用户的openid
+     * 使用appid、secret、js_code换取openid
+     *
+     * @param code 微信登录凭证code
+     * @return 用户openid，失败返回null
+     */
     private String getOpenid(String code) {
         Map<String, String> map = new HashMap<>();
         map.put("appid", weChatProperties.getAppid());

@@ -18,6 +18,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 购物车控制器（用户端）
+ * 提供商品添加、减少、查询和清空购物车功能
+ */
 @RestController
 @RequestMapping("/user/shoppingCart")
 @Tag(name = "C端-购物车接口")
@@ -29,7 +33,9 @@ public class ShoppingCartController {
 
     /**
      * 添加商品到购物车
-     * POST /user/shoppingCart/add
+     *
+     * @param shoppingCartDTO 购物车数据
+     * @return 操作结果
      */
     @PostMapping("/add")
     @Operation(summary = "添加商品到购物车")
@@ -41,7 +47,8 @@ public class ShoppingCartController {
 
     /**
      * 查看当前用户的购物车列表
-     * GET /user/shoppingCart/list
+     *
+     * @return 购物车列表
      */
     @GetMapping("/list")
     @Operation(summary = "查看购物车")
@@ -51,7 +58,9 @@ public class ShoppingCartController {
 
     /**
      * 减少购物车中商品的数量
-     * POST /user/shoppingCart/sub
+     *
+     * @param shoppingCartDTO 购物车数据
+     * @return 操作结果
      */
     @PostMapping("/sub")
     @Operation(summary = "减少购物车中的商品数量")
@@ -63,7 +72,8 @@ public class ShoppingCartController {
 
     /**
      * 清空当前用户的购物车
-     * DELETE /user/shoppingCart/clean
+     *
+     * @return 操作结果
      */
     @DeleteMapping("/clean")
     @Operation(summary = "清空购物车")

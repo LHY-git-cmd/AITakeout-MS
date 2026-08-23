@@ -21,12 +21,23 @@ import static com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKN
  * 对象映射器:基于jackson将Java对象转为json，或者将json转为Java对象
  * 将JSON解析为Java对象的过程称为 [从JSON反序列化Java对象]
  * 从Java对象生成JSON的过程称为 [序列化Java对象到JSON]
+ * 支持Java 8时间类型的序列化与反序列化
  */
 public class JacksonObjectMapper extends ObjectMapper {
 
+    /**
+     * 默认日期格式
+     */
     public static final String DEFAULT_DATE_FORMAT = "yyyy-MM-dd";
-    //public static final String DEFAULT_DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm:ss";
+
+    /**
+     * 默认日期时间格式
+     */
     public static final String DEFAULT_DATE_TIME_FORMAT = "yyyy-MM-dd HH:mm";
+
+    /**
+     * 默认时间格式
+     */
     public static final String DEFAULT_TIME_FORMAT = "HH:mm:ss";
 
     public JacksonObjectMapper() {
