@@ -27,7 +27,6 @@
         <druid>1.2.28</druid>
         <pagehelper>2.1.1</pagehelper>
         <aliyun.sdk.oss>3.15.1</aliyun.sdk.oss>
-        <knife4j>4.5.0</knife4j>
         <springdoc>2.8.17</springdoc>
         <swagger.annotations>2.2.53</swagger.annotations>
         <httpclient4>4.5.14</httpclient4>
@@ -79,12 +78,6 @@
                 <groupId>com.github.pagehelper</groupId>
                 <artifactId>pagehelper-spring-boot-starter</artifactId>
                 <version>${pagehelper}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.github.xiaoymin</groupId>
-                <artifactId>knife4j-openapi3-jakarta-spring-boot-starter</artifactId>
-                <version>${knife4j}</version>
             </dependency>
 
             <dependency>

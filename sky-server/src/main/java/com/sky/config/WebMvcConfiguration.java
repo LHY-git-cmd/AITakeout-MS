@@ -5,10 +5,10 @@ import com.sky.interceptor.JwtTokenUserInterceptor;
 import com.sky.json.JacksonObjectMapper;
 import com.sky.properties.CorsProperties;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * Web MVC配置类
- * 注册JWT拦截器、配置CORS跨域、扩展消息转换器及Knife4j接口文档
+ * 注册JWT拦截器、配置CORS跨域、扩展消息转换器及Swagger接口文档
  */
 @Configuration
 @Slf4j
@@ -42,18 +42,30 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
         log.info("开始注册自定义拦截器...");
         registry.addInterceptor(jwtTokenAdminInterceptor)
                 .addPathPatterns("/admin/**")
-                .excludePathPatterns("/admin/employee/login");
+                .excludePathPatterns(
+                        "/admin/employee/login",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-resources/**",
+                        "/favicon.ico"
+                );
 
         registry.addInterceptor(jwtTokenUserInterceptor)
                 .addPathPatterns("/user/**")
-                .excludePathPatterns("/user/user/login")
-                .excludePathPatterns("/user/user/login/web")
-                .excludePathPatterns("/user/user/register/web")
-                .excludePathPatterns("/user/shop/status")
-                .excludePathPatterns("/user/category/list")
-                .excludePathPatterns("/user/dish/list")
-                .excludePathPatterns("/user/setmeal/list")
-                .excludePathPatterns("/user/setmeal/dish/**");
+                .excludePathPatterns(
+                        "/user/user/login",
+                        "/user/user/login/web",
+                        "/user/user/register/web",
+                        "/user/shop/status",
+                        "/user/category/list",
+                        "/user/dish/list",
+                        "/user/setmeal/list",
+                        "/user/setmeal/dish/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui/**",
+                        "/swagger-resources/**",
+                        "/favicon.ico"
+                );
     }
 
     /**
@@ -79,36 +91,12 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
      */
     @Bean
     public OpenAPI skyOpenApi() {
-        return new OpenAPI().info(new Info()
-                .title("苍穹外卖项目接口文档")
-                .version("3.0")
-                .description("苍穹外卖项目管理端和用户端接口文档"));
-    }
-
-    /**
-     * 管理端API分组
-     *
-     * @return GroupedOpenApi实例
-     */
-    @Bean
-    public GroupedOpenApi adminApi() {
-        return GroupedOpenApi.builder()
-                .group("admin")
-                .pathsToMatch("/admin/**")
-                .build();
-    }
-
-    /**
-     * 用户端API分组
-     *
-     * @return GroupedOpenApi实例
-     */
-    @Bean
-    public GroupedOpenApi userApi() {
-        return GroupedOpenApi.builder()
-                .group("user")
-                .pathsToMatch("/user/**")
-                .build();
+        return new OpenAPI()
+                .info(new Info()
+                        .title("苍穹外卖项目接口文档")
+                        .version("3.0")
+                        .description("苍穹外卖项目管理端和用户端接口文档")
+                        .contact(new Contact().name("苍穹外卖开发团队")));
     }
 
     /**
@@ -120,9 +108,21 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
     @Override
     public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
         log.info("扩展Spring MVC消息转换器...");
-        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
-        converter.setObjectMapper(new JacksonObjectMapper());
-        converters.add(0, converter);
+        JacksonObjectMapper objectMapper = new JacksonObjectMapper();
+        boolean jacksonConverterConfigured = false;
+        for (HttpMessageConverter<?> converter : converters) {
+            if (converter instanceof MappingJackson2HttpMessageConverter jacksonConverter) {
+                jacksonConverter.setObjectMapper(objectMapper);
+                jacksonConverterConfigured = true;
+            }
+        }
+
+        // Keep Springdoc's ByteArrayHttpMessageConverter ahead of Jackson. Its
+        // OpenAPI endpoint returns UTF-8 JSON as byte[], which Jackson would
+        // otherwise encode as a Base64 JSON string.
+        if (!jacksonConverterConfigured) {
+            converters.add(new MappingJackson2HttpMessageConverter(objectMapper));
+        }
     }
 
 }

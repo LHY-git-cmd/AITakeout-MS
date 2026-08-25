@@ -1,7 +1,18 @@
 sky:
+  agent:
+    base-url: http://localhost:8000
+    connect-timeout: 5000
+    read-timeout: 60000
+    request-timeout: 65000
+  cors:
+    allowed-origin-patterns:
+      - "http://localhost:[*]"
+      - "http://127.0.0.1:[*]"
+      - "http://10.*:[*]"
+      - "http://172.*:[*]"
+      - "http://192.168.*:[*]"
   web-login:
     enabled: true
-    verification-code: ${WEB_DEMO_VERIFICATION_CODE:123456}
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     host: localhost
