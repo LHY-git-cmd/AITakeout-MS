@@ -2,6 +2,7 @@ package com.sky.service;
 
 import com.sky.dto.UserLoginDTO;
 import com.sky.dto.WebUserLoginDTO;
+import com.sky.dto.WebUserRegisterDTO;
 import com.sky.entity.User;
 
 /**
@@ -25,6 +26,8 @@ public interface UserService {
      * @return 用户实体
      */
     User webLogin(WebUserLoginDTO webUserLoginDTO);
+
+    User webRegister(WebUserRegisterDTO webUserRegisterDTO);
 
     /**
      * 根据ID查询用户

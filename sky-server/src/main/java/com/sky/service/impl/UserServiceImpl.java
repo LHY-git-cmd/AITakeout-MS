@@ -3,8 +3,10 @@ package com.sky.service.impl;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.sky.constant.MessageConstant;
+import com.sky.constant.PasswordConstant;
 import com.sky.dto.UserLoginDTO;
 import com.sky.dto.WebUserLoginDTO;
+import com.sky.dto.WebUserRegisterDTO;
 import com.sky.entity.User;
 import com.sky.exception.LoginFailedException;
 import com.sky.mapper.UserMapper;
@@ -14,6 +16,8 @@ import com.sky.service.UserService;
 import com.sky.utils.HttpClientUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -39,6 +43,9 @@ public class UserServiceImpl implements UserService {
 
     @Autowired
     private WebLoginProperties webLoginProperties;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     /**
      * 微信登录
@@ -72,9 +79,9 @@ public class UserServiceImpl implements UserService {
 
     /**
      * 开发环境Web演示登录
-     * 校验手机号格式和验证码，支持自动注册新用户
+     * 使用手机号和密码登录
      *
-     * @param webUserLoginDTO Web登录信息（含手机号和验证码）
+     * @param webUserLoginDTO Web登录信息（含手机号和密码）
      * @return 登录成功的用户实体
      * @throws LoginFailedException 登录失败
      */
@@ -83,26 +90,45 @@ public class UserServiceImpl implements UserService {
         if (!webLoginProperties.isEnabled()) {
             throw new LoginFailedException("Web 演示登录未启用");
         }
-        if (webUserLoginDTO == null
-                || webUserLoginDTO.getPhone() == null
-                || !webUserLoginDTO.getPhone().matches("^1\\d{10}$")) {
-            throw new LoginFailedException("请输入正确的手机号");
+        if (webUserLoginDTO == null) {
+            throw new LoginFailedException("手机号或密码错误");
         }
-        if (webLoginProperties.getVerificationCode() == null
-                || !webLoginProperties.getVerificationCode().equals(webUserLoginDTO.getCode())) {
-            throw new LoginFailedException("验证码错误");
-        }
-
         User user = userMapper.getByPhone(webUserLoginDTO.getPhone());
-        if (user == null) {
-            user = User.builder()
-                    .name("演示用户")
-                    .phone(webUserLoginDTO.getPhone())
-                    .createTime(LocalDateTime.now())
-                    .build();
-            userMapper.insert(user);
+        if (user == null || user.getPassword() == null
+                || !passwordEncoder.matches(webUserLoginDTO.getPassword(), user.getPassword())) {
+            throw new LoginFailedException("手机号或密码错误");
         }
         return user;
+    }
+
+    @Override
+    public User webRegister(WebUserRegisterDTO dto) {
+        if (!webLoginProperties.isEnabled()) {
+            throw new LoginFailedException("Web 演示登录未启用");
+        }
+        if (userMapper.getByPhone(dto.getPhone()) != null) {
+            throw new LoginFailedException("该手机号已注册");
+        }
+
+        User user = User.builder()
+                .name(dto.getName().trim())
+                .phone(dto.getPhone())
+                .password(passwordEncoder.encode(PasswordConstant.DEFAULT_PASSWORD))
+                .sex(emptyToNull(dto.getSex()))
+                .idNumber(emptyToNull(dto.getIdNumber()))
+                .avatar(emptyToNull(dto.getAvatar()))
+                .createTime(LocalDateTime.now())
+                .build();
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException ex) {
+            throw new LoginFailedException("该手机号已注册");
+        }
+        return user;
+    }
+
+    private String emptyToNull(String value) {
+        return value == null || value.trim().isEmpty() ? null : value.trim();
     }
 
     /**

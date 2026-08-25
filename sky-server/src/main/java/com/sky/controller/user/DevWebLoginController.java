@@ -2,6 +2,7 @@ package com.sky.controller.user;
 
 import com.sky.constant.JwtClaimsConstant;
 import com.sky.dto.WebUserLoginDTO;
+import com.sky.dto.WebUserRegisterDTO;
 import com.sky.entity.User;
 import com.sky.properties.JwtProperties;
 import com.sky.result.Result;
@@ -53,7 +54,18 @@ public class DevWebLoginController {
         // Web端手机号登录
         User user = userService.webLogin(webUserLoginDTO);
 
-        // 为登录用户生成jwt令牌
+        return Result.success(buildLoginVO(user));
+    }
+
+    @PostMapping("/register/web")
+    @Operation(summary = "Web 端用户注册")
+    public Result<UserLoginVO> register(@Valid @RequestBody WebUserRegisterDTO webUserRegisterDTO) {
+        log.info("Web 用户注册：{}", maskPhone(webUserRegisterDTO.getPhone()));
+        User user = userService.webRegister(webUserRegisterDTO);
+        return Result.success(buildLoginVO(user));
+    }
+
+    private UserLoginVO buildLoginVO(User user) {
         Map<String, Object> claims = new HashMap<>();
         claims.put(JwtClaimsConstant.USER_ID, user.getId());
         String token = JwtUtil.createJWT(
@@ -61,13 +73,13 @@ public class DevWebLoginController {
                 jwtProperties.getUserTtl(),
                 claims);
 
-        return Result.success(UserLoginVO.builder()
+        return UserLoginVO.builder()
                 .id(user.getId())
                 .name(user.getName())
                 .phone(user.getPhone())
                 .avatar(user.getAvatar())
                 .token(token)
-                .build());
+                .build();
     }
 
     /**

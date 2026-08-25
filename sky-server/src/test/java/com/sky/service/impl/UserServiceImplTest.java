@@ -1,6 +1,8 @@
 package com.sky.service.impl;
 
+import com.sky.constant.PasswordConstant;
 import com.sky.dto.WebUserLoginDTO;
+import com.sky.dto.WebUserRegisterDTO;
 import com.sky.entity.User;
 import com.sky.exception.LoginFailedException;
 import com.sky.mapper.UserMapper;
@@ -13,11 +15,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -26,7 +31,7 @@ import static org.mockito.Mockito.when;
 class UserServiceImplTest {
 
     private static final String PHONE = "13800138000";
-    private static final String CODE = "123456";
+    private static final String ENCODED_PASSWORD = "$2a$10$encoded";
 
     @Mock
     private WeChatProperties weChatProperties;
@@ -37,6 +42,9 @@ class UserServiceImplTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     @InjectMocks
     private UserServiceImpl userService;
 
@@ -46,59 +54,99 @@ class UserServiceImplTest {
     }
 
     @Test
-    void shouldReturnExistingUserForValidWebLogin() {
-        User existing = User.builder().id(7L).phone(PHONE).name("演示用户").build();
-        when(webLoginProperties.getVerificationCode()).thenReturn(CODE);
+    void shouldReturnExistingUserForCorrectPassword() {
+        User existing = User.builder().id(7L).phone(PHONE).password(ENCODED_PASSWORD).build();
         when(userMapper.getByPhone(PHONE)).thenReturn(existing);
+        when(passwordEncoder.matches(PasswordConstant.DEFAULT_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
 
-        User result = userService.webLogin(loginDto(PHONE, CODE));
+        User result = userService.webLogin(loginDto(PasswordConstant.DEFAULT_PASSWORD));
 
         assertSame(existing, result);
-        verify(userMapper, never()).insert(org.mockito.ArgumentMatchers.any(User.class));
+        verify(userMapper, never()).insert(any(User.class));
     }
 
     @Test
-    void shouldCreateUserForFirstWebLogin() {
-        when(webLoginProperties.getVerificationCode()).thenReturn(CODE);
+    void shouldRejectWrongPassword() {
+        User existing = User.builder().id(7L).phone(PHONE).password(ENCODED_PASSWORD).build();
+        when(userMapper.getByPhone(PHONE)).thenReturn(existing);
+        when(passwordEncoder.matches("wrong", ENCODED_PASSWORD)).thenReturn(false);
+
+        LoginFailedException exception = assertThrows(LoginFailedException.class,
+                () -> userService.webLogin(loginDto("wrong")));
+
+        assertEquals("手机号或密码错误", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectUnknownPhoneWithoutCreatingUser() {
         when(userMapper.getByPhone(PHONE)).thenReturn(null);
 
-        User result = userService.webLogin(loginDto(PHONE, CODE));
+        LoginFailedException exception = assertThrows(LoginFailedException.class,
+                () -> userService.webLogin(loginDto(PasswordConstant.DEFAULT_PASSWORD)));
+
+        assertEquals("手机号或密码错误", exception.getMessage());
+        verify(userMapper, never()).insert(any(User.class));
+    }
+
+    @Test
+    void shouldRegisterUserWithDefaultEncodedPassword() {
+        when(userMapper.getByPhone(PHONE)).thenReturn(null);
+        when(passwordEncoder.encode(PasswordConstant.DEFAULT_PASSWORD)).thenReturn(ENCODED_PASSWORD);
+
+        User result = userService.webRegister(registerDto());
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userMapper).insert(captor.capture());
-        assertSame(result, captor.getValue());
-        assertEquals(PHONE, result.getPhone());
-        assertEquals("演示用户", result.getName());
-        assertNotNull(result.getCreateTime());
+        User saved = captor.getValue();
+        assertSame(result, saved);
+        assertEquals("测试用户", saved.getName());
+        assertEquals(PHONE, saved.getPhone());
+        assertEquals(ENCODED_PASSWORD, saved.getPassword());
+        assertEquals("1", saved.getSex());
+        assertNull(saved.getIdNumber());
+        assertNull(saved.getAvatar());
+        assertNotNull(saved.getCreateTime());
+        verify(passwordEncoder).encode(PasswordConstant.DEFAULT_PASSWORD);
     }
 
     @Test
-    void shouldRejectWrongVerificationCode() {
-        when(webLoginProperties.getVerificationCode()).thenReturn(CODE);
+    void shouldRejectDuplicatePhone() {
+        when(userMapper.getByPhone(PHONE)).thenReturn(User.builder().id(7L).phone(PHONE).build());
 
-        LoginFailedException exception = assertThrows(
-                LoginFailedException.class,
-                () -> userService.webLogin(loginDto(PHONE, "000000")));
+        LoginFailedException exception = assertThrows(LoginFailedException.class,
+                () -> userService.webRegister(registerDto()));
 
-        assertEquals("验证码错误", exception.getMessage());
-        verify(userMapper, never()).getByPhone(PHONE);
+        assertEquals("该手机号已注册", exception.getMessage());
+        verify(userMapper, never()).insert(any(User.class));
     }
 
     @Test
-    void shouldRejectWebLoginWhenDisabled() {
+    void shouldRejectWebLoginAndRegistrationWhenDisabled() {
         when(webLoginProperties.isEnabled()).thenReturn(false);
 
-        LoginFailedException exception = assertThrows(
-                LoginFailedException.class,
-                () -> userService.webLogin(loginDto(PHONE, CODE)));
+        LoginFailedException loginException = assertThrows(LoginFailedException.class,
+                () -> userService.webLogin(loginDto(PasswordConstant.DEFAULT_PASSWORD)));
+        LoginFailedException registerException = assertThrows(LoginFailedException.class,
+                () -> userService.webRegister(registerDto()));
 
-        assertEquals("Web 演示登录未启用", exception.getMessage());
+        assertEquals("Web 演示登录未启用", loginException.getMessage());
+        assertEquals("Web 演示登录未启用", registerException.getMessage());
     }
 
-    private WebUserLoginDTO loginDto(String phone, String code) {
+    private WebUserLoginDTO loginDto(String password) {
         WebUserLoginDTO dto = new WebUserLoginDTO();
-        dto.setPhone(phone);
-        dto.setCode(code);
+        dto.setPhone(PHONE);
+        dto.setPassword(password);
+        return dto;
+    }
+
+    private WebUserRegisterDTO registerDto() {
+        WebUserRegisterDTO dto = new WebUserRegisterDTO();
+        dto.setName(" 测试用户 ");
+        dto.setPhone(PHONE);
+        dto.setSex("1");
+        dto.setIdNumber("");
+        dto.setAvatar(" ");
         return dto;
     }
 }

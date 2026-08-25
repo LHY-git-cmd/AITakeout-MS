@@ -18,8 +18,4 @@ public class WebLoginProperties {
      */
     private boolean enabled = false;
 
-    /**
-     * 演示登录使用的验证码
-     */
-    private String verificationCode;
 }
