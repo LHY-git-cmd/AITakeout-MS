@@ -17,6 +17,8 @@ spring:
     enabled: false
 
 sky:
+  agent:
+    recovery-enabled: false
   jwt:
     admin-secret-key: test-admin-secret-key-test-admin-secret-key
     admin-ttl: 7200000

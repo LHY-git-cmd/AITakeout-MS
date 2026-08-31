@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.AgentSessionMapper">
+
+    <insert id="insert" parameterType="com.sky.entity.AgentSession"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into agent_session
+        (session_id, user_id, title, status, last_task_id, message_count,
+         create_time, update_time, create_user, update_user)
+        values
+        (#{sessionId}, #{userId}, #{title}, #{status}, #{lastTaskId}, #{messageCount},
+         #{createTime}, #{updateTime}, #{createUser}, #{updateUser})
+    </insert>
+
+    <select id="pageQuery" resultType="com.sky.entity.AgentSession">
+        select *
+        from agent_session
+        <where>
+            <if test="userId != null">
+                and user_id = #{userId}
+            </if>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+        </where>
+        order by update_time desc
+    </select>
+
+    <update id="update" parameterType="com.sky.entity.AgentSession">
+        update agent_session
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="lastTaskId != null">last_task_id = #{lastTaskId},</if>
+            <if test="messageCount != null">message_count = #{messageCount},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+            <if test="updateUser != null">update_user = #{updateUser},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="incrementMessageCount">
+        update agent_session
+        set message_count = message_count + 1,
+            last_task_id = #{lastTaskId},
+            update_time = now()
+        where id = #{id}
+    </update>
+
+    <update id="softDelete">
+        update agent_session
+        set status = 3,
+            update_time = now()
+        where id = #{id}
+    </update>
+
+</mapper>

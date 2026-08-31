@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.AgentMessageMapper">
+
+    <insert id="insert" parameterType="com.sky.entity.AgentMessage"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into agent_message
+        (message_id, session_id, task_id, role, content, content_type,
+         token_count, seq_no, create_time)
+        values
+        (#{messageId}, #{sessionId}, #{taskId}, #{role}, #{content}, #{contentType},
+         #{tokenCount}, #{seqNo}, #{createTime})
+    </insert>
+
+    <insert id="insertIfAbsent" parameterType="com.sky.entity.AgentMessage"
+            useGeneratedKeys="true" keyProperty="id">
+        insert ignore into agent_message
+        (message_id, session_id, task_id, role, content, content_type,
+         token_count, seq_no, create_time)
+        values
+        (#{messageId}, #{sessionId}, #{taskId}, #{role}, #{content}, #{contentType},
+         #{tokenCount}, #{seqNo}, now())
+    </insert>
+
+    <select id="listRecentBySessionId" resultType="com.sky.entity.AgentMessage">
+        select *
+        from (
+            select *
+            from agent_message
+            where session_id = #{sessionId}
+            order by seq_no desc
+            limit #{limit}
+        ) recent_messages
+        order by seq_no asc
+    </select>
+
+</mapper>

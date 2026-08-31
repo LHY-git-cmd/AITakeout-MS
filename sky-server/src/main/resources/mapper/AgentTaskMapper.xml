@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.AgentTaskMapper">
+
+    <insert id="insert" parameterType="com.sky.entity.AgentTask"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into agent_task
+        (task_id, session_id, user_id, query, status, progress, model,
+         assistant_message_id, started_at, finished_at, error_msg,
+         create_time, update_time)
+        values
+        (#{taskId}, #{sessionId}, #{userId}, #{query}, #{status}, #{progress}, #{model},
+         #{assistantMessageId}, #{startedAt}, #{finishedAt}, #{errorMsg},
+         #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="pageQuery" resultType="com.sky.entity.AgentTask">
+        select *
+        from agent_task
+        <where>
+            <if test="sessionId != null and sessionId != ''">
+                and session_id = #{sessionId}
+            </if>
+            <if test="userId != null">
+                and user_id = #{userId}
+            </if>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <update id="update" parameterType="com.sky.entity.AgentTask">
+        update agent_task
+        <set>
+            <if test="query != null">query = #{query},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="progress != null">progress = #{progress},</if>
+            <if test="model != null">model = #{model},</if>
+            <if test="assistantMessageId != null">assistant_message_id = #{assistantMessageId},</if>
+            <if test="startedAt != null">started_at = #{startedAt},</if>
+            <if test="finishedAt != null">finished_at = #{finishedAt},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="updateStatusAndProgress">
+        update agent_task
+        set status = #{status},
+            <if test="progress != null">
+                progress = #{progress},
+            </if>
+            <if test="errorMsg != null">
+                error_msg = #{errorMsg},
+            </if>
+            <if test="finishedAt != null">
+                finished_at = #{finishedAt},
+            </if>
+            update_time = now()
+        where task_id = #{taskId}
+    </update>
+
+    <update id="transitionStatus">
+        update agent_task
+        set status = #{status},
+            progress = #{progress},
+            <if test="assistantMessageId != null">
+                assistant_message_id = #{assistantMessageId},
+            </if>
+            <if test="errorMsg != null">
+                error_msg = #{errorMsg},
+            </if>
+            <if test="status == 1">
+                started_at = coalesce(started_at, now()),
+            </if>
+            <if test="status == 2 or status == 3 or status == 4">
+                finished_at = now(),
+            </if>
+            update_time = now()
+        where task_id = #{taskId}
+          and status in
+        <foreach collection="expectedStatuses" item="expected" open="(" separator="," close=")">
+            #{expected}
+        </foreach>
+    </update>
+
+</mapper>
