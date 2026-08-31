@@ -33,4 +33,19 @@ public class AgentProperties {
      */
     private int requestTimeout = 65000;
 
+    /** 模型上下文最多携带的历史消息数 */
+    private int contextMessageLimit = 20;
+
+    /** 模型上下文历史消息的最大字符数 */
+    private int contextCharacterLimit = 12000;
+
+    /** 默认模型 */
+    private String defaultModel = "deepseek-v4-pro";
+
+    /** 默认采样温度 */
+    private double defaultTemperature = 0.7;
+
+    /** 启动时是否恢复未结束任务，测试环境可关闭 */
+    private boolean recoveryEnabled = true;
+
 }

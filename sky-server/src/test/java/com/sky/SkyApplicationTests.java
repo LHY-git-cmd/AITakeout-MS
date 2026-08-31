@@ -13,6 +13,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -30,12 +31,14 @@ class SkyApplicationTests {
     }
 
     @Test
-    void openApiAndKnife4jEndpointsAreAvailable() {
-        ResponseEntity<String> apiDocs = restTemplate.getForEntity("/v3/api-docs/admin", String.class);
-        ResponseEntity<String> knife4j = restTemplate.getForEntity("/doc.html", String.class);
+    void openApiAndSwaggerUiEndpointsAreAvailable() {
+        ResponseEntity<String> apiDocs = restTemplate.getForEntity("/v3/api-docs", String.class);
+        ResponseEntity<String> swaggerUi = restTemplate.getForEntity("/swagger-ui/index.html", String.class);
 
         assertEquals(HttpStatus.OK, apiDocs.getStatusCode());
-        assertEquals(HttpStatus.OK, knife4j.getStatusCode());
+        assertNotNull(apiDocs.getBody());
+        assertTrue(apiDocs.getBody().contains("\"openapi\""));
+        assertEquals(HttpStatus.OK, swaggerUi.getStatusCode());
     }
 
     @Test

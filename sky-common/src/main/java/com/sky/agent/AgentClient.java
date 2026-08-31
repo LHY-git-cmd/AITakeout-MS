@@ -3,6 +3,11 @@ package com.sky.agent;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sky.agent.model.AgentStreamEvent;
+import com.sky.agent.model.AgentSubmitRequest;
+import com.sky.agent.model.AgentSubmitResponse;
+import com.sky.agent.model.AgentTaskStatusResponse;
 import com.sky.properties.AgentProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.client.RestTemplateBuilder;
@@ -41,9 +46,12 @@ public class AgentClient {
 
     private final RestTemplate restTemplate;
     private final AgentProperties agentProperties;
+    private final ObjectMapper objectMapper;
 
-    public AgentClient(RestTemplateBuilder restTemplateBuilder, AgentProperties agentProperties) {
+    public AgentClient(RestTemplateBuilder restTemplateBuilder, AgentProperties agentProperties,
+                       ObjectMapper objectMapper) {
         this.agentProperties = agentProperties;
+        this.objectMapper = objectMapper;
         this.restTemplate = restTemplateBuilder
                 .connectTimeout(Duration.ofMillis(agentProperties.getConnectTimeout()))
                 .readTimeout(Duration.ofMillis(agentProperties.getReadTimeout()))
@@ -111,7 +119,8 @@ public class AgentClient {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(params, headers);
+        String jsonBody = JSON.toJSONString(params);
+        HttpEntity<String> entity = new HttpEntity<>(jsonBody, headers);
         ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
         return response.getBody();
@@ -289,6 +298,147 @@ public class AgentClient {
     }
 
     /**
+     * 订阅指定任务的SSE事件流
+     *
+     * @param taskId        任务ID
+     * @param eventConsumer 事件回调
+     */
+    public void subscribeTaskEvents(String taskId, Consumer<String> eventConsumer) {
+        String url = agentProperties.getBaseUrl() + "/api/v1/agent/stream/" + taskId;
+        log.info("订阅任务SSE事件流: {}", url);
+
+        HttpURLConnection connection = null;
+        try {
+            URL requestUrl = new URL(url);
+            connection = (HttpURLConnection) requestUrl.openConnection();
+            connection.setRequestMethod("GET");  // 注意是GET
+            connection.setRequestProperty("Accept", "text/event-stream");
+            connection.setConnectTimeout(agentProperties.getConnectTimeout());
+            connection.setReadTimeout(agentProperties.getReadTimeout());
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                    String line;
+                    StringBuilder eventBuilder = new StringBuilder();
+
+                    while ((line = reader.readLine()) != null) {
+                        if (line.isEmpty()) {
+                            if (eventBuilder.length() > 0) {
+                                eventConsumer.accept(eventBuilder.toString().trim());
+                                eventBuilder.setLength(0);
+                            }
+                        } else if (line.startsWith("data:")) {
+                            String data = line.substring(5).trim();
+                            if (!"[DONE]".equals(data)) {
+                                eventBuilder.append(data);
+                            }
+                        }
+                    }
+                    if (eventBuilder.length() > 0) {
+                        eventConsumer.accept(eventBuilder.toString().trim());
+                    }
+                }
+            } else {
+                throw new RuntimeException("订阅SSE流失败, 状态码: " + responseCode);
+            }
+        } catch (Exception e) {
+            log.error("订阅任务SSE事件流异常, taskId={}", taskId, e);
+            throw new RuntimeException("订阅任务SSE事件流失败", e);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    /**
+     * 提交新链路任务。Java生成taskId，Python必须原样返回。
+     */
+    public AgentSubmitResponse submit(AgentSubmitRequest request) {
+        String url = agentProperties.getBaseUrl() + "/api/v1/agent/submit";
+        ResponseEntity<AgentSubmitResponse> response = restTemplate.postForEntity(
+                url, request, AgentSubmitResponse.class);
+        AgentSubmitResponse body = response.getBody();
+        if (body == null || body.taskId() == null) {
+            throw new IllegalStateException("Agent提交响应缺少task_id");
+        }
+        if (!request.taskId().equals(body.taskId())) {
+            throw new IllegalStateException("Agent返回的task_id与请求不一致");
+        }
+        return body;
+    }
+
+    /**
+     * 从指定事件序号后订阅结构化任务事件。
+     */
+    public void subscribeTaskEvents(String taskId, int lastEventId,
+                                    Consumer<AgentStreamEvent> eventConsumer) {
+        String url = agentProperties.getBaseUrl() + "/api/v1/agent/stream/" + taskId;
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL(url).openConnection();
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "text/event-stream");
+            connection.setRequestProperty("Last-Event-ID", String.valueOf(Math.max(0, lastEventId)));
+            connection.setConnectTimeout(agentProperties.getConnectTimeout());
+            connection.setReadTimeout(agentProperties.getReadTimeout());
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                throw new IllegalStateException("订阅SSE流失败, 状态码: " + responseCode);
+            }
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                StringBuilder data = new StringBuilder();
+                while ((line = reader.readLine()) != null) {
+                    if (line.isEmpty()) {
+                        emitStructuredEvent(data, eventConsumer);
+                    } else if (line.startsWith("data:")) {
+                        if (!data.isEmpty()) {
+                            data.append('\n');
+                        }
+                        data.append(line.substring(5).trim());
+                    }
+                }
+                emitStructuredEvent(data, eventConsumer);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("订阅任务SSE事件流失败: " + taskId, e);
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    public AgentTaskStatusResponse cancelTask(String taskId) {
+        String url = agentProperties.getBaseUrl()
+                + "/api/v1/agent/tasks/" + taskId + "/cancel";
+        return restTemplate.postForObject(url, null, AgentTaskStatusResponse.class);
+    }
+
+    public AgentTaskStatusResponse getTaskStatus(String taskId) {
+        String url = agentProperties.getBaseUrl() + "/api/v1/agent/status/" + taskId;
+        return restTemplate.getForObject(url, AgentTaskStatusResponse.class);
+    }
+
+    private void emitStructuredEvent(StringBuilder data,
+                                     Consumer<AgentStreamEvent> eventConsumer) throws Exception {
+        if (data.isEmpty()) {
+            return;
+        }
+        AgentStreamEvent event = objectMapper.readValue(data.toString(), AgentStreamEvent.class);
+        data.setLength(0);
+        if (event.taskId() == null || event.seqNo() == null || event.event() == null) {
+            throw new IllegalArgumentException("Agent事件缺少必要字段");
+        }
+        eventConsumer.accept(event);
+    }
+
+    /**
      * 异步提交任务
      * 提交任务后返回任务ID，后续可通过轮询状态接口查询执行结果
      *
@@ -313,7 +463,8 @@ public class AgentClient {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(params, headers);
+        String jsonBody = JSON.toJSONString(params);
+        HttpEntity<String> entity = new HttpEntity<>(jsonBody, headers);
         ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
 
         return response.getBody();
@@ -471,5 +622,4 @@ public class AgentClient {
         }
         return result.toString();
     }
-
 }
