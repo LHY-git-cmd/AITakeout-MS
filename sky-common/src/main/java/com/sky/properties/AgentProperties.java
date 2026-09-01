@@ -48,4 +48,13 @@ public class AgentProperties {
     /** 启动时是否恢复未结束任务，测试环境可关闭 */
     private boolean recoveryEnabled = true;
 
+    /** 是否启用Agent消息历史缓存 */
+    private boolean messageCacheEnabled = true;
+
+    /** Agent消息历史缓存key前缀 */
+    private String messageCacheKeyPrefix = "sky:agent:messages:";
+
+    /** Agent消息历史缓存有效期（秒） */
+    private long messageCacheTtlSeconds = 1800;
+
 }
