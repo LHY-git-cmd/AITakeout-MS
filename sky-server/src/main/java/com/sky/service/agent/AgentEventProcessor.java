@@ -12,16 +12,17 @@ import com.sky.mapper.AgentEventMapper;
 import com.sky.mapper.AgentMessageMapper;
 import com.sky.mapper.AgentSessionMapper;
 import com.sky.mapper.AgentTaskMapper;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.UUID;
 
 /** 将Python事件幂等落库，并推进Java权威业务状态。 */
 @Service
-@RequiredArgsConstructor
 public class AgentEventProcessor {
 
     private final AgentEventMapper eventMapper;
@@ -29,6 +30,26 @@ public class AgentEventProcessor {
     private final AgentMessageMapper messageMapper;
     private final AgentSessionMapper sessionMapper;
     private final ObjectMapper objectMapper;
+    private final AgentMessageCacheService messageCacheService;
+
+    @Autowired
+    public AgentEventProcessor(AgentEventMapper eventMapper, AgentTaskMapper taskMapper,
+                               AgentMessageMapper messageMapper, AgentSessionMapper sessionMapper,
+                               ObjectMapper objectMapper, AgentMessageCacheService messageCacheService) {
+        this.eventMapper = eventMapper;
+        this.taskMapper = taskMapper;
+        this.messageMapper = messageMapper;
+        this.sessionMapper = sessionMapper;
+        this.objectMapper = objectMapper;
+        this.messageCacheService = messageCacheService;
+    }
+
+    /** 保持既有单元测试和手工实例化代码的构造兼容性。 */
+    public AgentEventProcessor(AgentEventMapper eventMapper, AgentTaskMapper taskMapper,
+                               AgentMessageMapper messageMapper, AgentSessionMapper sessionMapper,
+                               ObjectMapper objectMapper) {
+        this(eventMapper, taskMapper, messageMapper, sessionMapper, objectMapper, null);
+    }
 
     /**
      * 处理一条来自Python Agent的流式事件：幂等落库 + 推进任务状态机
@@ -111,8 +132,27 @@ public class AgentEventProcessor {
             if (session != null) {
                 sessionMapper.incrementMessageCount(session.getId(), task.getTaskId());
             }
+            if (session != null) {
+                evictMessageCacheAfterCommit(session.getId());
+            }
         }
         return true;
+    }
+
+    private void evictMessageCacheAfterCommit(Long sessionDbId) {
+        if (messageCacheService == null) {
+            return;
+        }
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            messageCacheService.evict(sessionDbId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                messageCacheService.evict(sessionDbId);
+            }
+        });
     }
 
     /** 任务失败：状态 → 3(失败)，记录错误信息 */

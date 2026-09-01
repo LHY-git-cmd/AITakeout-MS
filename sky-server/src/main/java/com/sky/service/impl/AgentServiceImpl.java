@@ -15,6 +15,7 @@ import com.sky.properties.AgentProperties;
 import com.sky.result.PageResult;
 import com.sky.service.AgentService;
 import com.sky.service.agent.AgentEventStreamCoordinator;
+import com.sky.service.agent.AgentMessageCacheService;
 import com.sky.vo.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +45,7 @@ public class AgentServiceImpl implements AgentService {
     private final AgentEventMapper eventMapper;
     private final AgentProperties agentProperties;
     private final AgentEventStreamCoordinator eventStreamCoordinator;
+    private final AgentMessageCacheService messageCacheService;
 
     @Override
     @Transactional
@@ -80,7 +82,7 @@ public class AgentServiceImpl implements AgentService {
         String taskId = UUID.randomUUID().toString();
         String model = dto.getModel() == null || dto.getModel().isBlank()
                 ? agentProperties.getDefaultModel() : dto.getModel();
-        List<AgentHistoryMessage> history = buildHistory(sessionId);
+        List<AgentHistoryMessage> history = buildHistory(sessionId, session.getId());
         AgentSubmitRequest request = new AgentSubmitRequest(
                 taskId,
                 sessionId,
@@ -126,6 +128,7 @@ public class AgentServiceImpl implements AgentService {
                 .seqNo(userSeqNo)
                 .build();
         messageMapper.insert(userMessage);
+        evictMessageCacheAfterCommit(session.getId());
 
         // 5. 更新会话的最后任务ID和消息数
         sessionMapper.incrementMessageCount(session.getId(), taskId);
@@ -161,7 +164,7 @@ public class AgentServiceImpl implements AgentService {
         AgentSessionVO vo = new AgentSessionVO();
         BeanUtils.copyProperties(session, vo);
 
-        List<AgentMessage> messages = messageMapper.listBySessionIdOrderBySeqNo(sessionId);
+        List<AgentMessage> messages = loadMessages(session.getId(), sessionId);
         List<AgentMessageVO> messageVOs = messages.stream()
                 .map(this::convertMessageVO)
                 .collect(Collectors.toList());
@@ -190,6 +193,7 @@ public class AgentServiceImpl implements AgentService {
                 .status(dto.getStatus())
                 .build();
         sessionMapper.update(update);
+        evictMessageCacheAfterCommit(session.getId());
     }
 
     @Override
@@ -258,33 +262,43 @@ public class AgentServiceImpl implements AgentService {
         return task;
     }
 
-    private List<AgentHistoryMessage> buildHistory(String sessionId) {
-        List<AgentMessage> messages = messageMapper.listRecentBySessionId(
-                sessionId, agentProperties.getContextMessageLimit());
+    private List<AgentHistoryMessage> buildHistory(String sessionId, Long sessionDbId) {
+        List<AgentMessage> messages = loadMessages(sessionDbId, sessionId);
         int remainingCharacters = agentProperties.getContextCharacterLimit();
         java.util.LinkedList<AgentHistoryMessage> history = new java.util.LinkedList<>();
         for (int index = messages.size() - 1; index >= 0 && remainingCharacters > 0; index--) {
             AgentMessage message = messages.get(index);
-            if (message.getContent() == null || message.getContent().isBlank()) {
-                continue;
-            }
-            String role = switch (message.getRole()) {
-                case 1 -> "user";
-                case 2 -> "assistant";
-                case 3 -> "system";
-                default -> null;
-            };
-            if (role == null) {
-                continue;
-            }
+            if (message.getContent() == null || message.getContent().isBlank()) continue;
+            String role = switch (message.getRole()) { case 1 -> "user"; case 2 -> "assistant"; case 3 -> "system"; default -> null; };
+            if (role == null) continue;
             String content = message.getContent();
-            if (content.length() > remainingCharacters) {
-                content = content.substring(content.length() - remainingCharacters);
-            }
+            if (content.length() > remainingCharacters) content = content.substring(content.length() - remainingCharacters);
             history.addFirst(new AgentHistoryMessage(role, content));
             remainingCharacters -= content.length();
         }
         return history;
+    }
+
+    private List<AgentMessage> loadMessages(Long sessionDbId, String sessionId) {
+        List<AgentMessage> messages = messageCacheService.get(sessionDbId);
+        if (messages == null) {
+            messages = messageMapper.listBySessionIdOrderBySeqNo(sessionId);
+            messageCacheService.put(sessionDbId, messages);
+        }
+        return messages;
+    }
+
+    private void evictMessageCacheAfterCommit(Long sessionDbId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            messageCacheService.evict(sessionDbId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                messageCacheService.evict(sessionDbId);
+            }
+        });
     }
 
     private void startEventSubscriptionAfterCommit(String taskId) {

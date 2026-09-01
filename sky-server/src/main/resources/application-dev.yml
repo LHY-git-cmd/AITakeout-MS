@@ -9,6 +9,9 @@ sky:
     default-model: deepseek-v4-pro
     default-temperature: 0.7
     recovery-enabled: true
+    message-cache-enabled: true
+    message-cache-key-prefix: "sky:agent:messages:"
+    message-cache-ttl-seconds: 1800
   cors:
     allowed-origin-patterns:
       - "http://localhost:[*]"
