@@ -22,6 +22,7 @@ public class AgentTask implements Serializable {
     private Integer status;       // 0排队 1执行中 2完成 3失败 4取消
     private Integer progress;    // 0-100
     private String model;
+    private String requestHash;
     private String assistantMessageId;
     private LocalDateTime startedAt;
     private LocalDateTime finishedAt;

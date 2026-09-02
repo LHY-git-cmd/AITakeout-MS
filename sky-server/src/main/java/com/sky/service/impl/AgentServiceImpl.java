@@ -10,6 +10,7 @@ import com.sky.context.BaseContext;
 import com.sky.dto.*;
 import com.sky.entity.*;
 import com.sky.exception.AgentBusinessException;
+import com.sky.exception.AgentTaskConflictException;
 import com.sky.mapper.*;
 import com.sky.properties.AgentProperties;
 import com.sky.result.PageResult;
@@ -28,6 +29,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.stream.Collectors;
 
 /**
@@ -51,6 +55,24 @@ public class AgentServiceImpl implements AgentService {
     @Transactional
     public AgentSubmitVO submitTask(AgentSubmitDTO dto) {
         Long userId = BaseContext.getCurrentId();
+        String requestedTaskId = dto.getTaskId();
+        String model = dto.getModel() == null || dto.getModel().isBlank()
+                ? agentProperties.getDefaultModel() : dto.getModel();
+
+        // 重试必须先查任务，避免sessionId为空时重复创建会话，也避免再次调用Python。
+        AgentTask existing = taskMapper.getByTaskIdAndUserId(requestedTaskId, userId);
+        if (existing != null) {
+            if (dto.getSessionId() != null && !dto.getSessionId().isBlank()
+                    && !dto.getSessionId().equals(existing.getSessionId())) {
+                throw new AgentTaskConflictException("taskId已被其他会话使用");
+            }
+            String requestHash = requestHash(requestedTaskId, existing.getSessionId(), userId,
+                    dto.getQuery(), model);
+            if (existing.getRequestHash() != null && !existing.getRequestHash().equals(requestHash)) {
+                throw new AgentTaskConflictException("taskId已被其他请求使用");
+            }
+            return toSubmitVO(existing);
+        }
         String sessionId = dto.getSessionId();
 
         // 1. 会话处理：首轮创建新会话，后续轮次复用
@@ -78,11 +100,32 @@ public class AgentServiceImpl implements AgentService {
             }
         }
 
-        // 2. 调用Python Agent submit接口
-        String taskId = UUID.randomUUID().toString();
-        String model = dto.getModel() == null || dto.getModel().isBlank()
-                ? agentProperties.getDefaultModel() : dto.getModel();
+        // 2. 先用唯一task_id占位，只有抢占成功的请求才允许调用Python。
+        String taskId = requestedTaskId;
         List<AgentHistoryMessage> history = buildHistory(sessionId, session.getId());
+        String requestHash = requestHash(taskId, sessionId, userId, dto.getQuery(), model);
+        AgentTask task = AgentTask.builder()
+                .taskId(taskId)
+                .sessionId(sessionId)
+                .userId(userId)
+                .query(dto.getQuery())
+                .status(0)
+                .progress(0)
+                .model(model)
+                .requestHash(requestHash)
+                .build();
+        if (taskMapper.insertIgnore(task) == 0) {
+            AgentTask winner = taskMapper.getByTaskIdAndUserId(taskId, userId);
+            if (winner == null) {
+                throw new AgentBusinessException("任务已存在或无权访问");
+            }
+            if (winner.getRequestHash() != null && !winner.getRequestHash().equals(requestHash)) {
+                throw new AgentTaskConflictException("taskId已被其他请求使用");
+            }
+            return toSubmitVO(winner);
+        }
+
+        // 3. 调用Python Agent submit接口
         AgentSubmitRequest request = new AgentSubmitRequest(
                 taskId,
                 sessionId,
@@ -103,18 +146,6 @@ public class AgentServiceImpl implements AgentService {
             throw new AgentBusinessException("Agent服务暂时不可用，请稍后重试");
         }
 
-        // 3. 创建本地任务记录
-        AgentTask task = AgentTask.builder()
-                .taskId(taskId)
-                .sessionId(sessionId)
-                .userId(userId)
-                .query(dto.getQuery())
-                .status(0)
-                .progress(0)
-                .model(model)
-                .build();
-        taskMapper.insert(task);
-
         // 4. 保存用户消息
         sessionMapper.getBySessionIdForUpdate(sessionId);
         int userSeqNo = messageMapper.getNextSeqNo(sessionId);
@@ -134,12 +165,7 @@ public class AgentServiceImpl implements AgentService {
         sessionMapper.incrementMessageCount(session.getId(), taskId);
         startEventSubscriptionAfterCommit(taskId);
 
-        return AgentSubmitVO.builder()
-                .taskId(taskId)
-                .sessionId(sessionId)
-                .eventsUrl("/admin/agent/tasks/" + taskId + "/events")
-                .status(0)
-                .build();
+        return toSubmitVO(task);
     }
 
     @Override
@@ -260,6 +286,30 @@ public class AgentServiceImpl implements AgentService {
             throw new AgentBusinessException("任务不存在或无权访问");
         }
         return task;
+    }
+
+    private AgentSubmitVO toSubmitVO(AgentTask task) {
+        return AgentSubmitVO.builder()
+                .taskId(task.getTaskId())
+                .sessionId(task.getSessionId())
+                .eventsUrl("/admin/agent/tasks/" + task.getTaskId() + "/events")
+                .status(task.getStatus())
+                .assistantMessageId(task.getAssistantMessageId())
+                .errorMsg(task.getErrorMsg())
+                .build();
+    }
+
+    private String requestHash(String taskId, String sessionId, Long userId, String query, String model) {
+        String input = String.join("\u0000", String.valueOf(taskId), String.valueOf(sessionId),
+                String.valueOf(userId), String.valueOf(query), String.valueOf(model));
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(64);
+            for (byte value : digest) hex.append(String.format("%02x", value));
+            return hex.toString();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256不可用", exception);
+        }
     }
 
     private List<AgentHistoryMessage> buildHistory(String sessionId, Long sessionDbId) {

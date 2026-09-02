@@ -6,13 +6,22 @@
     <insert id="insert" parameterType="com.sky.entity.AgentTask"
             useGeneratedKeys="true" keyProperty="id">
         insert into agent_task
-        (task_id, session_id, user_id, query, status, progress, model,
+        (task_id, session_id, user_id, query, status, progress, model, request_hash,
          assistant_message_id, started_at, finished_at, error_msg,
          create_time, update_time)
         values
-        (#{taskId}, #{sessionId}, #{userId}, #{query}, #{status}, #{progress}, #{model},
+        (#{taskId}, #{sessionId}, #{userId}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
          #{assistantMessageId}, #{startedAt}, #{finishedAt}, #{errorMsg},
          #{createTime}, #{updateTime})
+    </insert>
+
+    <insert id="insertIgnore" parameterType="com.sky.entity.AgentTask">
+        insert ignore into agent_task
+        (task_id, session_id, user_id, query, status, progress, model, request_hash,
+         assistant_message_id, started_at, finished_at, error_msg, create_time, update_time)
+        values
+        (#{taskId}, #{sessionId}, #{userId}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
+         #{assistantMessageId}, #{startedAt}, #{finishedAt}, #{errorMsg}, #{createTime}, #{updateTime})
     </insert>
 
     <select id="pageQuery" resultType="com.sky.entity.AgentTask">
@@ -39,6 +48,7 @@
             <if test="status != null">status = #{status},</if>
             <if test="progress != null">progress = #{progress},</if>
             <if test="model != null">model = #{model},</if>
+            <if test="requestHash != null">request_hash = #{requestHash},</if>
             <if test="assistantMessageId != null">assistant_message_id = #{assistantMessageId},</if>
             <if test="startedAt != null">started_at = #{startedAt},</if>
             <if test="finishedAt != null">finished_at = #{finishedAt},</if>

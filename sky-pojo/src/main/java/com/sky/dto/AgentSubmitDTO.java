@@ -14,6 +14,10 @@ import java.io.Serializable;
 @Schema(description = "Agent任务提交请求参数")
 public class AgentSubmitDTO implements Serializable {
 
+    @NotBlank(message = "任务ID不能为空")
+    @Schema(description = "客户端预生成的任务ID，重试时必须复用")
+    private String taskId;
+
     /**
      * 用户提问内容
      */
