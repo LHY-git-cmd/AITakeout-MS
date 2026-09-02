@@ -35,4 +35,7 @@ public class AgentSubmitVO implements Serializable {
 
     @Schema(description = "初始任务状态（0-排队）")
     private Integer status;
+
+    private String assistantMessageId;
+    private String errorMsg;
 }

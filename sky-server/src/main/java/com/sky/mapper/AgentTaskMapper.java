@@ -22,6 +22,9 @@ public interface AgentTaskMapper {
     @AutoFill(value = OperationType.INSERT)
     void insert(AgentTask task);
 
+    @AutoFill(value = OperationType.INSERT)
+    int insertIgnore(AgentTask task);
+
     /**
      * 根据DB主键查询
      */

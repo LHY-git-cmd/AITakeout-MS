@@ -4,7 +4,6 @@ sky:
     connect-timeout: 5000
     read-timeout: 60000
     request-timeout: 65000
-    context-message-limit: 20
     context-character-limit: 12000
     default-model: deepseek-v4-pro
     default-temperature: 0.7
