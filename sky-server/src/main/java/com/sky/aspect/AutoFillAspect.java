@@ -51,7 +51,13 @@ public class AutoFillAspect {
             return;
         }
 
-        Object entity = args[0];
+        // Mapper methods may use multiple @Param arguments (for example,
+        // updateStatusAndProgress). Find the argument that actually exposes
+        // one of the fillable setters instead of assuming args[0].
+        Object entity = findEntity(args, operationType);
+        if (entity == null) {
+            return;
+        }
 
         //准备赋值的数据
         LocalDateTime now = LocalDateTime.now();
@@ -59,28 +65,45 @@ public class AutoFillAspect {
 
         //根据当前不同的操作类型,为对应的属性通过反射来赋值
         if(operationType == OperationType.INSERT){
-            try {
-                Method setCreateTime = entity.getClass().getDeclaredMethod(AutoFillConstant.SET_CREATE_TIME,LocalDateTime.class);
-                Method setCreateUser = entity.getClass().getDeclaredMethod(AutoFillConstant.SET_CREATE_USER,Long.class);
-                Method setUpdateTime = entity.getClass().getDeclaredMethod(AutoFillConstant.SET_UPDATE_TIME,LocalDateTime.class);
-                Method setUpdateUser = entity.getClass().getDeclaredMethod(AutoFillConstant.SET_UPDATE_USER,Long.class);
-
-                setCreateTime.invoke(entity,now);
-                setCreateUser.invoke(entity,currentId);
-                setUpdateTime.invoke(entity,now);
-                setUpdateUser.invoke(entity,currentId);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            invokeIfPresent(entity, AutoFillConstant.SET_CREATE_TIME, LocalDateTime.class, now);
+            invokeIfPresent(entity, AutoFillConstant.SET_CREATE_USER, Long.class, currentId);
+            invokeIfPresent(entity, AutoFillConstant.SET_UPDATE_TIME, LocalDateTime.class, now);
+            invokeIfPresent(entity, AutoFillConstant.SET_UPDATE_USER, Long.class, currentId);
         }else if(operationType == OperationType.UPDATE){
-            try {
-                Method setUpdateTime = entity.getClass().getDeclaredMethod(AutoFillConstant.SET_UPDATE_TIME,LocalDateTime.class);
-                Method setUpdateUser = entity.getClass().getDeclaredMethod(AutoFillConstant.SET_UPDATE_USER,Long.class);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            invokeIfPresent(entity, AutoFillConstant.SET_UPDATE_TIME, LocalDateTime.class, now);
+            invokeIfPresent(entity, AutoFillConstant.SET_UPDATE_USER, Long.class, currentId);
         }
 
 
+    }
+
+    private Object findEntity(Object[] args, OperationType operationType) {
+        String setter = operationType == OperationType.INSERT
+                ? AutoFillConstant.SET_CREATE_TIME
+                : AutoFillConstant.SET_UPDATE_TIME;
+        for (Object arg : args) {
+            if (arg == null) {
+                continue;
+            }
+            try {
+                arg.getClass().getMethod(setter, LocalDateTime.class);
+                return arg;
+            } catch (NoSuchMethodException ignored) {
+                // This argument is a scalar @Param value, not the entity.
+            }
+        }
+        return null;
+    }
+
+    private void invokeIfPresent(Object entity, String setterName, Class<?> parameterType, Object value) {
+        try {
+            Method setter = entity.getClass().getMethod(setterName, parameterType);
+            setter.invoke(entity, value);
+        } catch (NoSuchMethodException ignored) {
+            // Not every table has every common field (for example AgentTask
+            // has create_time/update_time but no create_user/update_user).
+        } catch (Exception e) {
+            log.warn("无法自动填充字段 {}", setterName, e);
+        }
     }
 }
