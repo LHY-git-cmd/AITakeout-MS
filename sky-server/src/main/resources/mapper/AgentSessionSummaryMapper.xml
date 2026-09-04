@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.sky.mapper.AgentSessionSummaryMapper">
+    <insert id="insert" parameterType="com.sky.entity.AgentSessionSummary"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into agent_session_summary
+        (session_id, summary, summary_until_seq, version, created_at, updated_at)
+        values (#{sessionId}, #{summary}, #{summaryUntilSeq}, #{version}, now(), now())
+    </insert>
+    <update id="updateOptimistic">
+        update agent_session_summary
+        set summary = #{summary}, summary_until_seq = #{untilSeq},
+            version = version + 1, updated_at = now()
+        where session_id = #{sessionId} and version = #{expectedVersion}
+    </update>
+</mapper>

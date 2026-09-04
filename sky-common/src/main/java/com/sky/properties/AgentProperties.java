@@ -57,4 +57,8 @@ public class AgentProperties {
     /** Agent消息历史缓存有效期（秒） */
     private long messageCacheTtlSeconds = 1800;
 
+    private int summaryMessageThreshold = 20;
+    private int summaryTokenThreshold = 5000;
+    private int summaryRecentMessageCount = 10;
+
 }

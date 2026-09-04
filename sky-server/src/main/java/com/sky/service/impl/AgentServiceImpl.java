@@ -12,11 +12,13 @@ import com.sky.entity.*;
 import com.sky.exception.AgentBusinessException;
 import com.sky.exception.AgentTaskConflictException;
 import com.sky.mapper.*;
+import com.sky.mapper.AgentSessionSummaryMapper;
 import com.sky.properties.AgentProperties;
 import com.sky.result.PageResult;
 import com.sky.service.AgentService;
 import com.sky.service.agent.AgentEventStreamCoordinator;
 import com.sky.service.agent.AgentMessageCacheService;
+import com.sky.service.agent.AgentSummaryService;
 import com.sky.vo.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +52,7 @@ public class AgentServiceImpl implements AgentService {
     private final AgentProperties agentProperties;
     private final AgentEventStreamCoordinator eventStreamCoordinator;
     private final AgentMessageCacheService messageCacheService;
+    private final AgentSummaryService summaryService;
 
     @Override
     @Transactional
@@ -164,6 +167,7 @@ public class AgentServiceImpl implements AgentService {
         // 5. 更新会话的最后任务ID和消息数
         sessionMapper.incrementMessageCount(session.getId(), taskId);
         startEventSubscriptionAfterCommit(taskId);
+        scheduleSummaryAfterCommit(sessionId);
 
         return toSubmitVO(task);
     }
@@ -313,9 +317,14 @@ public class AgentServiceImpl implements AgentService {
     }
 
     private List<AgentHistoryMessage> buildHistory(String sessionId, Long sessionDbId) {
-        List<AgentMessage> messages = loadMessages(sessionDbId, sessionId);
-        int remainingCharacters = agentProperties.getContextCharacterLimit();
         java.util.LinkedList<AgentHistoryMessage> history = new java.util.LinkedList<>();
+        com.sky.entity.AgentSessionSummary summary = summaryMapper.getBySessionId(sessionId);
+        if (summary != null && summary.getSummary() != null && !summary.getSummary().isBlank()) {
+            history.add(new AgentHistoryMessage("system", "会话历史摘要：\n" + summary.getSummary()));
+        }
+        List<AgentMessage> messages = messageMapper.listRecentBySessionId(sessionId,
+                agentProperties.getSummaryRecentMessageCount());
+        int remainingCharacters = agentProperties.getContextCharacterLimit();
         for (int index = messages.size() - 1; index >= 0 && remainingCharacters > 0; index--) {
             AgentMessage message = messages.get(index);
             if (message.getContent() == null || message.getContent().isBlank()) continue;
@@ -327,6 +336,18 @@ public class AgentServiceImpl implements AgentService {
             remainingCharacters -= content.length();
         }
         return history;
+    }
+
+    private final AgentSessionSummaryMapper summaryMapper;
+
+    private void scheduleSummaryAfterCommit(String sessionId) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            summaryService.scheduleIfNeeded(sessionId);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { summaryService.scheduleIfNeeded(sessionId); }
+        });
     }
 
     private List<AgentMessage> loadMessages(Long sessionDbId, String sessionId) {
