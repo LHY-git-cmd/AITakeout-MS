@@ -32,6 +32,12 @@ public class AgentSubmitDTO implements Serializable {
     private String sessionId;
 
     /**
+     * 知识库ID（可选，首次绑定后不可切换）
+     */
+    @Schema(description = "知识库ID，首次绑定后不可切换")
+    private String kbId;
+
+    /**
      * 使用的模型名称（可选）
      */
     @Schema(description = "使用的模型名称（可选）")

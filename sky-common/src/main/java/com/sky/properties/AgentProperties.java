@@ -61,4 +61,11 @@ public class AgentProperties {
     private int summaryTokenThreshold = 5000;
     private int summaryRecentMessageCount = 10;
 
+    private String knowledgeStoragePath = "data/knowledge";
+    private long knowledgeMaxFileSize = 20L * 1024 * 1024;
+    private boolean ragEnabled = true;
+    private int ragTopK = 8;
+    private double ragScoreThreshold = 0.35;
+    private String embeddingModel = "BAAI/bge-m3";
+
 }
