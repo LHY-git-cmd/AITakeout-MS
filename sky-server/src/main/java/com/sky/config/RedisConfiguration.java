@@ -54,6 +54,14 @@ public class RedisConfiguration {
 
         redisTemplate.afterPropertiesSet();
 
+        // 测试Redis连接
+        try {
+            redisTemplate.getConnectionFactory().getConnection().ping();
+            log.info("Redis连接成功.");
+        } catch (Exception e) {
+            log.error("Redis连接失败，请检查Redis服务是否已启动: {}", e.getMessage());
+        }
+
         return redisTemplate;
     }
 
