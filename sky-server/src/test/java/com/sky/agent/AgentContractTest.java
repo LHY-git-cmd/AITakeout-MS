@@ -2,6 +2,7 @@ package com.sky.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sky.agent.model.AgentHistoryMessage;
+import com.sky.agent.model.AgentKnowledgeScope;
 import com.sky.agent.model.AgentStreamEvent;
 import com.sky.agent.model.AgentSubmitRequest;
 import org.junit.jupiter.api.Test;
@@ -20,13 +21,18 @@ class AgentContractTest {
     void submitRequestUsesPythonSnakeCaseFields() throws Exception {
         AgentSubmitRequest request = new AgentSubmitRequest(
                 "task-1", "session-1", 7L, "hello", "deepseek-v4-pro", 0.7,
-                Map.of("history", List.of(new AgentHistoryMessage("user", "previous"))));
+                Map.of("history", List.of(new AgentHistoryMessage("user", "previous"))),
+                new AgentKnowledgeScope("kb-1", Map.of("document-1", 2), 8, 0.2));
 
         String json = objectMapper.writeValueAsString(request);
 
         assertTrue(json.contains("\"task_id\":\"task-1\""));
         assertTrue(json.contains("\"session_id\":\"session-1\""));
         assertTrue(json.contains("\"user_id\":7"));
+        assertTrue(json.contains("\"kb_id\":\"kb-1\""));
+        assertTrue(json.contains("\"document_versions\":{\"document-1\":2}"));
+        assertTrue(json.contains("\"top_k\":8"));
+        assertTrue(json.contains("\"score_threshold\":0.2"));
     }
 
     @Test

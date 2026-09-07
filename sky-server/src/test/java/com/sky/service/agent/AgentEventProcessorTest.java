@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sky.agent.model.AgentStreamEvent;
 import com.sky.entity.AgentEvent;
 import com.sky.entity.AgentMessage;
+import com.sky.entity.AgentMessageCitation;
 import com.sky.entity.AgentSession;
 import com.sky.entity.AgentTask;
 import com.sky.mapper.AgentEventMapper;
+import com.sky.mapper.AgentCitationMapper;
 import com.sky.mapper.AgentMessageMapper;
 import com.sky.mapper.AgentSessionMapper;
 import com.sky.mapper.AgentTaskMapper;
@@ -34,6 +36,7 @@ class AgentEventProcessorTest {
     @Mock private AgentTaskMapper taskMapper;
     @Mock private AgentMessageMapper messageMapper;
     @Mock private AgentSessionMapper sessionMapper;
+    @Mock private AgentCitationMapper citationMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private AgentEventProcessor processor;
@@ -41,7 +44,7 @@ class AgentEventProcessorTest {
     @BeforeEach
     void setUp() {
         processor = new AgentEventProcessor(eventMapper, taskMapper, messageMapper,
-                sessionMapper, objectMapper);
+                sessionMapper, citationMapper, objectMapper, null);
     }
 
     @Test
@@ -91,6 +94,31 @@ class AgentEventProcessorTest {
     }
 
     @Test
+    void taskEndPersistsOnlyCitationFromBoundKnowledgeBase() {
+        AgentTask task = AgentTask.builder().taskId("task-citation").sessionId("session-1")
+                .status(1).progress(1).build();
+        AgentSession session = AgentSession.builder().id(10L).sessionId("session-1").kbId("kb-1").build();
+        ObjectNode data = objectMapper.createObjectNode().put("result", "answer");
+        data.putArray("citations")
+                .add(citation("kb-1", "chunk-1"))
+                .add(citation("kb-2", "chunk-2"));
+        when(taskMapper.getByTaskId("task-citation")).thenReturn(task);
+        when(eventMapper.insertIfAbsent(any(AgentEvent.class))).thenReturn(1);
+        when(taskMapper.transitionStatus(eq("task-citation"), eq(2), eq(100), any(),
+                eq(null), eq(java.util.List.of(0, 1)))).thenReturn(1);
+        when(messageMapper.getNextSeqNo("session-1")).thenReturn(2);
+        when(messageMapper.insertIfAbsent(any(AgentMessage.class))).thenReturn(1);
+        when(sessionMapper.getBySessionIdForUpdate("session-1")).thenReturn(session);
+
+        assertTrue(processor.process(event("task-citation", 4, "task_end", data)));
+
+        ArgumentCaptor<AgentMessageCitation> citation = ArgumentCaptor.forClass(AgentMessageCitation.class);
+        verify(citationMapper).insertIfAbsent(citation.capture());
+        assertEquals("kb-1", citation.getValue().getKbId());
+        assertEquals("chunk-1", citation.getValue().getChunkId());
+    }
+
+    @Test
     void cancelledTaskStillPersistsEarlierOrderedEvents() {
         AgentTask task = AgentTask.builder().taskId("task-4").status(4).build();
         when(taskMapper.getByTaskId("task-4")).thenReturn(task);
@@ -103,5 +131,17 @@ class AgentEventProcessorTest {
 
     private AgentStreamEvent event(String taskId, int seqNo, String type, ObjectNode data) {
         return new AgentStreamEvent(taskId, seqNo, type, data);
+    }
+
+    private ObjectNode citation(String kbId, String chunkId) {
+        return objectMapper.createObjectNode()
+                .put("kb_id", kbId)
+                .put("document_id", "document-1")
+                .put("document_version", 1)
+                .put("chunk_id", chunkId)
+                .put("file_name", "manual.pdf")
+                .put("page_no", 3)
+                .put("score", 0.91)
+                .put("quote", "quoted text");
     }
 }
