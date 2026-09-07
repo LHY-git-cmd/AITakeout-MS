@@ -25,6 +25,9 @@ public class AgentSessionVO implements Serializable {
     @Schema(description = "会话ID")
     private String sessionId;
 
+    @Schema(description = "会话绑定的知识库ID")
+    private String kbId;
+
     @Schema(description = "会话标题")
     private String title;
 

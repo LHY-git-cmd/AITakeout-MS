@@ -36,7 +36,7 @@ spring:
   ai:
     model:
       chat: ${AI_CHAT_MODEL:none}
-      embedding: none
+      embedding: BAAI/bge-m3
       image: none
       audio:
         transcription: none
@@ -45,6 +45,14 @@ spring:
     chat:
       client:
         enabled: ${AI_ENABLED:false}
+    rag:
+      enabled: true
+      vector-store:
+        similarity-top-k: 5
+        similarity-score-threshold: 0.7
+    agent:
+      client:
+        enabled: true # Assuming this is how to enable multipart AgentClient
     openai:
       api-key: ${DEEPSEEK_API_KEY:}
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}

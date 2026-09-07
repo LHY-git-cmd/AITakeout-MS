@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Agent消息响应VO
@@ -48,4 +49,7 @@ public class AgentMessageVO implements Serializable {
 
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
+
+    @Schema(description = "回答引用的知识库证据")
+    private List<AgentCitationVO> citations;
 }

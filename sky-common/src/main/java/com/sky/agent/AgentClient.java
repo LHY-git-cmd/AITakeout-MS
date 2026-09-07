@@ -3,6 +3,8 @@ package com.sky.agent;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sky.agent.model.AgentStreamEvent;
 import com.sky.agent.model.AgentSubmitRequest;
@@ -11,16 +13,23 @@ import com.sky.agent.model.AgentTaskStatusResponse;
 import com.sky.properties.AgentProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 import java.util.function.Consumer;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.StringReader;
 import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -43,6 +52,9 @@ import java.util.*;
 @Slf4j
 @Service
 public class AgentClient {
+
+    private static final String KNOWLEDGE_INDEX_PATH = "/api/v1/knowledge/index";
+    private static final String KNOWLEDGE_DOCUMENT_PATH = "/api/v1/knowledge/documents";
 
     private final RestTemplate restTemplate;
     private final AgentProperties agentProperties;
@@ -423,6 +435,206 @@ public class AgentClient {
     public AgentTaskStatusResponse getTaskStatus(String taskId) {
         String url = agentProperties.getBaseUrl() + "/api/v1/agent/status/" + taskId;
         return restTemplate.getForObject(url, AgentTaskStatusResponse.class);
+    }
+
+    /**
+     * 提交知识库文档索引任务。Python 接口仅受理任务，实际索引进度由状态接口轮询。
+     */
+    public Map<String, Object> indexKnowledge(Map<String, Object> request, Resource file) {
+        Objects.requireNonNull(request, "知识库索引请求不能为空");
+        Objects.requireNonNull(file, "知识库索引文件不能为空");
+        URI uri = knowledgeUri(KNOWLEDGE_INDEX_PATH).build().encode().toUri();
+        MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
+        HttpHeaders metadataHeaders = new HttpHeaders();
+        metadataHeaders.setContentType(MediaType.APPLICATION_JSON);
+        try {
+            parts.add("metadata", new HttpEntity<>(
+                    objectMapper.writeValueAsString(request), metadataHeaders));
+        } catch (JsonProcessingException exception) {
+            throw new AgentClientException(AgentClientException.Reason.SERIALIZATION,
+                    null, false, "提交知识库索引请求序列化失败", exception);
+        }
+        parts.add("file", file);
+        return exchangeKnowledgeMultipart("提交知识库索引", uri, parts);
+    }
+
+    private Map<String, Object> exchangeKnowledgeMultipart(
+            String operation, URI uri, MultiValueMap<String, Object> parts) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        try {
+            log.info("调用Agent知识库接口: operation={}, method=POST, uri={}", operation, uri);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    uri, HttpMethod.POST, new HttpEntity<>(parts, headers), String.class);
+            if (response.getBody() == null || response.getBody().isBlank()) {
+                throw new AgentClientException(AgentClientException.Reason.INVALID_RESPONSE,
+                        response.getStatusCode().value(), false, operation + "响应体为空", null);
+            }
+            return objectMapper.readValue(response.getBody(),
+                    new TypeReference<Map<String, Object>>() { });
+        } catch (AgentClientException exception) {
+            throw exception;
+        } catch (RestClientResponseException exception) {
+            throw mapKnowledgeHttpException(operation, exception);
+        } catch (ResourceAccessException exception) {
+            boolean timeout = hasCause(exception, SocketTimeoutException.class);
+            throw new AgentClientException(
+                    timeout ? AgentClientException.Reason.TIMEOUT : AgentClientException.Reason.UNAVAILABLE,
+                    null, true, timeout ? operation + "超时" : operation + "失败，Agent服务不可用",
+                    exception);
+        } catch (JsonProcessingException exception) {
+            throw new AgentClientException(AgentClientException.Reason.INVALID_RESPONSE,
+                    null, false, operation + "响应不是有效JSON", exception);
+        } catch (RestClientException exception) {
+            throw new AgentClientException(AgentClientException.Reason.UNAVAILABLE,
+                    null, true, operation + "失败，无法访问Agent服务", exception);
+        }
+    }
+
+    /**
+     * 查询 Python 侧知识库索引任务状态。
+     */
+    public Map<String, Object> getKnowledgeIndexStatus(String taskId) {
+        requirePathValue(taskId, "taskId");
+        URI uri = knowledgeUri(KNOWLEDGE_INDEX_PATH)
+                .pathSegment(taskId)
+                .build()
+                .encode()
+                .toUri();
+        return exchangeKnowledge("查询知识库索引状态", uri, HttpMethod.GET, null, true);
+    }
+
+    /**
+     * 删除文档的全部向量，或只删除指定版本的向量。
+     */
+    public void deleteKnowledgeDocument(String documentId, Integer version) {
+        requirePathValue(documentId, "documentId");
+        if (version != null && version <= 0) {
+            throw new IllegalArgumentException("version必须大于0");
+        }
+        UriComponentsBuilder builder = knowledgeUri(KNOWLEDGE_DOCUMENT_PATH)
+                .pathSegment(documentId);
+        if (version != null) {
+            builder.queryParam("version", version);
+        }
+        exchangeKnowledge("删除知识库文档向量", builder.build().encode().toUri(),
+                HttpMethod.DELETE, null, false);
+    }
+
+    private Map<String, Object> exchangeKnowledge(String operation, URI uri,
+                                                   HttpMethod method, Object request,
+                                                   boolean responseRequired) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        String jsonBody = null;
+        if (request != null) {
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            try {
+                jsonBody = objectMapper.writeValueAsString(request);
+            } catch (JsonProcessingException exception) {
+                throw new AgentClientException(AgentClientException.Reason.SERIALIZATION,
+                        null, false, operation + "请求序列化失败", exception);
+            }
+        }
+
+        try {
+            log.info("调用Agent知识库接口: operation={}, method={}, uri={}", operation, method, uri);
+            ResponseEntity<String> response = restTemplate.exchange(
+                    uri, method, new HttpEntity<>(jsonBody, headers), String.class);
+            String body = response.getBody();
+            if (body == null || body.isBlank()) {
+                if (!responseRequired) {
+                    return Collections.emptyMap();
+                }
+                throw new AgentClientException(AgentClientException.Reason.INVALID_RESPONSE,
+                        response.getStatusCode().value(), false,
+                        operation + "响应体为空", null);
+            }
+            try {
+                return objectMapper.readValue(body, new TypeReference<Map<String, Object>>() { });
+            } catch (JsonProcessingException exception) {
+                throw new AgentClientException(AgentClientException.Reason.INVALID_RESPONSE,
+                        response.getStatusCode().value(), false,
+                        operation + "响应不是有效JSON", exception);
+            }
+        } catch (AgentClientException exception) {
+            throw exception;
+        } catch (RestClientResponseException exception) {
+            throw mapKnowledgeHttpException(operation, exception);
+        } catch (ResourceAccessException exception) {
+            boolean timeout = hasCause(exception, SocketTimeoutException.class);
+            AgentClientException.Reason reason = timeout
+                    ? AgentClientException.Reason.TIMEOUT
+                    : AgentClientException.Reason.UNAVAILABLE;
+            String message = timeout
+                    ? operation + "超时"
+                    : operation + "失败，Agent服务不可用";
+            throw new AgentClientException(reason, null, true, message, exception);
+        } catch (RestClientException exception) {
+            throw new AgentClientException(AgentClientException.Reason.UNAVAILABLE,
+                    null, true, operation + "失败，无法访问Agent服务", exception);
+        }
+    }
+
+    private AgentClientException mapKnowledgeHttpException(
+            String operation, RestClientResponseException exception) {
+        int status = exception.getStatusCode().value();
+        AgentClientException.Reason reason;
+        boolean retryable = false;
+        if (status == HttpStatus.CONFLICT.value()) {
+            reason = AgentClientException.Reason.CONFLICT;
+        } else if (status == HttpStatus.NOT_FOUND.value()) {
+            reason = AgentClientException.Reason.NOT_FOUND;
+        } else if (status >= 400 && status < 500) {
+            reason = AgentClientException.Reason.INVALID_REQUEST;
+        } else {
+            reason = AgentClientException.Reason.REMOTE_ERROR;
+            retryable = status >= 500;
+        }
+        String detail = responseDetail(exception.getResponseBodyAsString());
+        String message = operation + "失败，HTTP " + status;
+        if (detail != null && !detail.isBlank()) {
+            message += ": " + detail;
+        }
+        return new AgentClientException(reason, status, retryable, message, exception);
+    }
+
+    private String responseDetail(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            return null;
+        }
+        try {
+            String detail = objectMapper.readTree(responseBody).path("detail").asText(null);
+            return detail == null ? abbreviate(responseBody) : abbreviate(detail);
+        } catch (JsonProcessingException exception) {
+            return abbreviate(responseBody);
+        }
+    }
+
+    private String abbreviate(String value) {
+        return value.length() <= 500 ? value : value.substring(0, 500);
+    }
+
+    private boolean hasCause(Throwable throwable, Class<? extends Throwable> causeType) {
+        for (Throwable current = throwable; current != null; current = current.getCause()) {
+            if (causeType.isInstance(current)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private UriComponentsBuilder knowledgeUri(String path) {
+        String baseUrl = agentProperties.getBaseUrl().replaceAll("/+$", "");
+        return UriComponentsBuilder.fromUriString(baseUrl)
+                .path(path);
+    }
+
+    private void requirePathValue(String value, String name) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(name + "不能为空");
+        }
     }
 
     private void emitStructuredEvent(StringBuilder data,
