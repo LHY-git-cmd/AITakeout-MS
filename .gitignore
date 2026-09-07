@@ -2,3 +2,10 @@
 .idea
 *.iml
 *.class
+**/.venv/
+**/__pycache__/
+*.pyc
+sky-embedding/models/
+sky-embedding/.cache/
+sky-agent/data/
+sky-agent/.env
