@@ -6,10 +6,10 @@
     <insert id="insert" parameterType="com.sky.entity.AgentSession"
             useGeneratedKeys="true" keyProperty="id">
         insert into agent_session
-        (session_id, user_id, title, status, last_task_id, message_count,
+        (session_id, user_id, kb_id, title, status, last_task_id, message_count,
          create_time, update_time, create_user, update_user)
         values
-        (#{sessionId}, #{userId}, #{title}, #{status}, #{lastTaskId}, #{messageCount},
+        (#{sessionId}, #{userId}, #{kbId}, #{title}, #{status}, #{lastTaskId}, #{messageCount},
          #{createTime}, #{updateTime}, #{createUser}, #{updateUser})
     </insert>
 
@@ -31,6 +31,7 @@
         update agent_session
         <set>
             <if test="title != null">title = #{title},</if>
+            <if test="kbId != null">kb_id = #{kbId},</if>
             <if test="status != null">status = #{status},</if>
             <if test="lastTaskId != null">last_task_id = #{lastTaskId},</if>
             <if test="messageCount != null">message_count = #{messageCount},</if>
