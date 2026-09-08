@@ -1,6 +1,6 @@
 sky:
   agent:
-    base-url: http://localhost:8000
+    base-url: ${AGENT_BASE_URL:http://localhost:8000}
     connect-timeout: 5000 #建立 TCP 连接的超时时间（毫秒）
     read-timeout: 60000 #连接成功后，等待服务端响应数据的超时时间（毫秒）
     request-timeout: 65000 #整体请求的超时上限（毫秒）
@@ -8,7 +8,7 @@ sky:
     summary-message-threshold: 20 #消息条数阈值_触发摘要
     summary-token-threshold: 5000 #Token估算阈值_触发摘要
     summary-recent-message-count: 10 #保留最近十条
-    default-model: deepseek-v4-pro
+    default-model: ${LLM_MODEL}
     default-temperature: 0.7
     rag-enabled: ${RAG_ENABLED:true}
     rag-top-k: ${RAG_TOP_K:8}
@@ -28,24 +28,24 @@ sky:
   web-login:
     enabled: true
   datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    host: localhost
-    port: 3306
-    database: sky_take_out
-    username: root
-    password: 123
+    driver-class-name: ${DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
+    host: ${DB_HOST:localhost}
+    port: ${DB_PORT:3306}
+    database: ${DB_NAME:sky_take_out}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   alioss:
-    endpoint: ##
-    access-key-id: ##
-    access-key-secret: ##
-    bucket-name: ##
+    endpoint: ${ALIOSS_ENDPOINT:}
+    access-key-id: ${ALIOSS_ACCESS_KEY_ID:}
+    access-key-secret: ${ALIOSS_ACCESS_KEY_SECRET:}
+    bucket-name: ${ALIOSS_BUCKET_NAME:}
   redis:
-    host: localhost
-    port: 6379
-    password: 123456
-    database: 10
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    database: ${REDIS_DATABASE:10}
   wechat:
-    appid: wx97c3724defa2be41
-    secret: 9960c7712f3a82d068aa14121671d939
+    appid: ${WECHAT_APP_ID:}
+    secret: ${WECHAT_APP_SECRET:}
     # 开发环境没有微信支付商户号时启用模拟支付
     mock-pay: true

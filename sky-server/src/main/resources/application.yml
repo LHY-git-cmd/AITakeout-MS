@@ -13,7 +13,7 @@ springdoc:
 
 spring:
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
     druid:
       driver-class-name: ${sky.datasource.driver-class-name}
@@ -54,13 +54,13 @@ spring:
       client:
         enabled: true # Assuming this is how to enable multipart AgentClient
     openai:
-      api-key: ${DEEPSEEK_API_KEY:}
-      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${LLM_API_KEY:}
+      base-url: ${LLM_BASE_URL:}
       chat:
         completions-path: /v1/chat/completions
         options:
-          model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
-          reasoning-effort: ${DEEPSEEK_REASONING_EFFORT:high}
+          model: ${LLM_MODEL:}
+          reasoning-effort: ${LLM_REASONING_EFFORT:high}
 
 mybatis:
   #mapper配置文件
@@ -85,12 +85,12 @@ sky:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:9528,http://localhost:8081}
   jwt:
     # 设置jwt签名加密时使用的秘钥（至少32个字符）
-    admin-secret-key: itcast-itcast-itcast-itcast-itcast
+    admin-secret-key: ${JWT_ADMIN_SECRET}
     # 设置jwt过期时间
     admin-ttl: 7200000
     # 设置前端传递过来的令牌名称
     admin-token-name: token
-    user-secret-key: itheima-itheima-itheima-itheima-itheima
+    user-secret-key: ${JWT_USER_SECRET}
     user-ttl: 7200000
     user-token-name: authentication
   alioss:
