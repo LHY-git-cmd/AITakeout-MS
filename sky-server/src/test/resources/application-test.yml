@@ -18,6 +18,8 @@ spring:
 
 sky:
   agent:
+    base-url: http://localhost:8000
+    default-model: test-model
     recovery-enabled: false
   jwt:
     admin-secret-key: test-admin-secret-key-test-admin-secret-key

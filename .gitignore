@@ -5,6 +5,7 @@
 **/.venv/
 **/__pycache__/
 *.pyc
+/.env
 sky-embedding/models/
 sky-embedding/.cache/
 sky-agent/data/

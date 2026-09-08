@@ -1,8 +1,10 @@
 package com.sky.properties;
 
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 
 /**
  * Agent智能体服务配置属性类
@@ -11,12 +13,14 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "sky.agent")
 @Data
+@Validated
 public class AgentProperties {
 
     /**
      * Agent服务基础URL
      */
-    private String baseUrl = "http://localhost:8000";
+    @NotBlank(message = "AGENT_BASE_URL must be configured")
+    private String baseUrl;
 
     /**
      * 连接超时时间（毫秒）
@@ -40,7 +44,8 @@ public class AgentProperties {
     private int contextCharacterLimit = 12000;
 
     /** 默认模型 */
-    private String defaultModel = "deepseek-v4-pro";
+    @NotBlank(message = "LLM_MODEL must be configured")
+    private String defaultModel;
 
     /** 默认采样温度 */
     private double defaultTemperature = 0.7;

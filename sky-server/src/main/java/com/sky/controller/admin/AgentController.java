@@ -110,7 +110,9 @@ public class AgentController {
     @PostMapping("/tasks/submit")
     @Operation(summary = "提交Agent任务")
     public Result<AgentSubmitVO> submitTask(@Validated @RequestBody AgentSubmitDTO dto) {
-        log.info("提交Agent任务: {}", dto);
+        // 问题正文属于完整对话内容，不得进入默认日志。
+        log.info("提交Agent任务: taskId={}, sessionId={}, kbId={}, model={}",
+                dto.getTaskId(), dto.getSessionId(), dto.getKbId(), dto.getModel());
         return Result.success(agentService.submitTask(dto));
     }
 

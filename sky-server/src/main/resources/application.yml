@@ -13,7 +13,7 @@ springdoc:
 
 spring:
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   datasource:
     druid:
       driver-class-name: ${sky.datasource.driver-class-name}
@@ -54,13 +54,13 @@ spring:
       client:
         enabled: true # Assuming this is how to enable multipart AgentClient
     openai:
-      api-key: ${DEEPSEEK_API_KEY:}
-      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      api-key: ${LLM_API_KEY:}
+      base-url: ${LLM_BASE_URL:}
       chat:
         completions-path: /v1/chat/completions
         options:
-          model: ${DEEPSEEK_MODEL:deepseek-v4-pro}
-          reasoning-effort: ${DEEPSEEK_REASONING_EFFORT:high}
+          model: ${LLM_MODEL:}
+          reasoning-effort: ${LLM_REASONING_EFFORT:high}
 
 mybatis:
   #mapper配置文件

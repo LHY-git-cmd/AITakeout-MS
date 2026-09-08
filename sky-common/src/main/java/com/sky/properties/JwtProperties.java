@@ -1,8 +1,11 @@
 package com.sky.properties;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
+import org.springframework.validation.annotation.Validated;
 
 /**
  * JWT令牌配置属性类
@@ -11,11 +14,14 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "sky.jwt")
 @Data
+@Validated
 public class JwtProperties {
 
     /**
      * 管理端员工生成jwt令牌相关配置
      */
+    @NotBlank(message = "JWT_ADMIN_SECRET must be configured")
+    @Size(min = 32, message = "JWT_ADMIN_SECRET must contain at least 32 characters")
     private String adminSecretKey;
 
     /**
@@ -31,6 +37,8 @@ public class JwtProperties {
     /**
      * 用户端微信用户生成jwt令牌相关配置
      */
+    @NotBlank(message = "JWT_USER_SECRET must be configured")
+    @Size(min = 32, message = "JWT_USER_SECRET must contain at least 32 characters")
     private String userSecretKey;
 
     /**
