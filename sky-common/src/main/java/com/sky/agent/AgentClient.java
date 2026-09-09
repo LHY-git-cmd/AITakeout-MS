@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -65,6 +66,7 @@ public class AgentClient {
         this.agentProperties = agentProperties;
         this.objectMapper = objectMapper;
         this.restTemplate = restTemplateBuilder
+                .requestFactory(SimpleClientHttpRequestFactory::new)
                 .connectTimeout(Duration.ofMillis(agentProperties.getConnectTimeout()))
                 .readTimeout(Duration.ofMillis(agentProperties.getReadTimeout()))
                 .build();
@@ -370,8 +372,12 @@ public class AgentClient {
      */
     public AgentSubmitResponse submit(AgentSubmitRequest request) {
         String url = agentProperties.getBaseUrl() + "/api/v1/agent/submit";
-        ResponseEntity<AgentSubmitResponse> response = restTemplate.postForEntity(
-                url, request, AgentSubmitResponse.class);
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+        ResponseEntity<AgentSubmitResponse> response = restTemplate.exchange(
+                url, HttpMethod.POST, new HttpEntity<>(request, headers),
+                AgentSubmitResponse.class);
         AgentSubmitResponse body = response.getBody();
         if (body == null || body.taskId() == null) {
             throw new IllegalStateException("Agent提交响应缺少task_id");
