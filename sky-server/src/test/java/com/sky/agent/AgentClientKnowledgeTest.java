@@ -2,6 +2,7 @@ package com.sky.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sky.agent.model.AgentSubmitRequest;
 import com.sky.properties.AgentProperties;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -32,6 +33,7 @@ class AgentClientKnowledgeTest {
     void setUp() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/api/v1/knowledge", this::handleKnowledgeRequest);
+        server.createContext("/api/v1/agent/submit", this::handleSubmitRequest);
         server.start();
 
         AgentProperties properties = new AgentProperties();
@@ -85,6 +87,31 @@ class AgentClientKnowledgeTest {
         assertEquals(409, exception.getStatusCode());
         assertFalse(exception.isRetryable());
         assertEquals("提交知识库索引失败，HTTP 409: task_id reused", exception.getMessage());
+    }
+
+    @Test
+    void submitSendsJsonBodyUsingHttp11CompatibleClient() throws Exception {
+        client.submit(new AgentSubmitRequest(
+                "task-1", "session-1", 1L, "测试问题", "model-1", 0.2,
+                Map.of("history", java.util.List.of())));
+
+        RequestSnapshot request = lastRequest.get();
+        JsonNode body = objectMapper.readTree(request.body());
+        assertEquals("POST", request.method());
+        assertEquals("/api/v1/agent/submit", request.path());
+        assertEquals("task-1", body.path("task_id").asText());
+        assertEquals("测试问题", body.path("query").asText());
+    }
+
+    private void handleSubmitRequest(HttpExchange exchange) throws IOException {
+        byte[] requestBody = exchange.getRequestBody().readAllBytes();
+        lastRequest.set(new RequestSnapshot(
+                exchange.getRequestMethod(), exchange.getRequestURI().getRawPath(),
+                exchange.getRequestURI().getRawQuery(),
+                new String(requestBody, StandardCharsets.UTF_8)));
+        respond(exchange, 200,
+                "{\"task_id\":\"task-1\",\"status\":\"pending\","
+                        + "\"stream_url\":\"/api/v1/agent/stream/task-1\"}");
     }
 
     private void handleKnowledgeRequest(HttpExchange exchange) throws IOException {
