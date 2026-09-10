@@ -1,0 +1,32 @@
+# 此 Docker Compose 文件用于“外部”部署模式。
+# 在此模式下，假定像 MySQL、Redis 和 Qdrant 这样的一些服务在外部运行，
+# 并且不受此 Compose 文件的管理。
+#
+# 此文件的主要目的是配置 'sky-agent' 和 'sky-server' 服务以连接到这些外部依赖项。
+# 它通过取消内部依赖（'depends_on: null'）并要求使用指向外部服务的环境变量来实现这一点。
+#
+# 'mysql'、'redis' 和 'qdrant' 服务被定义为空的配置文件（profiles），
+# 这样在使用 'docker-compose up' 命令时，除非明确指定了配置文件，否则它们不会被启动。
+# 这可以防止在使用此外部配置时不小心启动这些服务的本地版本。
+services:
+  mysql:
+    profiles: []
+  redis:
+    profiles: []
+  qdrant:
+    profiles: []
+
+  sky-agent:
+    depends_on: null
+    environment:
+      QDRANT_URL: ${QDRANT_URL:?QDRANT_URL is required in external mode}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:?EMBEDDING_BASE_URL is required in external mode}
+
+  sky-server:
+    depends_on: null
+    environment:
+      AGENT_BASE_URL: ${AGENT_BASE_URL:?AGENT_BASE_URL is required in external mode}
+      DB_HOST: ${DB_HOST:?DB_HOST is required in external mode}
+      DB_PORT: ${DB_PORT:-3306}
+      REDIS_HOST: ${REDIS_HOST:?REDIS_HOST is required in external mode}
+      REDIS_PORT: ${REDIS_PORT:-6379}
