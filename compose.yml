@@ -1,0 +1,283 @@
+# 这是 sky-take-out 项目的主 Docker Compose 文件。
+# 它为本地开发环境定义和配置了所有必要的服务。
+#
+# 服务包括：
+# - mysql: 应用程序的主数据库。
+# - redis: 内存数据存储，用于缓存和会话管理。
+# - qdrant: 用于相似性搜索的向量数据库，供 AI 代理使用。
+# - sky-embedding: 提供文本嵌入模型的服务。
+# - sky-agent: 处理自然语言处理和其他 AI 任务的 AI 代理服务。
+# - sky-server: 主后端应用程序服务器。
+#
+# 每个服务都配置了其构建上下文、镜像、环境变量、
+# 端口映射、用于持久化数据的卷、确保服务
+# 正常运行的健康检查以及对其他服务的依赖关系。
+#
+# 'logging' 配置使用 YAML 锚点 (&default-logging) 和别名 (*default-logging)
+# 为所有服务定义了可重用的日志记录设置，这有助于保持
+# 配置的 DRY (Don't Repeat Yourself) 原则。
+#
+# 文件末尾定义了卷，用于持久化 mysql、redis、qdrant 等服务的数据，
+# 确保在容器重新创建时数据不会丢失。
+name: sky-take-out
+
+services:
+  mysql:
+    image: mysql:8.4.7
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-sky_take_out}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+    ports:
+      - "${MYSQL_PORT:-13306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck: # 定义容器的健康检查
+      # test: 用于检查容器健康状况的命令。
+      # "mysqladmin ping" 会检查 MySQL 服务器是否处于活动状态。
+      # -h 127.0.0.1: 指定本地主机。
+      # -u root: 使用 root 用户。
+      # -p$$MYSQL_ROOT_PASSWORD: 使用环境变量中的 root 密码。
+      # --silent: 静默模式，失败时只返回退出代码。
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      # interval: 运行健康检查的间隔时间。
+      interval: 60s
+      # timeout: 等待健康检查命令返回结果的超时时间。
+      timeout: 5s
+      # retries: 将容器标记为“不健康”之前，需要连续失败的次数。
+      retries: 12
+      # start_period: 容器启动的宽限期，在此期间健康检查失败不计入重试次数。
+      start_period: 30s
+    # &default-logging: 定义一个名为 'default-logging' 的 YAML 锚点，用于在其他服务中重用此日志配置。
+    logging: &default-logging
+      # driver: 指定日志驱动程序。json-file 将日志记录为 JSON 格式。
+      driver: json-file
+      options:
+        # max-size: 单个日志文件的最大大小。
+        max-size: "10m"
+        # max-file: 保留的最大日志文件数。
+        max-file: "3"
+
+  redis:
+    image: redis:7.4.7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    ports:
+      - "${REDIS_EXPOSED_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 60s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging: *default-logging
+
+  qdrant:
+    image: qdrant/qdrant:v1.15.5
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "bash -c 'exec 3<>/dev/tcp/127.0.0.1/6333 && printf \"GET /healthz HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q \"200 OK\" <&3'"
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    logging: *default-logging
+
+  sky-embedding:
+    build:
+      context: ./sky-embedding
+      dockerfile: Dockerfile
+    image: sky-embedding:module2
+    restart: unless-stopped
+    environment:
+      EMBEDDING_MODEL_PATH: /models/bge-m3
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cpu}
+      EMBEDDING_USE_FP16: ${EMBEDDING_USE_FP16:-false}
+      EMBEDDING_MAX_BATCH_SIZE: ${EMBEDDING_MAX_BATCH_SIZE:-16}
+    ports:
+      - "${SKY_EMBEDDING_PORT:-8001}:8001"
+    volumes:
+      - "${BGE_MODEL_HOST_PATH:-./sky-embedding/models/bge-m3}:/models/bge-m3:ro"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health/ready', timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
+    logging: *default-logging
+
+  sky-agent:
+    build:
+      context: ./sky-agent
+      dockerfile: Dockerfile
+    image: sky-agent:module2
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      QDRANT_URL: http://qdrant:6333
+      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-sky_knowledge_v2}
+      EMBEDDING_BASE_URL: http://sky-embedding:8001
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
+      EMBEDDING_BATCH_SIZE: ${EMBEDDING_BATCH_SIZE:-16}
+      VECTOR_STORE: ${VECTOR_STORE:-qdrant}
+      LLM_PROVIDER: ${LLM_PROVIDER:?LLM_PROVIDER is required}
+      LLM_BASE_URL: ${LLM_BASE_URL:?LLM_BASE_URL is required}
+      LLM_MODEL: ${LLM_MODEL:?LLM_MODEL is required}
+      LLM_API_KEY: ${LLM_API_KEY:?LLM_API_KEY is required}
+      LLM_ALLOWED_MODELS: ${LLM_ALLOWED_MODELS:-}
+      LLM_FALLBACK_MODEL: ${LLM_FALLBACK_MODEL:-}
+      LLM_CONNECT_TIMEOUT_SECONDS: ${LLM_CONNECT_TIMEOUT_SECONDS:-5}
+      LLM_FIRST_TOKEN_TIMEOUT_SECONDS: ${LLM_FIRST_TOKEN_TIMEOUT_SECONDS:-15}
+      LLM_TOTAL_TIMEOUT_SECONDS: ${LLM_TOTAL_TIMEOUT_SECONDS:-90}
+      LLM_MAX_CONCURRENCY: ${LLM_MAX_CONCURRENCY:-4}
+      LLM_MAX_QUEUE_SIZE: ${LLM_MAX_QUEUE_SIZE:-16}
+      LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-2}
+      LLM_RETRY_BASE_DELAY_SECONDS: ${LLM_RETRY_BASE_DELAY_SECONDS:-0.5}
+      LLM_INPUT_COST_PER_MILLION: ${LLM_INPUT_COST_PER_MILLION:-0}
+      LLM_OUTPUT_COST_PER_MILLION: ${LLM_OUTPUT_COST_PER_MILLION:-0}
+      LLM_TEMPERATURE_MIN: ${LLM_TEMPERATURE_MIN:-0}
+      LLM_TEMPERATURE_MAX: ${LLM_TEMPERATURE_MAX:-0.3}
+      LLM_THINKING_ENABLED: ${LLM_THINKING_ENABLED:-false}
+      AGENT_MAX_CONTEXT_CHARS: ${AGENT_MAX_CONTEXT_CHARS:-24000}
+      TASK_STATE_DB: /app/data/agent_tasks.sqlite3
+      KNOWLEDGE_STATE_DB: /app/data/knowledge_tasks.sqlite3
+      KNOWLEDGE_SOURCE_PATH: /app/data/knowledge_sources
+    ports:
+      - "${SKY_AGENT_PORT:-8000}:8000"
+    volumes:
+      - agent-data:/app/data
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      sky-embedding:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    logging: *default-logging
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: ["observability"]
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=${PROMETHEUS_RETENTION:-15d}
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      sky-server:
+        condition: service_healthy
+      sky-agent:
+        condition: service_healthy
+    logging: *default-logging
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-before-use}
+    volumes:
+      - ./observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    logging: *default-logging
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    profiles: ["observability"]
+    restart: unless-stopped
+    command: ["--path.rootfs=/host"]
+    volumes:
+      - /:/host:ro,rslave
+    logging: *default-logging
+
+  sky-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sky-server:module2
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      AGENT_BASE_URL: http://sky-agent:8000
+      DB_DRIVER_CLASS_NAME: ${DB_DRIVER_CLASS_NAME:-com.mysql.cj.jdbc.Driver}
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-sky_take_out}
+      DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDIS_DATABASE: ${REDIS_DATABASE:-10}
+      JWT_ADMIN_SECRET: ${JWT_ADMIN_SECRET:?JWT_ADMIN_SECRET is required}
+      JWT_USER_SECRET: ${JWT_USER_SECRET:?JWT_USER_SECRET is required}
+      LLM_BASE_URL: ${LLM_BASE_URL:?LLM_BASE_URL is required}
+      LLM_MODEL: ${LLM_MODEL:?LLM_MODEL is required}
+      LLM_API_KEY: ${LLM_API_KEY:?LLM_API_KEY is required}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-high}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:9528,http://localhost:8081}
+      SKY_AGENT_KNOWLEDGE_STORAGE_PATH: /app/data/knowledge
+    ports:
+      - "${SKY_SERVER_PORT:-8080}:8080"
+    volumes:
+      - server-data:/app/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      sky-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://127.0.0.1:8080/actuator/health/readiness || exit 1"]
+      interval: 60s
+      timeout: 5s
+      retries: 8
+      start_period: 45s
+    logging: *default-logging
+
+volumes:
+  mysql-data:
+    name: ${MYSQL_VOLUME_NAME:-sky-take-out-mysql-data}
+  redis-data:
+    name: ${REDIS_VOLUME_NAME:-sky-take-out-redis-data}
+  qdrant-data:
+    name: ${QDRANT_VOLUME_NAME:-sky-take-out-qdrant-data}
+  agent-data:
+    name: ${AGENT_VOLUME_NAME:-sky-take-out-agent-data}
+  server-data:
+    name: ${SERVER_VOLUME_NAME:-sky-take-out-server-data}
+  prometheus-data:
+  grafana-data:
