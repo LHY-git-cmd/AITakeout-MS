@@ -17,16 +17,21 @@ class AgentContractTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * 测试提交请求时，Java模型能正确序列化为Python后端期望的snake_case风格JSON字段
+     */
     @Test
     void submitRequestUsesPythonSnakeCaseFields() throws Exception {
         AgentSubmitRequest request = new AgentSubmitRequest(
                 "task-1", "session-1", 7L, "hello", "deepseek-v4-pro", 0.7,
                 Map.of("history", List.of(new AgentHistoryMessage("user", "previous"))),
-                new AgentKnowledgeScope("kb-1", Map.of("document-1", 2), 8, 0.2));
+                new AgentKnowledgeScope("kb-1", Map.of("document-1", 2), 8, 0.2),
+                "trace-1");
 
         String json = objectMapper.writeValueAsString(request);
 
         assertTrue(json.contains("\"task_id\":\"task-1\""));
+        assertTrue(json.contains("\"trace_id\":\"trace-1\""));
         assertTrue(json.contains("\"session_id\":\"session-1\""));
         assertTrue(json.contains("\"user_id\":7"));
         assertTrue(json.contains("\"kb_id\":\"kb-1\""));
@@ -35,14 +40,18 @@ class AgentContractTest {
         assertTrue(json.contains("\"score_threshold\":0.2"));
     }
 
+    /**
+     * 测试从Python后端接收流式事件时，能正确反序列化为Java的事件模型
+     */
     @Test
     void streamEventReadsPythonProtocol() throws Exception {
-        String json = "{\"task_id\":\"task-1\",\"seq_no\":2,"
+        String json = "{\"task_id\":\"task-1\",\"trace_id\":\"trace-1\",\"seq_no\":2,"
                 + "\"event\":\"token\",\"data\":{\"content\":\"hi\"}}";
 
         AgentStreamEvent event = objectMapper.readValue(json, AgentStreamEvent.class);
 
         assertEquals("task-1", event.taskId());
+        assertEquals("trace-1", event.traceId());
         assertEquals(2, event.seqNo());
         assertEquals("hi", event.data().get("content").asText());
     }
