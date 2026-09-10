@@ -48,6 +48,9 @@ class AgentClientKnowledgeTest {
         server.stop(0);
     }
 
+    /**
+     * 测试知识库相关方法是否与Python后端路由和JSON格式匹配
+     */
     @Test
     void knowledgeMethodsMatchPythonRoutesAndJsonContract() throws Exception {
         Map<String, Object> request = Map.of(
@@ -78,6 +81,9 @@ class AgentClientKnowledgeTest {
         assertEquals("version=2", deleteRequest.query());
     }
 
+    /**
+     * 测试将Python后端的冲突（conflict）异常映射为自定义的、不可重试的异常
+     */
     @Test
     void mapsPythonConflictToTypedNonRetryableException() {
         AgentClientException exception = assertThrows(AgentClientException.class,
@@ -89,6 +95,9 @@ class AgentClientKnowledgeTest {
         assertEquals("提交知识库索引失败，HTTP 409: task_id reused", exception.getMessage());
     }
 
+    /**
+     * 测试提交任务时，是否使用兼容HTTP/1.1的客户端发送JSON格式的请求体
+     */
     @Test
     void submitSendsJsonBodyUsingHttp11CompatibleClient() throws Exception {
         client.submit(new AgentSubmitRequest(
@@ -103,12 +112,32 @@ class AgentClientKnowledgeTest {
         assertEquals("测试问题", body.path("query").asText());
     }
 
+    /**
+     * 测试当后端服务容量超限时，是否能正确映射为可重试的自定义异常
+     */
+    @Test
+    void submitMapsCapacityToTypedRetryableException() {
+        AgentClientException exception = assertThrows(AgentClientException.class,
+                () -> client.submit(new AgentSubmitRequest(
+                        "capacity", "session-1", 1L, "测试问题", "model-1", 0.2,
+                        Map.of("history", java.util.List.of()))));
+
+        assertEquals(AgentClientException.Reason.CAPACITY_EXCEEDED, exception.getReason());
+        assertEquals(429, exception.getStatusCode());
+        org.junit.jupiter.api.Assertions.assertTrue(exception.isRetryable());
+    }
+
     private void handleSubmitRequest(HttpExchange exchange) throws IOException {
         byte[] requestBody = exchange.getRequestBody().readAllBytes();
         lastRequest.set(new RequestSnapshot(
                 exchange.getRequestMethod(), exchange.getRequestURI().getRawPath(),
                 exchange.getRequestURI().getRawQuery(),
                 new String(requestBody, StandardCharsets.UTF_8)));
+        if (new String(requestBody, StandardCharsets.UTF_8).contains("\"task_id\":\"capacity\"")) {
+            respond(exchange, 429,
+                    "{\"detail\":{\"error_type\":\"CAPACITY_EXCEEDED\",\"message\":\"full\"}}");
+            return;
+        }
         respond(exchange, 200,
                 "{\"task_id\":\"task-1\",\"status\":\"pending\","
                         + "\"stream_url\":\"/api/v1/agent/stream/task-1\"}");
