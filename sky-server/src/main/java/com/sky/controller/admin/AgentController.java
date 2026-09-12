@@ -19,8 +19,6 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -89,7 +87,6 @@ public class AgentController {
      * @param dto 包含更新信息的DTO。
      * @return 成功响应。
      */
-    //todo(目前只实现归档功能，无法修改标题和删除，归档后只能在数据库查看)
     @PutMapping("/sessions")
     @Operation(summary = "更新会话（修改标题、归档、删除）")
     public Result updateSession(@Validated @RequestBody AgentSessionUpdateDTO dto) {

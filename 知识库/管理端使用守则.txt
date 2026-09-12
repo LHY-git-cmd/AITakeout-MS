@@ -1,0 +1,11 @@
+
+管理手机号：19733118132
+
+管理账号：admin
+管理密码：666
+
+
+model：deepseek
+api密钥：sdbfjsdkdkfjansdkjbf
+
+数据库-u root -p 12231
