@@ -216,9 +216,9 @@ services:
     image: prom/node-exporter:v1.9.1
     profiles: ["observability"]
     restart: unless-stopped
-    command: ["--path.rootfs=/host"]
-    volumes:
-      - /:/host:ro,rslave
+    # Docker Desktop/Windows 不支持把宿主机根目录以 rslave 传播挂载给 Linux 容器。
+    # Windows 环境下保留服务以便按需启动，但不采集宿主机文件系统指标；
+    # Linux 部署可在 compose.override.yml 中恢复 /:/host:ro,rslave。
     logging: *default-logging
 
   sky-server:

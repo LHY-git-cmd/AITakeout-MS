@@ -33,6 +33,7 @@
         <jjwt>0.11.5</jjwt>
         <poi>5.2.5</poi>
         <spring-ai.version>1.1.8</spring-ai.version>
+        <logstash.encoder.version>8.1</logstash.encoder.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -42,6 +43,11 @@
                 <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>net.logstash.logback</groupId>
+                <artifactId>logstash-logback-encoder</artifactId>
+                <version>${logstash.encoder.version}</version>
             </dependency>
 
             <dependency>

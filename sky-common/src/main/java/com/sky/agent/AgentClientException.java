@@ -12,6 +12,7 @@ public class AgentClientException extends RuntimeException {
         CONFLICT,
         NOT_FOUND,
         INVALID_REQUEST,
+        CAPACITY_EXCEEDED,
         TIMEOUT,
         UNAVAILABLE,
         REMOTE_ERROR,

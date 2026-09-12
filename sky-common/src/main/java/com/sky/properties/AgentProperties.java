@@ -48,7 +48,7 @@ public class AgentProperties {
     private String defaultModel;
 
     /** 默认采样温度 */
-    private double defaultTemperature = 0.7;
+    private double defaultTemperature = 0.2;
 
     /** 启动时是否恢复未结束任务，测试环境可关闭 */
     private boolean recoveryEnabled = true;

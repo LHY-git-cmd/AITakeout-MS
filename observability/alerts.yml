@@ -1,0 +1,62 @@
+groups:
+  - name: sky-ai-runtime
+    rules:
+      - alert: SkyServiceUnavailable
+        expr: up{job=~"sky-server|sky-agent|sky-embedding|qdrant"} == 0
+        for: 2m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.job }} is unavailable"
+      - alert: LlmContinuousFailures
+        expr: increase(sky_llm_calls_total{status="failed"}[5m]) >= 3
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "LLM failed at least three times in five minutes"
+      - alert: HttpServerErrorRateHigh
+        expr: |
+          (
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001)
+          ) > 0.05
+          or
+          (
+            sum(rate(sky_agent_http_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(sky_agent_http_requests_total[5m])), 0.001)
+          ) > 0.05
+          or
+          (
+            sum(rate(sky_embedding_http_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(sky_embedding_http_requests_total[5m])), 0.001)
+          ) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "HTTP 5xx rate exceeds 5%"
+      - alert: AgentQueueBacklog
+        expr: sky_agent_tasks{status="queued"} >= 10
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "Agent queue is accumulating tasks"
+      - alert: LlmFirstTokenLatencyHigh
+        expr: sky_llm_first_token_ms{quantile="0.95"} > 15000
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "LLM first-token P95 exceeds 15 seconds"
+      - alert: EmbeddingModelNotReady
+        expr: sky_embedding_model_ready == 0
+        for: 3m
+        labels: {severity: critical}
+        annotations:
+          summary: "Embedding model is not ready"
+      - alert: RuntimeDiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "Less than 10% runtime disk space remains"
