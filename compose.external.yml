@@ -3,29 +3,33 @@
 # 并且不受此 Compose 文件的管理。
 #
 # 此文件的主要目的是配置 'sky-agent' 和 'sky-server' 服务以连接到这些外部依赖项。
-# 它通过取消内部依赖（'depends_on: null'）并要求使用指向外部服务的环境变量来实现这一点。
+# 它要求提供外部基础设施地址，同时保留三个应用服务之间的健康依赖。
 #
-# 'mysql'、'redis' 和 'qdrant' 服务被定义为空的配置文件（profiles），
-# 这样在使用 'docker-compose up' 命令时，除非明确指定了配置文件，否则它们不会被启动。
+# 'mysql'、'redis' 和 'qdrant' 服务被放入非默认的 local-infrastructure profile，
+# 这样在使用覆盖文件时，除非明确启用该 profile，否则它们不会被启动。
 # 这可以防止在使用此外部配置时不小心启动这些服务的本地版本。
 services:
   mysql:
-    profiles: []
+    profiles: ["local-infrastructure"]
   redis:
-    profiles: []
+    profiles: ["local-infrastructure"]
   qdrant:
-    profiles: []
+    profiles: ["local-infrastructure"]
 
   sky-agent:
-    depends_on: null
+    depends_on: !override
+      sky-embedding:
+        condition: service_healthy
     environment:
       QDRANT_URL: ${QDRANT_URL:?QDRANT_URL is required in external mode}
-      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:?EMBEDDING_BASE_URL is required in external mode}
+      EMBEDDING_BASE_URL: ${EXTERNAL_EMBEDDING_BASE_URL:-http://sky-embedding:8001}
 
   sky-server:
-    depends_on: null
+    depends_on: !override
+      sky-agent:
+        condition: service_healthy
     environment:
-      AGENT_BASE_URL: ${AGENT_BASE_URL:?AGENT_BASE_URL is required in external mode}
+      AGENT_BASE_URL: ${EXTERNAL_AGENT_BASE_URL:-http://sky-agent:8000}
       DB_HOST: ${DB_HOST:?DB_HOST is required in external mode}
       DB_PORT: ${DB_PORT:-3306}
       REDIS_HOST: ${REDIS_HOST:?REDIS_HOST is required in external mode}

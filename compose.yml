@@ -101,7 +101,7 @@ services:
     build:
       context: ./sky-embedding
       dockerfile: Dockerfile
-    image: sky-embedding:module2
+    image: ${SKY_EMBEDDING_IMAGE:-sky-embedding:module2}
     restart: unless-stopped
     environment:
       EMBEDDING_MODEL_PATH: /models/bge-m3
@@ -125,7 +125,7 @@ services:
     build:
       context: ./sky-agent
       dockerfile: Dockerfile
-    image: sky-agent:module2
+    image: ${SKY_AGENT_IMAGE:-sky-agent:module2}
     restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV:-development}
@@ -225,7 +225,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: sky-server:module2
+    image: ${SKY_SERVER_IMAGE:-sky-server:module2}
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
@@ -247,7 +247,21 @@ services:
       LLM_MODEL: ${LLM_MODEL:?LLM_MODEL is required}
       LLM_API_KEY: ${LLM_API_KEY:?LLM_API_KEY is required}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-high}
+      RAG_ENABLED: ${RAG_ENABLED:-true}
+      RAG_TOP_K: ${RAG_TOP_K:-8}
+      RAG_SCORE_THRESHOLD: ${RAG_SCORE_THRESHOLD:-0.35}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:9528,http://localhost:8081}
+      SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-30s}
+      ORDER_TASK_BATCH_SIZE: ${ORDER_TASK_BATCH_SIZE:-200}
+      ALIOSS_ENDPOINT: ${ALIOSS_ENDPOINT:-}
+      ALIOSS_ACCESS_KEY_ID: ${ALIOSS_ACCESS_KEY_ID:-}
+      ALIOSS_ACCESS_KEY_SECRET: ${ALIOSS_ACCESS_KEY_SECRET:-}
+      ALIOSS_BUCKET_NAME: ${ALIOSS_BUCKET_NAME:-}
+      WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+      BAIDU_MAP_AK: ${BAIDU_MAP_AK:-}
+      SHOP_ADDRESS: ${SHOP_ADDRESS:-北京市海淀区上地十街10号}
       SKY_AGENT_KNOWLEDGE_STORAGE_PATH: /app/data/knowledge
     ports:
       - "${SKY_SERVER_PORT:-8080}:8080"

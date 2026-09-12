@@ -78,7 +78,19 @@ try {
         throw 'Qdrant restore verification failed'
     }
 
-    Write-Output 'DRILL_SUCCESS: mysql, qdrant, agent-volume'
+    $checksumEntries = Get-ChildItem -LiteralPath $drillRoot -Recurse -File |
+        ForEach-Object {
+            [pscustomobject]@{
+                relative_path = [System.IO.Path]::GetRelativePath($drillRoot, $_.FullName)
+                size = $_.Length
+                sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            }
+        }
+    $checksumEntries | ConvertTo-Json | Set-Content `
+        -LiteralPath (Join-Path $drillRoot 'SHA256SUMS.json') -Encoding utf8
+    & (Join-Path $PSScriptRoot 'verify-backup.ps1') -BackupPath $drillRoot | Out-Null
+
+    Write-Output 'DRILL_SUCCESS: mysql, qdrant, agent-volume, checksums'
 } finally {
     docker rm -f $mysqlName $qdrantName 2>$null | Out-Null
     docker volume rm $agentVolume 2>$null | Out-Null
