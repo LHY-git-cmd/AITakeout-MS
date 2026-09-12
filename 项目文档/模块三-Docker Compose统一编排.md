@@ -2,7 +2,7 @@
 
 ## 本地完整模式
 
-准备 `.env`（数据库、Redis、JWT 和 LLM 必填项不得使用示例值）以及 BGE-M3 模型目录后执行。当前工作区可设置 `BGE_MODEL_HOST_PATH=E:/Pyhon/sky-embedding/models/bge-m3`：
+准备 `.env`（数据库、Redis、JWT 和 LLM 必填项不得使用示例值）以及 BGE-M3 模型目录后执行。模型默认放在项目相对目录 `sky-embedding/models/bge-m3`，其他位置通过 `BGE_MODEL_HOST_PATH` 配置：
 
 ```powershell
 docker compose -f compose.yml up -d --build
@@ -29,12 +29,10 @@ Embedding 模型通过 `${BGE_MODEL_HOST_PATH}` 以只读方式挂载到 `/model
 $env:DB_HOST = 'mysql.example.internal'
 $env:REDIS_HOST = 'redis.example.internal'
 $env:QDRANT_URL = 'http://qdrant.example.internal:6333'
-$env:EMBEDDING_BASE_URL = 'http://embedding.example.internal:8001'
-$env:AGENT_BASE_URL = 'http://agent.example.internal:8000'
-docker compose -f compose.yml -f compose.external.yml up -d --build --no-deps sky-embedding sky-agent sky-server
+docker compose -f compose.yml -f compose.external.yml up -d --build sky-embedding sky-agent sky-server
 ```
 
-`--no-deps` 避免启动本地 MySQL、Redis、Qdrant；外部实例的网络连通性、凭据、集合和数据库初始化由部署方负责。Embedding 仍建议由本 Compose 提供，以便模型卷和 readiness 规则一致；如使用外部 Embedding，必须保证其兼容 `/health/ready` 协议。
+覆盖文件通过非默认 profile 禁用本地 MySQL、Redis、Qdrant；外部实例的网络连通性、凭据、集合和数据库初始化由部署方负责。三个应用默认继续使用 Compose 服务名互联。如额外使用外部 Embedding 或 Agent，分别配置 `EXTERNAL_EMBEDDING_BASE_URL`、`EXTERNAL_AGENT_BASE_URL`，并只启动实际需要的本地服务。
 
 ## 健康检查与重启
 
