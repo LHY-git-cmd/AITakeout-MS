@@ -24,12 +24,15 @@
       >
       <div class="session-label">最近会话</div>
       <div v-loading="loadingSessions" class="session-list">
-        <button
-          v-for="item in sessions"
+        <div
+          v-for="item in sortedSessions"
           :key="item.sessionId"
           class="session-item"
           :class="{ active: item.sessionId === sessionId }"
           @click="openSession(item.sessionId)"
+          @keydown.enter="openSession(item.sessionId)"
+          role="button"
+          tabindex="0"
         >
           <span class="session-icon"><i class="el-icon-chat-dot-round" /></span>
           <span class="session-copy">
@@ -38,9 +41,26 @@
           </span>
           <i
             class="el-icon-more"
-            @click.stop="archiveSession(item.sessionId)"
+            :aria-label="`管理会话：${item.title || '新会话'}`"
+            @click.stop="toggleSessionMenu(item.sessionId)"
           />
-        </button>
+          <div
+            v-if="sessionMenuId === item.sessionId"
+            class="session-menu"
+            @click.stop
+          >
+            <button @click="archiveSession(item.sessionId)">
+              <i class="el-icon-folder" />归档
+            </button>
+            <button @click="deleteSession(item.sessionId)">
+              <i class="el-icon-delete" />删除
+            </button>
+            <button @click="togglePin(item)">
+              <i :class="item.pinned ? 'el-icon-top' : 'el-icon-bottom'" />
+              {{ item.pinned ? '取消置顶' : '置顶' }}
+            </button>
+          </div>
+        </div>
         <div v-if="!loadingSessions && !sessions.length" class="empty-sessions">
           还没有会话记录
         </div>
@@ -85,14 +105,39 @@
           </el-select>
           <el-button
             type="text"
-            icon="el-icon-delete"
-            aria-label="归档当前会话"
-            @click="archiveCurrent"
+            icon="el-icon-folder"
+            @click="showArchived = true; loadArchivedSessions()"
           >
-            归档
+            已归档
           </el-button>
         </div>
       </header>
+
+      <aside v-if="showArchived" class="archive-drawer" aria-label="已归档会话">
+        <div class="archive-heading">
+          <div>
+            <strong>已归档</strong>
+            <small>归档的对话会保留在这里</small>
+          </div>
+          <button aria-label="关闭已归档" @click="showArchived = false">
+            <i class="el-icon-close" />
+          </button>
+        </div>
+        <div v-loading="loadingArchived" class="archive-list">
+          <div v-if="!loadingArchived && !archivedSessions.length" class="empty-sessions">
+            暂无已归档对话
+          </div>
+          <div v-for="item in archivedSessions" :key="item.sessionId" class="archive-item">
+            <button class="archive-open" @click="restoreSession(item.sessionId)">
+              <strong>{{ item.title || '新会话' }}</strong>
+              <small>{{ formatDate(item.updateTime || item.createTime) }}</small>
+            </button>
+            <button class="archive-delete" aria-label="删除已归档会话" @click="deleteSession(item.sessionId, true)">
+              <i class="el-icon-delete" />
+            </button>
+          </div>
+        </div>
+      </aside>
 
       <div ref="messages" class="messages" role="log" aria-live="polite">
         <div v-if="!messages.length" class="welcome-state">
@@ -138,21 +183,15 @@
             >
               <div class="citations-title">参考来源</div>
               <div class="citation-list">
-                <button
+                <span
                   v-for="(source, sourceIndex) in uniqueCitations(message.citations)"
                   :key="source.chunkId"
-                  type="button"
-                  class="citation-chip"
-                  :aria-label="`查看来源 ${sourceIndex + 1}：${source.fileName}`"
-                  @click="openCitation(source)"
+                  class="citation-marker"
+                  tabindex="0"
+                  :data-tooltip="citationTooltip(source)"
                 >
-                  <i class="el-icon-document" />
-                  <span class="citation-index">来源 {{ sourceIndex + 1 }}</span>
-                  <span class="citation-name">
-                    {{ source.fileName
-                    }}{{ source.pageNo ? ` · 第${source.pageNo}页` : '' }}
-                  </span>
-                </button>
+                  {{ sourceIndex + 1 }}
+                </span>
               </div>
             </div>
           </div>
@@ -163,16 +202,6 @@
         <div v-if="running" class="running-line" role="status" aria-live="polite">
           <i class="el-icon-loading" />
           正在思考...
-          <el-button
-            class="stop-button"
-            size="mini"
-            :loading="cancelling"
-            :disabled="cancelling"
-            aria-label="停止生成回答"
-            @click="stopGeneration"
-          >
-            停止生成
-          </el-button>
         </div>
       </div>
 
@@ -188,11 +217,11 @@
             <span>Enter 发送 · Shift + Enter 换行</span>
             <el-button
               type="primary"
-              icon="el-icon-top"
               circle
-              :disabled="!draft.trim() || running"
-              aria-label="发送消息"
-              @click="send"
+              :disabled="cancelling || (!draft.trim() && !running)"
+              :icon="running ? 'el-icon-close' : 'el-icon-top'"
+              :aria-label="running ? '取消生成' : '发送消息'"
+              @click="running ? stopGeneration() : send()"
             />
           </div>
         </div>
@@ -225,6 +254,10 @@ export default Vue.extend({
   data() {
     return {
       sessions: [] as any[],
+      archivedSessions: [] as any[],
+      pinnedSessionIds: [] as string[],
+      sessionMenuId: '',
+      showArchived: false,
       sessionId: '',
       model: '',
       kbId: '',
@@ -238,6 +271,7 @@ export default Vue.extend({
       currentTaskId: '',
       streamController: null as AbortController | null,
       loadingSessions: false,
+      loadingArchived: false,
       suggestions: [
         '今天的订单情况怎么样？',
         '帮我分析一下营业数据',
@@ -252,8 +286,23 @@ export default Vue.extend({
       )
       return current ? current.title || '新会话' : '新会话'
     },
+    sortedSessions(): any[] {
+      return [...(this as any).sessions].sort((a: any, b: any) => {
+        if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1
+        return String(b.updateTime || b.createTime || '').localeCompare(
+          String(a.updateTime || a.createTime || '')
+        )
+      })
+    },
   },
   mounted() {
+    try {
+      this.pinnedSessionIds = JSON.parse(
+        window.localStorage.getItem('sky-agent-pinned-sessions') || '[]'
+      )
+    } catch (_) {
+      this.pinnedSessionIds = []
+    }
     this.loadSessions()
     this.loadKnowledgeBases()
   },
@@ -266,9 +315,23 @@ export default Vue.extend({
           pageSize: 50,
           status: 1,
         })
-        this.sessions = res.data?.data?.records || res.data?.data?.list || []
+        this.sessions = (res.data?.data?.records || res.data?.data?.list || []).map(
+          (item: any) => ({
+            ...item,
+            pinned: this.pinnedSessionIds.indexOf(item.sessionId) !== -1,
+          })
+        )
       } finally {
         this.loadingSessions = false
+      }
+    },
+    async loadArchivedSessions() {
+      this.loadingArchived = true
+      try {
+        const res: any = await listAgentSessions({ page: 1, pageSize: 50, status: 2 })
+        this.archivedSessions = res.data?.data?.records || res.data?.data?.list || []
+      } finally {
+        this.loadingArchived = false
       }
     },
     async loadKnowledgeBases() {
@@ -298,6 +361,7 @@ export default Vue.extend({
       this.draft = ''
     },
     async archiveSession(id: string) {
+      this.sessionMenuId = ''
       await updateAgentSession({ sessionId: id, status: 2 })
       this.$message.success('会话已归档')
       await this.loadSessions()
@@ -305,10 +369,37 @@ export default Vue.extend({
         this.newChat()
       }
     },
-    archiveCurrent() {
-      if (this.sessionId) {
-        this.archiveSession(this.sessionId)
-      }
+    toggleSessionMenu(id: string) {
+      this.sessionMenuId = this.sessionMenuId === id ? '' : id
+    },
+    async deleteSession(id: string, archived = false) {
+      if (!window.confirm('确定删除这个会话吗？删除后将无法在列表中恢复。')) return
+      await updateAgentSession({ sessionId: id, status: 3 })
+      this.sessionMenuId = ''
+      this.$message.success('会话已删除')
+      if (archived) await this.loadArchivedSessions()
+      else await this.loadSessions()
+      if (id === this.sessionId) this.newChat()
+    },
+    async restoreSession(id: string) {
+      await updateAgentSession({ sessionId: id, status: 1 })
+      this.showArchived = false
+      await this.loadSessions()
+      await this.openSession(id)
+      this.$message.success('会话已恢复')
+    },
+    togglePin(item: any) {
+      item.pinned = !item.pinned
+      const ids = this.pinnedSessionIds.filter((id) => id !== item.sessionId)
+      if (item.pinned) ids.push(item.sessionId)
+      this.pinnedSessionIds = ids
+      window.localStorage.setItem('sky-agent-pinned-sessions', JSON.stringify(ids))
+      this.sessionMenuId = ''
+    },
+    citationTooltip(source: any) {
+      const page = source.pageNo ? ` · 第${source.pageNo}页` : ''
+      const score = typeof source.score === 'number' ? ` · 匹配度 ${(source.score * 100).toFixed(1)}%` : ''
+      return `${source.fileName || '来源文档'}${page}${score}`
     },
     ask(text: string) {
       this.draft = text
@@ -573,6 +664,7 @@ export default Vue.extend({
   overflow-y: auto;
 }
 .session-item {
+  position: relative;
   display: flex;
   align-items: center;
   width: 100%;
@@ -614,7 +706,10 @@ export default Vue.extend({
   margin-top: 4px;
 }
 .session-item > i {
+  flex: 0 0 28px;
+  padding: 8px 0;
   opacity: 0;
+  text-align: center;
 }
 .session-item:hover > i {
   opacity: 1;
@@ -624,6 +719,37 @@ export default Vue.extend({
   text-align: center;
   color: #a4acb8;
   font-size: 12px;
+}
+.session-menu {
+  position: absolute;
+  top: 42px;
+  right: 8px;
+  z-index: 5;
+  width: 112px;
+  padding: 5px;
+  border: 1px solid #e4e9f0;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(28, 40, 58, 0.12);
+}
+.session-menu button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 34px;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #526174;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.session-menu button:hover {
+  background: #f2f5f8;
+  color: #3477ca;
 }
 .panel-footer {
   border-top: 1px solid #eef0f3;
@@ -640,11 +766,84 @@ export default Vue.extend({
   background: #26b57a;
 }
 .chat-panel {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
+.archive-drawer {
+  position: absolute;
+  top: 66px;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  width: min(360px, 92vw);
+  padding: 22px;
+  border-left: 1px solid #e3e8ee;
+  background: #fff;
+  box-shadow: -8px 0 24px rgba(28, 40, 58, 0.08);
+}
+.archive-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eef0f3;
+}
+.archive-heading strong,
+.archive-heading small {
+  display: block;
+}
+.archive-heading strong {
+  color: #202633;
+  font-size: 17px;
+}
+.archive-heading small {
+  margin-top: 5px;
+  color: #9aa3b0;
+  font-size: 11px;
+}
+.archive-heading button,
+.archive-delete {
+  border: 0;
+  background: transparent;
+  color: #8995a4;
+  cursor: pointer;
+}
+.archive-list {
+  max-height: calc(100% - 74px);
+  overflow-y: auto;
+}
+.archive-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+.archive-open {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #526174;
+  cursor: pointer;
+  text-align: left;
+}
+.archive-open strong,
+.archive-open small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.archive-open strong { font-size: 13px; font-weight: 500; }
+.archive-open small { margin-top: 5px; color: #a3abb7; font-size: 11px; }
+.archive-open:hover { color: #3477ca; }
+.archive-delete { min-width: 32px; min-height: 32px; }
+.archive-delete:hover { color: #d9534f; }
 .chat-header {
   height: 66px;
   flex: 0 0 66px;
@@ -784,6 +983,46 @@ export default Vue.extend({
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+}
+.citation-marker {
+  position: relative;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #b8d0ed;
+  border-radius: 50%;
+  background: #eef5ff;
+  color: #3477ca;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: default;
+}
+.citation-marker::after {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 4;
+  width: max-content;
+  max-width: 260px;
+  padding: 7px 9px;
+  border-radius: 6px;
+  background: #263447;
+  color: #fff;
+  content: attr(data-tooltip);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 3px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  white-space: normal;
+  font-size: 11px;
+  font-weight: 400;
+}
+.citation-marker:hover::after,
+.citation-marker:focus::after {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 .citation-chip {
   min-height: 44px;
