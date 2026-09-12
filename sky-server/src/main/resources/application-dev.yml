@@ -9,7 +9,7 @@ sky:
     summary-token-threshold: 5000 #Token估算阈值_触发摘要
     summary-recent-message-count: 10 #保留最近十条
     default-model: ${LLM_MODEL}
-    default-temperature: 0.7
+    default-temperature: 0.2
     rag-enabled: ${RAG_ENABLED:true}
     rag-top-k: ${RAG_TOP_K:8}
     rag-score-threshold: ${RAG_SCORE_THRESHOLD:0.35}

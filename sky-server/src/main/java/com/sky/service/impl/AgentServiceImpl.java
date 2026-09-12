@@ -6,6 +6,7 @@ import com.sky.agent.AgentClient;
 import com.sky.agent.model.AgentHistoryMessage;
 import com.sky.agent.model.AgentKnowledgeScope;
 import com.sky.agent.model.AgentSubmitRequest;
+import com.sky.agent.AgentClientException;
 import com.sky.agent.model.AgentTaskStatusResponse;
 import com.sky.context.BaseContext;
 import com.sky.dto.*;
@@ -36,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.stream.Collectors;
+import org.slf4j.MDC;
 
 /**
  * Agent智能体业务层实现类
@@ -163,6 +165,10 @@ public class AgentServiceImpl implements AgentService {
         }
 
         // 3. 调用Python Agent服务，实际执行任务
+        String traceId = MDC.get("trace_id");
+        if (traceId == null || traceId.isBlank()) {
+            traceId = UUID.randomUUID().toString().replace("-", "");
+        }
         AgentSubmitRequest request = new AgentSubmitRequest(
                 taskId,
                 sessionId,
@@ -170,9 +176,23 @@ public class AgentServiceImpl implements AgentService {
                 dto.getQuery(),
                 model,
                 agentProperties.getDefaultTemperature(),
-                Map.of("history", history), buildKnowledgeScope(session.getKbId(), userId));
+                Map.of("history", history), buildKnowledgeScope(session.getKbId(), userId), traceId);
+        log.info("提交Python Agent调用, traceId={}, taskId={}, sessionId={}, model={}",
+                traceId, taskId, sessionId, model);
         try {
             agentClient.submit(request);
+        } catch (AgentClientException exception) {
+            log.error("提交Python Agent任务失败, traceId={}, taskId={}, reason={}",
+                    traceId, taskId, exception.getReason(), exception);
+            if (exception.getReason() == AgentClientException.Reason.CAPACITY_EXCEEDED) {
+                throw new AgentBusinessException("AI任务队列已满，请稍后重试");
+            }
+            try {
+                agentClient.cancelTask(taskId);
+            } catch (Exception ignored) {
+                // 提交是否已在Python落地未知，尽力清理。
+            }
+            throw new AgentBusinessException("Agent服务暂时不可用，请稍后重试");
         } catch (RuntimeException exception) {
             log.error("提交Python Agent任务失败, taskId={}", taskId, exception);
             try {

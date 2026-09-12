@@ -1,0 +1,14 @@
+<configuration>
+    <springProperty scope="context" name="environment" source="spring.profiles.active" defaultValue="default"/>
+    <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"service":"sky-server"}</customFields>
+            <includeMdcKeyName>trace_id</includeMdcKeyName>
+            <includeMdcKeyName>task_id</includeMdcKeyName>
+            <includeMdcKeyName>session_id</includeMdcKeyName>
+        </encoder>
+    </appender>
+    <root level="INFO">
+        <appender-ref ref="JSON"/>
+    </root>
+</configuration>

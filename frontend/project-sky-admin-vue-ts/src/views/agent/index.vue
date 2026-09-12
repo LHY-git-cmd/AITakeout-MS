@@ -160,9 +160,19 @@
             我
           </div>
         </article>
-        <div v-if="running" class="running-line">
+        <div v-if="running" class="running-line" role="status" aria-live="polite">
           <i class="el-icon-loading" />
           正在思考...
+          <el-button
+            class="stop-button"
+            size="mini"
+            :loading="cancelling"
+            :disabled="cancelling"
+            aria-label="停止生成回答"
+            @click="stopGeneration"
+          >
+            停止生成
+          </el-button>
         </div>
       </div>
 
@@ -199,6 +209,7 @@ import {
   getAgentSession,
   updateAgentSession,
   submitAgentTask,
+  cancelAgentTask,
 } from '@/api/agent'
 import { listKnowledgeBases } from '@/api/knowledge'
 import { UserModule } from '@/store/modules/user'
@@ -222,6 +233,10 @@ export default Vue.extend({
       draft: '',
       messages: [] as ChatMessage[],
       running: false,
+      cancelling: false,
+      cancelRequested: false,
+      currentTaskId: '',
+      streamController: null as AbortController | null,
       loadingSessions: false,
       suggestions: [
         '今天的订单情况怎么样？',
@@ -317,6 +332,7 @@ export default Vue.extend({
       }
       this.messages.push(assistant)
       this.running = true
+      this.cancelRequested = false
       this.$nextTick(this.scrollToBottom)
       try {
         const taskId =
@@ -331,25 +347,67 @@ export default Vue.extend({
           model: this.model || null,
         })
         const payload = res.data?.data || {}
+        this.currentTaskId = payload.taskId || taskId
         this.sessionId = payload.sessionId || this.sessionId
         this.kbLocked = Boolean(this.kbId)
-        await this.consumeEvents(payload.taskId, assistant)
+        if (this.cancelRequested) {
+          try {
+            await cancelAgentTask(this.currentTaskId)
+          } catch (error) {
+            this.cancelRequested = false
+            throw error
+          }
+          assistant.content = assistant.content || '已停止生成。'
+          return
+        }
+        this.streamController = new AbortController()
+        await this.consumeEvents(this.currentTaskId, assistant, this.streamController.signal)
         await this.loadSessions()
       } catch (error) {
-        assistant.content = '抱歉，请求暂时失败，请稍后重试。'
-        this.$message.error('AI 服务请求失败')
+        if (this.cancelRequested || (error as any)?.name === 'AbortError') {
+          assistant.content = assistant.content
+            ? `${assistant.content}\n\n（已停止生成）`
+            : '已停止生成。'
+        } else {
+          assistant.content = '抱歉，请求暂时失败，请稍后重试。'
+          this.$message.error('AI 服务请求失败')
+        }
       } finally {
         assistant.streaming = false
         this.running = false
+        this.cancelling = false
+        this.currentTaskId = ''
+        this.streamController = null
       }
     },
-    async consumeEvents(taskId: string, assistant: ChatMessage) {
+    async stopGeneration() {
+      if (!this.running || this.cancelling) {
+        return
+      }
+      this.cancelRequested = true
+      this.cancelling = true
+      try {
+        if (this.currentTaskId) {
+          await cancelAgentTask(this.currentTaskId)
+          if (this.streamController) {
+            this.streamController.abort()
+          }
+        }
+      } catch (_) {
+        this.cancelRequested = false
+        this.$message.error('停止生成失败，请重试')
+      } finally {
+        this.cancelling = false
+      }
+    },
+    async consumeEvents(taskId: string, assistant: ChatMessage, signal: AbortSignal) {
       if (!taskId) {
         return
       }
       const base = process.env.VUE_APP_BASE_API || '/api'
       const response = await fetch(`${base}/agent/tasks/${taskId}/events`, {
         headers: { token: UserModule.token, Accept: 'text/event-stream' },
+        signal,
       })
       if (!response.ok || !response.body) {
         throw new Error('SSE unavailable')
@@ -798,10 +856,18 @@ export default Vue.extend({
   animation: blink 1s step-end infinite;
 }
 .running-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   max-width: 760px;
   margin: -12px auto 20px 0;
   color: #9ba5b2;
   font-size: 12px;
+}
+.stop-button {
+  min-width: 88px;
+  min-height: 44px;
+  margin-left: 4px;
 }
 .running-line i {
   margin-right: 6px;

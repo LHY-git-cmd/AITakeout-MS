@@ -375,9 +375,29 @@ public class AgentClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-        ResponseEntity<AgentSubmitResponse> response = restTemplate.exchange(
-                url, HttpMethod.POST, new HttpEntity<>(request, headers),
-                AgentSubmitResponse.class);
+        if (request.traceId() != null && !request.traceId().isBlank()) {
+            headers.set("X-Trace-ID", request.traceId());
+        }
+        ResponseEntity<AgentSubmitResponse> response;
+        try {
+            response = restTemplate.exchange(
+                    url, HttpMethod.POST, new HttpEntity<>(request, headers),
+                    AgentSubmitResponse.class);
+        } catch (RestClientResponseException exception) {
+            int status = exception.getStatusCode().value();
+            AgentClientException.Reason reason = status == 429
+                    ? AgentClientException.Reason.CAPACITY_EXCEEDED
+                    : AgentClientException.Reason.REMOTE_ERROR;
+            throw new AgentClientException(reason, status, status >= 500 || status == 429,
+                    "提交Agent任务失败，HTTP " + status + ": "
+                            + abbreviate(exception.getResponseBodyAsString()), exception);
+        } catch (ResourceAccessException exception) {
+            boolean timeout = hasCause(exception, SocketTimeoutException.class);
+            throw new AgentClientException(
+                    timeout ? AgentClientException.Reason.TIMEOUT
+                            : AgentClientException.Reason.UNAVAILABLE,
+                    null, true, timeout ? "提交Agent任务超时" : "Agent服务不可用", exception);
+        }
         AgentSubmitResponse body = response.getBody();
         if (body == null || body.taskId() == null) {
             throw new IllegalStateException("Agent提交响应缺少task_id");

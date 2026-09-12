@@ -16,6 +16,7 @@ import java.util.Map;
  * @param temperature 温度
  * @param context     上下文
  * @param knowledge   知识库
+ * @param traceId     跨服务调用追踪ID
  */
 public record AgentSubmitRequest(
         @JsonProperty("task_id") String taskId,
@@ -25,11 +26,19 @@ public record AgentSubmitRequest(
         String model,
         Double temperature,
         Map<String, List<AgentHistoryMessage>> context,
-        AgentKnowledgeScope knowledge) {
+        AgentKnowledgeScope knowledge,
+        @JsonProperty("trace_id") String traceId) {
+
+    public AgentSubmitRequest(String taskId, String sessionId, Long userId, String query,
+                              String model, Double temperature,
+                              Map<String, List<AgentHistoryMessage>> context,
+                              AgentKnowledgeScope knowledge) {
+        this(taskId, sessionId, userId, query, model, temperature, context, knowledge, null);
+    }
 
     public AgentSubmitRequest(String taskId, String sessionId, Long userId, String query,
                               String model, Double temperature,
                               Map<String, List<AgentHistoryMessage>> context) {
-        this(taskId, sessionId, userId, query, model, temperature, context, null);
+        this(taskId, sessionId, userId, query, model, temperature, context, null, null);
     }
 }

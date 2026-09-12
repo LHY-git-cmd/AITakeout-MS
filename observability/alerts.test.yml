@@ -1,0 +1,35 @@
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'up{job="sky-agent"}'
+        values: '1 0 0 0'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SkyServiceUnavailable
+        exp_alerts:
+          - exp_labels:
+              job: sky-agent
+              severity: critical
+            exp_annotations:
+              summary: 'sky-agent is unavailable'
+
+  - interval: 1m
+    input_series:
+      - series: 'sky_llm_calls_total{model="primary",status="failed",error_type="TIMEOUT"}'
+        values: '0 1 2 3 4 5 6'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: LlmContinuousFailures
+        exp_alerts:
+          - exp_labels:
+              model: primary
+              status: failed
+              error_type: TIMEOUT
+              severity: warning
+            exp_annotations:
+              summary: 'LLM failed at least three times in five minutes'

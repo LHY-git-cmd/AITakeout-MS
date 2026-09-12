@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s  #每15秒从目标服务抓取一次监控指标。
+  evaluation_interval: 15s  # 每15秒评估一次告警规则。
+
+#指定了告警规则文件
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+#定义了要监控的服务列表
+scrape_configs:
+  - job_name: sky-server
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["sky-server:8080"]
+  - job_name: sky-agent
+    static_configs:
+      - targets: ["sky-agent:8000"]
+  - job_name: sky-embedding
+    static_configs:
+      - targets: ["sky-embedding:8001"]
+  - job_name: qdrant
+    static_configs:
+      - targets: ["qdrant:6333"]
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]

@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
@@ -50,12 +51,14 @@ public class AgentEventProcessor {
     private final AgentCitationMapper citationMapper;
     private final ObjectMapper objectMapper;
     private final AgentMessageCacheService messageCacheService;
+    private final MeterRegistry meterRegistry;
 
     @Autowired
     public AgentEventProcessor(AgentEventMapper eventMapper, AgentTaskMapper taskMapper,
                                AgentMessageMapper messageMapper, AgentSessionMapper sessionMapper,
                                AgentCitationMapper citationMapper, ObjectMapper objectMapper,
-                               AgentMessageCacheService messageCacheService) {
+                               AgentMessageCacheService messageCacheService,
+                               MeterRegistry meterRegistry) {
         this.eventMapper = eventMapper;
         this.taskMapper = taskMapper;
         this.messageMapper = messageMapper;
@@ -63,6 +66,15 @@ public class AgentEventProcessor {
         this.citationMapper = citationMapper;
         this.objectMapper = objectMapper;
         this.messageCacheService = messageCacheService;
+        this.meterRegistry = meterRegistry;
+    }
+
+    public AgentEventProcessor(AgentEventMapper eventMapper, AgentTaskMapper taskMapper,
+                               AgentMessageMapper messageMapper, AgentSessionMapper sessionMapper,
+                               AgentCitationMapper citationMapper, ObjectMapper objectMapper,
+                               AgentMessageCacheService messageCacheService) {
+        this(eventMapper, taskMapper, messageMapper, sessionMapper, citationMapper,
+                objectMapper, messageCacheService, null);
     }
 
     /**
@@ -91,6 +103,8 @@ public class AgentEventProcessor {
      */
     @Transactional
     public boolean process(AgentStreamEvent event) {
+        log.debug("处理Agent事件: traceId={}, taskId={}, seqNo={}, eventType={}",
+                event.traceId(), event.taskId(), event.seqNo(), event.event());
         // 1. 校验任务存在且状态兼容
         AgentTask task = taskMapper.getByTaskId(event.taskId());
         if (task == null || !isCompatible(task.getStatus(), event.event())) {
@@ -110,6 +124,9 @@ public class AgentEventProcessor {
         if (eventMapper.insertIfAbsent(stored) == 0) {
             log.info("跳过已处理的重复事件: eventId={}", stored.getEventId());
             return false;
+        }
+        if (meterRegistry != null) {
+            meterRegistry.counter("sky.agent.events", "event_type", event.event()).increment();
         }
 
         // 3. 根据事件类型推进业务状态
