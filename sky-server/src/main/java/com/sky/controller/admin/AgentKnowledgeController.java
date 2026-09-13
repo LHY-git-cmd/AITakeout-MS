@@ -1,6 +1,8 @@
 package com.sky.controller.admin;
 
+import com.sky.annotation.RequireAdminPermission;
 import com.sky.dto.KnowledgeBaseDTO;
+import com.sky.enumeration.AdminPermission;
 import com.sky.entity.AgentKnowledgeBase;
 import com.sky.entity.AgentKnowledgeDocument;
 import com.sky.entity.AgentKnowledgeIndexTask;
@@ -46,6 +48,7 @@ public class AgentKnowledgeController {
      * @return 新创建的知识库实体。
      */
     @PostMapping("/knowledge-bases")
+    @RequireAdminPermission(AdminPermission.KNOWLEDGE_WRITE)
     @Operation(summary = "创建知识库")
     public Result<AgentKnowledgeBase> create(@Valid @RequestBody KnowledgeBaseDTO dto) {
         log.info("创建知识库: {}", dto);
@@ -74,6 +77,7 @@ public class AgentKnowledgeController {
      * @return 成功响应。
      */
     @PutMapping("/knowledge-bases/{kbId}")
+    @RequireAdminPermission(AdminPermission.KNOWLEDGE_WRITE)
     @Operation(summary = "更新知识库")
     public Result<Void> update(@PathVariable String kbId, @Valid @RequestBody KnowledgeBaseDTO dto) {
         log.info("更新知识库: kbId={}, data={}", kbId, dto);
@@ -88,6 +92,7 @@ public class AgentKnowledgeController {
      * @return 成功响应。
      */
     @DeleteMapping("/knowledge-bases/{kbId}")
+    @RequireAdminPermission(AdminPermission.KNOWLEDGE_WRITE)
     @Operation(summary = "删除知识库")
     public Result<Void> delete(@PathVariable String kbId) {
         log.info("删除知识库: kbId={}", kbId);
@@ -106,6 +111,7 @@ public class AgentKnowledgeController {
      * @return 新创建的文档实体，包含其唯一ID和初始状态。
      */
     @PostMapping(value = "/knowledge-bases/{kbId}/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequireAdminPermission(AdminPermission.KNOWLEDGE_WRITE)
     @Operation(summary = "上传文档到知识库")
     public Result<AgentKnowledgeDocument> upload(@PathVariable String kbId, @RequestPart("file") MultipartFile file) {
         log.info("上传文档到知识库: kbId={}, fileName={}", kbId, file.getOriginalFilename());
@@ -124,6 +130,7 @@ public class AgentKnowledgeController {
      * @return 更新后的文档实体。
      */
     @PostMapping(value = "/documents/{documentId}/versions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @RequireAdminPermission(AdminPermission.KNOWLEDGE_WRITE)
     @Operation(summary = "上传新版本的文档")
     public Result<AgentKnowledgeDocument> uploadVersion(@PathVariable String documentId,
                                                          @RequestPart("file") MultipartFile file) {
@@ -156,6 +163,7 @@ public class AgentKnowledgeController {
      * @return 新创建的索引任务实体。
      */
     @PostMapping("/documents/{documentId}/reindex")
+    @RequireAdminPermission(AdminPermission.KNOWLEDGE_WRITE)
     @Operation(summary = "对文档重新索引")
     public Result<AgentKnowledgeIndexTask> reindex(@PathVariable String documentId) {
         log.info("对文档重新索引: documentId={}", documentId);
@@ -170,6 +178,7 @@ public class AgentKnowledgeController {
      * @return 成功响应。
      */
     @DeleteMapping("/documents/{documentId}")
+    @RequireAdminPermission(AdminPermission.KNOWLEDGE_WRITE)
     @Operation(summary = "删除文档")
     public Result<Void> deleteDocument(@PathVariable String documentId) {
         log.info("删除文档: documentId={}", documentId);

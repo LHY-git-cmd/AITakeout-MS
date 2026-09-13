@@ -3,6 +3,8 @@ package com.sky.handler;
 import com.sky.constant.MessageConstant;
 import com.sky.exception.BaseException;
 import com.sky.exception.AgentTaskConflictException;
+import com.sky.exception.AgentConfirmationConflictException;
+import com.sky.exception.PermissionDeniedException;
 import com.sky.result.Result;
 import lombok.extern.slf4j.Slf4j;
 import jakarta.validation.ConstraintViolationException;
@@ -18,6 +20,13 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(PermissionDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Result<String> permissionDeniedExceptionHandler(PermissionDeniedException ex) {
+        log.warn("管理端权限拒绝：{}", ex.getMessage());
+        return Result.error(ex.getMessage());
+    }
 
     /**
      * 处理 @Valid 校验失败异常（@RequestBody 上的 @Valid 触发）
@@ -66,6 +75,13 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     public Result taskConflictExceptionHandler(AgentTaskConflictException ex) {
         log.warn("Agent任务幂等冲突：{}", ex.getMessage());
+        return Result.error(ex.getMessage());
+    }
+
+    @ExceptionHandler(AgentConfirmationConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public Result confirmationConflictExceptionHandler(AgentConfirmationConflictException ex) {
+        log.warn("Agent操作确认冲突：{}", ex.getMessage());
         return Result.error(ex.getMessage());
     }
 

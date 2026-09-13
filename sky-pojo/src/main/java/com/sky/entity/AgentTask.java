@@ -18,6 +18,7 @@ public class AgentTask implements Serializable {
     private String taskId;
     private String sessionId;
     private Long userId;
+    private String actorRole;    // 创建任务时的角色快照，仅用于Python工具筛选和审计
     private String query;
     private Integer status;       // 0排队 1执行中 2完成 3失败 4取消
     private Integer progress;    // 0-100

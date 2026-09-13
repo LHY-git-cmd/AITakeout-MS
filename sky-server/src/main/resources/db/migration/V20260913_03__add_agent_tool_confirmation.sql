@@ -1,0 +1,23 @@
+CREATE TABLE `agent_tool_confirmation` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `confirmation_id` VARCHAR(64) NOT NULL,
+    `task_id` VARCHAR(64) NOT NULL,
+    `tool_call_id` VARCHAR(128) NOT NULL,
+    `employee_id` BIGINT NOT NULL,
+    `actor_role` VARCHAR(32) NOT NULL,
+    `operation` VARCHAR(64) NOT NULL,
+    `arguments_json` JSON NOT NULL,
+    `argument_hash` CHAR(64) NOT NULL,
+    `resource_version` VARCHAR(128) NOT NULL,
+    `summary` VARCHAR(255) NOT NULL,
+    `status` VARCHAR(32) NOT NULL,
+    `expires_at` DATETIME NOT NULL,
+    `confirmed_at` DATETIME DEFAULT NULL,
+    `executed_at` DATETIME DEFAULT NULL,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `update_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_agent_tool_confirmation_id` (`confirmation_id`),
+    UNIQUE KEY `uk_agent_tool_confirmation_call` (`task_id`, `tool_call_id`),
+    KEY `idx_agent_tool_confirmation_actor` (`employee_id`, `status`, `expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI写工具确认凭证';

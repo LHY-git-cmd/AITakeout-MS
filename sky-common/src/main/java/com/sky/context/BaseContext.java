@@ -10,6 +10,7 @@ public class BaseContext {
      * 线程局部变量，用于存储当前线程的用户ID
      */
     public static ThreadLocal<Long> threadLocal = new ThreadLocal<>();
+    private static final ThreadLocal<String> roleThreadLocal = new ThreadLocal<>();
 
     /**
      * 设置当前线程的用户ID
@@ -29,11 +30,20 @@ public class BaseContext {
         return threadLocal.get();
     }
 
+    public static void setCurrentRole(String role) {
+        roleThreadLocal.set(role);
+    }
+
+    public static String getCurrentRole() {
+        return roleThreadLocal.get();
+    }
+
     /**
      * 移除当前线程的用户ID，防止内存泄漏
      */
     public static void removeCurrentId() {
         threadLocal.remove();
+        roleThreadLocal.remove();
     }
 
 }

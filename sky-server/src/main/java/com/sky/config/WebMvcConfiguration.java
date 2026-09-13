@@ -2,6 +2,8 @@ package com.sky.config;
 
 import com.sky.interceptor.JwtTokenAdminInterceptor;
 import com.sky.interceptor.JwtTokenUserInterceptor;
+import com.sky.interceptor.AdminPermissionInterceptor;
+import com.sky.interceptor.AgentInternalServiceInterceptor;
 import com.sky.json.JacksonObjectMapper;
 import com.sky.properties.CorsProperties;
 import io.swagger.v3.oas.models.OpenAPI;
@@ -29,6 +31,8 @@ import java.util.List;
 public class WebMvcConfiguration implements WebMvcConfigurer {
     private final JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
     private final JwtTokenUserInterceptor jwtTokenUserInterceptor;
+    private final AdminPermissionInterceptor adminPermissionInterceptor;
+    private final AgentInternalServiceInterceptor agentInternalServiceInterceptor;
     private final CorsProperties corsProperties;
 
     /**
@@ -49,6 +53,13 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                         "/swagger-resources/**",
                         "/favicon.ico"
                 );
+
+        registry.addInterceptor(adminPermissionInterceptor)
+                .addPathPatterns("/admin/**")
+                .excludePathPatterns("/admin/employee/login");
+
+        registry.addInterceptor(agentInternalServiceInterceptor)
+                .addPathPatterns("/internal/agent/**");
 
         registry.addInterceptor(jwtTokenUserInterceptor)
                 .addPathPatterns("/user/**")

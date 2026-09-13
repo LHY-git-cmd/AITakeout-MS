@@ -25,6 +25,7 @@
             <if test="updateTime != null">update_time = #{updateTime},</if>
             <if test="updateUser != null">update_user = #{updateUser},</if>
             <if test="status != null">status = #{status},</if>
+            <if test="role != null">role = #{role},</if>
         </set>
         where id = #{id}
     </update>

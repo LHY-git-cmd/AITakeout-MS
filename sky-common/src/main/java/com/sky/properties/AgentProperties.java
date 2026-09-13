@@ -73,4 +73,10 @@ public class AgentProperties {
     private double ragScoreThreshold = 0.35;
     private String embeddingModel = "BAAI/bge-m3";
 
+    /** Python调用Java内部Agent接口时使用的服务间凭证。 */
+    private String internalServiceToken = "";
+
+    /** AI写工具确认凭证有效期（秒）。 */
+    private long toolConfirmationTtlSeconds = 300;
+
 }

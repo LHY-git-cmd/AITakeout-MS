@@ -33,6 +33,9 @@ public class Employee implements Serializable {
 
     private Integer status;
 
+    /** 权威管理端角色：SUPER_ADMIN / ADMIN。 */
+    private String role;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createTime;
 

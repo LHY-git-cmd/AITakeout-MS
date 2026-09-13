@@ -177,6 +177,36 @@
               {{ message.content }}
               <span v-if="message.streaming" class="typing-caret" />
             </div>
+            <section
+              v-if="message.confirmation"
+              class="tool-confirmation"
+              role="group"
+              aria-label="AI 操作确认"
+            >
+              <div class="confirmation-heading">
+                <i class="el-icon-warning-outline" aria-hidden="true" />
+                <strong>需要你的确认</strong>
+              </div>
+              <p>{{ message.confirmation.summary }}</p>
+              <small>请在 5 分钟内确认；确认后将立即执行。</small>
+              <div class="confirmation-actions">
+                <el-button
+                  size="small"
+                  :disabled="message.confirmation.processing || message.confirmation.decided"
+                  @click="decideTool(message, false)"
+                >拒绝</el-button>
+                <el-button
+                  type="danger"
+                  size="small"
+                  :loading="message.confirmation.processing"
+                  :disabled="message.confirmation.decided"
+                  @click="decideTool(message, true)"
+                >确认执行</el-button>
+              </div>
+              <div v-if="message.confirmation.decision" class="confirmation-result" role="status">
+                {{ message.confirmation.decision }}
+              </div>
+            </section>
             <div
               v-if="message.citations && message.citations.length"
               class="citations"
@@ -239,6 +269,8 @@ import {
   updateAgentSession,
   submitAgentTask,
   cancelAgentTask,
+  confirmAgentTool,
+  rejectAgentTool,
 } from '@/api/agent'
 import { listKnowledgeBases } from '@/api/knowledge'
 import { UserModule } from '@/store/modules/user'
@@ -248,6 +280,7 @@ interface ChatMessage {
   content: string
   streaming?: boolean
   citations?: any[]
+  confirmation?: any
 }
 export default Vue.extend({
   name: 'AgentPage',
@@ -406,7 +439,14 @@ export default Vue.extend({
       this.send()
     },
     formatDate(value: any) {
-      return value ? String(value).replace('T', ' ').slice(5, 16) : ''
+      if (!value) return ''
+      const text = String(value)
+      // 后端和数据库统一使用 UTC，LocalDateTime JSON 不自带 Z。
+      const normalized = /(?:Z|[+-]\d\d:\d\d)$/.test(text) ? text : `${text}Z`
+      const date = new Date(normalized)
+      if (Number.isNaN(date.getTime())) return text.replace('T', ' ').slice(5, 16)
+      const pad = (part: number) => String(part).padStart(2, '0')
+      return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
     },
     async send() {
       const query = this.draft.trim()
@@ -420,6 +460,7 @@ export default Vue.extend({
         content: '',
         streaming: true,
         citations: [],
+        confirmation: null,
       }
       this.messages.push(assistant)
       this.running = true
@@ -541,6 +582,16 @@ export default Vue.extend({
                 this.normalizeCitation
               )
             }
+            if (event.event === 'tool_confirmation_required') {
+              assistant.confirmation = {
+                id: body.confirmation_id,
+                summary: body.summary || '执行业务状态修改',
+                expiresAt: body.expires_at,
+                processing: false,
+                decided: false,
+                decision: '',
+              }
+            }
             if (event.event === 'task_error') {
               assistant.content =
                 body.error_msg || body.message || '任务执行失败'
@@ -550,6 +601,30 @@ export default Vue.extend({
             /* ignore keep-alive frames */
           }
         })
+      }
+    },
+    async decideTool(message: ChatMessage, approved: boolean) {
+      const confirmation = message.confirmation
+      if (!confirmation || confirmation.processing || confirmation.decided) return
+      confirmation.processing = true
+      try {
+        if (approved) await confirmAgentTool(confirmation.id)
+        else await rejectAgentTool(confirmation.id)
+        confirmation.decided = true
+        confirmation.decision = approved ? '已确认，正在执行…' : '已拒绝，本次操作不会执行。'
+        this.$message.success(approved ? '操作已确认' : '操作已拒绝')
+      } catch (error) {
+        const value: any = error
+        const message = value && value.response && value.response.data
+          ? value.response.data.msg
+          : ''
+        confirmation.decision = message || '确认状态提交失败，请重试。'
+        if (message && (message.indexOf('已过期') >= 0 || message.indexOf('已处理') >= 0)) {
+          confirmation.decided = true
+        }
+        this.$message.error(confirmation.decision)
+      } finally {
+        confirmation.processing = false
       }
     },
     normalizeCitation(source: any) {
@@ -607,6 +682,49 @@ export default Vue.extend({
 </script>
 
 <style lang="scss" scoped>
+.tool-confirmation {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid #f5c2c7;
+  border-radius: 10px;
+  background: #fff8f8;
+  color: #442326;
+}
+
+.confirmation-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #b42318;
+}
+
+.tool-confirmation p {
+  margin: 10px 0 4px;
+  line-height: 1.6;
+}
+
+.tool-confirmation small {
+  color: #667085;
+}
+
+.confirmation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.confirmation-actions ::v-deep .el-button {
+  min-width: 88px;
+  min-height: 44px;
+}
+
+.confirmation-result {
+  margin-top: 10px;
+  color: #475467;
+  font-size: 13px;
+}
+
 .agent-page {
   height: calc(100vh - 84px);
   min-height: 620px;

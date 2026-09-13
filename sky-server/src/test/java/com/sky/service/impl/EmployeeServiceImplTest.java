@@ -2,6 +2,8 @@ package com.sky.service.impl;
 
 import com.sky.dto.EmployeeLoginDTO;
 import com.sky.entity.Employee;
+import com.sky.enumeration.AdminRole;
+import com.sky.dto.EmployeeDTO;
 import com.sky.mapper.EmployeeMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -69,5 +71,18 @@ class EmployeeServiceImplTest {
         employeeService.login(request);
 
         verify(employeeMapper, never()).update(org.mockito.ArgumentMatchers.any(Employee.class));
+    }
+
+    @Test
+    void newEmployeesDefaultToOrdinaryAdminRole() {
+        EmployeeDTO request = new EmployeeDTO();
+        request.setUsername("operator");
+        request.setName("Operator");
+
+        employeeService.save(request);
+
+        ArgumentCaptor<Employee> captor = ArgumentCaptor.forClass(Employee.class);
+        verify(employeeMapper).insert(captor.capture());
+        assertEquals(AdminRole.ADMIN.name(), captor.getValue().getRole());
     }
 }

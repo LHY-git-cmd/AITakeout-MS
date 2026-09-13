@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -172,7 +173,12 @@ public class AgentController {
     public SseEmitter subscribeEvents(
             @Parameter(description = "任务ID") @PathVariable String taskId,
             @Parameter(description = "断线续传起始序号，默认0")
-            @RequestHeader(value = "Last-Event-ID", required = false, defaultValue = "0") int lastSeqNo) {
+            @RequestHeader(value = "Last-Event-ID", required = false, defaultValue = "0") int lastSeqNo,
+            HttpServletResponse response) {
+
+        // 防止 Nginx 缓冲 SSE，否则确认卡片可能在凭证过期后才到达浏览器。
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache, no-transform");
 
         AgentTaskVO task = agentService.getTaskDetail(taskId);
         int resumeFrom = Math.max(0, lastSeqNo);
