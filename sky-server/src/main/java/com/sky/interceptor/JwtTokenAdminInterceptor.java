@@ -4,6 +4,8 @@ import com.sky.constant.JwtClaimsConstant;
 import com.sky.context.BaseContext;
 import com.sky.properties.JwtProperties;
 import com.sky.utils.JwtUtil;
+import com.sky.enumeration.AdminRole;
+import com.sky.service.security.AdminAuthorizationService;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,7 @@ import jakarta.servlet.http.HttpServletResponse;
 @RequiredArgsConstructor
 public class JwtTokenAdminInterceptor implements HandlerInterceptor {
     private final JwtProperties jwtProperties;
+    private final AdminAuthorizationService authorizationService;
 
     /**
      * 校验JWT令牌
@@ -55,8 +58,10 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
         try {
             Claims claims = JwtUtil.parseJWT(jwtProperties.getAdminSecretKey(), token);
             Long empId = Long.valueOf(claims.get(JwtClaimsConstant.EMP_ID).toString());
+            AdminRole role = authorizationService.resolveRole(empId);
             log.info("当前员工id：{}", empId);
             BaseContext.setCurrentId(empId);
+            BaseContext.setCurrentRole(role.name());
             // 3、通过，放行
             return true;
         } catch (Exception ex) {

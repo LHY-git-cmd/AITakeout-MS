@@ -13,6 +13,7 @@ import com.sky.dto.*;
 import com.sky.entity.*;
 import com.sky.exception.AgentBusinessException;
 import com.sky.exception.AgentTaskConflictException;
+import com.sky.enumeration.AdminRole;
 import com.sky.mapper.*;
 import com.sky.mapper.AgentSessionSummaryMapper;
 import com.sky.properties.AgentProperties;
@@ -81,6 +82,7 @@ public class AgentServiceImpl implements AgentService {
     @Transactional
     public AgentSubmitVO submitTask(AgentSubmitDTO dto) {
         Long userId = BaseContext.getCurrentId();
+        String actorRole = AdminRole.fromDatabase(BaseContext.getCurrentRole()).name();
         String requestedTaskId = dto.getTaskId();
         String requestedKbId = normalizeKbId(dto.getKbId());
         String model = dto.getModel() == null || dto.getModel().isBlank()
@@ -146,6 +148,7 @@ public class AgentServiceImpl implements AgentService {
                 .taskId(taskId)
                 .sessionId(sessionId)
                 .userId(userId)
+                .actorRole(actorRole)
                 .query(dto.getQuery())
                 .status(0) // 0: created
                 .progress(0)
@@ -176,7 +179,8 @@ public class AgentServiceImpl implements AgentService {
                 dto.getQuery(),
                 model,
                 agentProperties.getDefaultTemperature(),
-                Map.of("history", history), buildKnowledgeScope(session.getKbId(), userId), traceId);
+                Map.of("history", history), buildKnowledgeScope(session.getKbId(), userId), traceId,
+                actorRole);
         log.info("提交Python Agent调用, traceId={}, taskId={}, sessionId={}, model={}",
                 traceId, taskId, sessionId, model);
         try {

@@ -1,0 +1,20 @@
+CREATE TABLE `agent_tool_audit` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `request_id` VARCHAR(64) NOT NULL,
+    `task_id` VARCHAR(64) NOT NULL,
+    `tool_call_id` VARCHAR(128) NOT NULL,
+    `employee_id` BIGINT DEFAULT NULL,
+    `actor_role` VARCHAR(32) DEFAULT NULL,
+    `operation` VARCHAR(64) NOT NULL,
+    `required_permission` VARCHAR(64) NOT NULL,
+    `argument_hash` CHAR(64) NOT NULL,
+    `status` VARCHAR(32) NOT NULL,
+    `error_code` VARCHAR(64) DEFAULT NULL,
+    `duration_ms` BIGINT NOT NULL,
+    `trace_id` VARCHAR(64) DEFAULT NULL,
+    `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_agent_tool_audit_call_status` (`task_id`, `tool_call_id`, `status`),
+    KEY `idx_agent_tool_audit_actor_time` (`employee_id`, `create_time`),
+    KEY `idx_agent_tool_audit_operation_time` (`operation`, `create_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI工具调用审计';

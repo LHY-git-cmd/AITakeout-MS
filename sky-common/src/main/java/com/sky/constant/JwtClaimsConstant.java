@@ -31,4 +31,7 @@ public class JwtClaimsConstant {
      */
     public static final String NAME = "name";
 
+    /** 管理端角色快照；最终授权仍以数据库为准。 */
+    public static final String ADMIN_ROLE = "adminRole";
+
 }

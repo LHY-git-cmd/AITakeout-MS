@@ -14,6 +14,8 @@ sky:
     rag-top-k: ${RAG_TOP_K:8}
     rag-score-threshold: ${RAG_SCORE_THRESHOLD:0.35}
     embedding-model: ${EMBEDDING_MODEL:BAAI/bge-m3}
+    internal-service-token: ${AGENT_INTERNAL_SERVICE_TOKEN:}
+    tool-confirmation-ttl-seconds: ${TOOL_CONFIRMATION_TIMEOUT_SECONDS:300}
     recovery-enabled: true
     message-cache-enabled: true
     message-cache-key-prefix: "sky:agent:messages:"

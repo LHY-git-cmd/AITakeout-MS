@@ -48,6 +48,9 @@ public interface AgentKnowledgeMapper {
     )
     List<AgentKnowledgeBase> listBases(Long userId);
 
+    @Select("select * from agent_knowledge_base where status <> 3 order by update_time desc")
+    List<AgentKnowledgeBase> listAllBases();
+
     /**
      * 查询指定用户拥有的某个知识库的详细信息。
      *

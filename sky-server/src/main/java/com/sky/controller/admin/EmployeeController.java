@@ -1,6 +1,8 @@
 package com.sky.controller.admin;
 
 import com.sky.constant.JwtClaimsConstant;
+import com.sky.annotation.RequireAdminPermission;
+import com.sky.enumeration.AdminPermission;
 import com.sky.dto.EmployeeDTO;
 import com.sky.dto.EmployeeLoginDTO;
 import com.sky.dto.EmployeePageQueryDTO;
@@ -53,6 +55,7 @@ public class EmployeeController {
         // 登录成功后，生成jwt令牌
         Map<String, Object> claims = new HashMap<>();
         claims.put(JwtClaimsConstant.EMP_ID, employee.getId());
+        claims.put(JwtClaimsConstant.ADMIN_ROLE, employee.getRole());
         String token = JwtUtil.createJWT(
                 jwtProperties.getAdminSecretKey(),
                 jwtProperties.getAdminTtl(),
@@ -86,6 +89,7 @@ public class EmployeeController {
      * @return 操作结果
      */
     @PostMapping
+    @RequireAdminPermission(AdminPermission.EMPLOYEE_WRITE)
     @Operation(summary = "新增员工")
     public Result save(@Valid @RequestBody EmployeeDTO employeeDTO){
         log.info("新增员工，员工数据：{}",employeeDTO);
@@ -117,6 +121,7 @@ public class EmployeeController {
      * @return 操作结果
      */
     @PostMapping("/status/{status}")
+    @RequireAdminPermission(AdminPermission.EMPLOYEE_WRITE)
     @Operation(summary = "启用禁用员工账号")
     public Result startOrStop(@PathVariable Integer status, Long id){
         log.info("启用禁用员工账号：status={}, id={}", status, id);
@@ -145,6 +150,7 @@ public class EmployeeController {
      * @return 操作结果
      */
     @PutMapping
+    @RequireAdminPermission(AdminPermission.EMPLOYEE_WRITE)
     @Operation(summary = "编辑员工信息")
     public Result update(@Valid @RequestBody EmployeeDTO employeeDTO){
         log.info("编辑员工信息：{}", employeeDTO);

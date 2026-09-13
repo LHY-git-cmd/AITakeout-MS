@@ -17,6 +17,7 @@ import java.util.Map;
  * @param context     上下文
  * @param knowledge   知识库
  * @param traceId     跨服务调用追踪ID
+ * @param actorRole   Java根据数据库确定的管理员角色快照
  */
 public record AgentSubmitRequest(
         @JsonProperty("task_id") String taskId,
@@ -27,18 +28,26 @@ public record AgentSubmitRequest(
         Double temperature,
         Map<String, List<AgentHistoryMessage>> context,
         AgentKnowledgeScope knowledge,
-        @JsonProperty("trace_id") String traceId) {
+        @JsonProperty("trace_id") String traceId,
+        @JsonProperty("actor_role") String actorRole) {
 
     public AgentSubmitRequest(String taskId, String sessionId, Long userId, String query,
                               String model, Double temperature,
                               Map<String, List<AgentHistoryMessage>> context,
                               AgentKnowledgeScope knowledge) {
-        this(taskId, sessionId, userId, query, model, temperature, context, knowledge, null);
+        this(taskId, sessionId, userId, query, model, temperature, context, knowledge, null, null);
     }
 
     public AgentSubmitRequest(String taskId, String sessionId, Long userId, String query,
                               String model, Double temperature,
                               Map<String, List<AgentHistoryMessage>> context) {
-        this(taskId, sessionId, userId, query, model, temperature, context, null, null);
+        this(taskId, sessionId, userId, query, model, temperature, context, null, null, null);
+    }
+
+    public AgentSubmitRequest(String taskId, String sessionId, Long userId, String query,
+                              String model, Double temperature,
+                              Map<String, List<AgentHistoryMessage>> context,
+                              AgentKnowledgeScope knowledge, String traceId) {
+        this(taskId, sessionId, userId, query, model, temperature, context, knowledge, traceId, null);
     }
 }

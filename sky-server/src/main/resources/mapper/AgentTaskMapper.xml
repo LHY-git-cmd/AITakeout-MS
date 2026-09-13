@@ -6,21 +6,21 @@
     <insert id="insert" parameterType="com.sky.entity.AgentTask"
             useGeneratedKeys="true" keyProperty="id">
         insert into agent_task
-        (task_id, session_id, user_id, query, status, progress, model, request_hash,
+        (task_id, session_id, user_id, actor_role, query, status, progress, model, request_hash,
          assistant_message_id, started_at, finished_at, error_msg,
          create_time, update_time)
         values
-        (#{taskId}, #{sessionId}, #{userId}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
+        (#{taskId}, #{sessionId}, #{userId}, #{actorRole}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
          #{assistantMessageId}, #{startedAt}, #{finishedAt}, #{errorMsg},
          #{createTime}, #{updateTime})
     </insert>
 
     <insert id="insertIgnore" parameterType="com.sky.entity.AgentTask">
         insert ignore into agent_task
-        (task_id, session_id, user_id, query, status, progress, model, request_hash,
+        (task_id, session_id, user_id, actor_role, query, status, progress, model, request_hash,
          assistant_message_id, started_at, finished_at, error_msg, create_time, update_time)
         values
-        (#{taskId}, #{sessionId}, #{userId}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
+        (#{taskId}, #{sessionId}, #{userId}, #{actorRole}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
          #{assistantMessageId}, #{startedAt}, #{finishedAt}, #{errorMsg}, #{createTime}, #{updateTime})
     </insert>
 
@@ -45,6 +45,7 @@
         update agent_task
         <set>
             <if test="query != null">query = #{query},</if>
+            <if test="actorRole != null">actor_role = #{actorRole},</if>
             <if test="status != null">status = #{status},</if>
             <if test="progress != null">progress = #{progress},</if>
             <if test="model != null">model = #{model},</if>

@@ -26,7 +26,7 @@ class AgentContractTest {
                 "task-1", "session-1", 7L, "hello", "deepseek-v4-pro", 0.7,
                 Map.of("history", List.of(new AgentHistoryMessage("user", "previous"))),
                 new AgentKnowledgeScope("kb-1", Map.of("document-1", 2), 8, 0.2),
-                "trace-1");
+                "trace-1", "SUPER_ADMIN");
 
         String json = objectMapper.writeValueAsString(request);
 
@@ -34,6 +34,7 @@ class AgentContractTest {
         assertTrue(json.contains("\"trace_id\":\"trace-1\""));
         assertTrue(json.contains("\"session_id\":\"session-1\""));
         assertTrue(json.contains("\"user_id\":7"));
+        assertTrue(json.contains("\"actor_role\":\"SUPER_ADMIN\""));
         assertTrue(json.contains("\"kb_id\":\"kb-1\""));
         assertTrue(json.contains("\"document_versions\":{\"document-1\":2}"));
         assertTrue(json.contains("\"top_k\":8"));
