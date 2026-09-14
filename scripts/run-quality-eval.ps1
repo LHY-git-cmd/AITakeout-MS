@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$agentRoot = Join-Path $projectRoot 'sky-agent'
+$agentRoot = Join-Path $projectRoot 'agent-service'
 
 Push-Location $agentRoot
 try {
