@@ -1,11 +1,15 @@
 # 导入必要的库
 import asyncio
+import logging
+import json
 import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from collections import Counter
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 
@@ -29,6 +33,31 @@ MAX_BATCH_SIZE = int(os.getenv("EMBEDDING_MAX_BATCH_SIZE", "16"))
 DIMENSION = 1024
 
 
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "service": "sky-embedding",
+            "level": record.levelname,
+            "event": record.getMessage(),
+        }
+        for field in (
+            "trace_id", "task_id", "session_id", "batch_size", "elapsed_ms",
+            "status", "error_type",
+        ):
+            value = getattr(record, field, None)
+            if value is not None:
+                payload[field] = value
+        return json.dumps(payload, ensure_ascii=False)
+
+
+_handler = logging.StreamHandler()
+_handler.setFormatter(JsonFormatter())
+logging.getLogger().handlers.clear()
+logging.getLogger().addHandler(_handler)
+logging.getLogger().setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
+
+
 # --- API 数据模型 ---
 
 # 定义 embedding 请求的 body 结构
@@ -46,10 +75,19 @@ class EmbeddingState:
     model = None  # 用于存放加载后的 embedding 模型
     lock: asyncio.Lock  # 异步锁，用于保证并发请求时模型推理的线程安全
     started_at: float  # 应用启动时间的时间戳
+    status: str = "starting"
+    error_type: str | None = None
+    load_task: asyncio.Task | None = None
+    request_count: int = 0
+    failure_count: int = 0
+    inference_seconds: float = 0.0
+    input_count: int = 0
 
 
 # 创建全局状态实例
 state = EmbeddingState()
+http_requests = Counter()
+http_latency_seconds = 0.0
 
 
 # --- 模型加载 ---
@@ -74,6 +112,19 @@ def load_model():
     )
 
 
+async def load_model_in_background():
+    """后台加载模型，使健康端点能报告 starting/failed 状态。"""
+    try:
+        state.model = await asyncio.to_thread(load_model)
+        state.status = "healthy"
+        logging.getLogger(__name__).info("Embedding model loaded")
+    except Exception as exc:
+        state.status = "failed"
+        state.error_type = type(exc).__name__
+        logging.getLogger(__name__).exception(
+            "Embedding model load failed: error_type=%s", state.error_type)
+
+
 # --- FastAPI 应用生命周期管理 ---
 
 
@@ -83,16 +134,17 @@ async def lifespan(_: FastAPI):
     FastAPI 应用的生命周期函数，在应用启动和关闭时执行。
     """
     # --- 应用启动时 ---
-    print("INFO:     Loading embedding model...")
     state.lock = asyncio.Lock()  # 初始化异步锁
     state.started_at = time.time()  # 记录启动时间
-    # 在一个独立的线程中加载模型，避免阻塞 FastAPI 的主事件循环
-    state.model = await asyncio.to_thread(load_model)
-    print("INFO:     Embedding model loaded.")
+    state.status = "starting"
+    state.error_type = None
+    state.load_task = asyncio.create_task(load_model_in_background())
 
     yield  # 在此等待应用运行
 
     # --- 应用关闭时 ---
+    if state.load_task and not state.load_task.done():
+        state.load_task.cancel()
     state.model = None  # 释放模型资源
 
 
@@ -100,6 +152,21 @@ async def lifespan(_: FastAPI):
 
 # 创建 FastAPI 应用实例，并配置标题、版本和生命周期函数
 app = FastAPI(title="Sky BGE-M3 Embedding Service", version="1.0.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def observe_http(request: Request, call_next):
+    global http_latency_seconds
+    started_at = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        http_requests[(request.method, 500)] += 1
+        http_latency_seconds += time.perf_counter() - started_at
+        raise
+    http_requests[(request.method, response.status_code)] += 1
+    http_latency_seconds += time.perf_counter() - started_at
+    return response
 
 
 # --- API 端点 ---
@@ -111,7 +178,7 @@ async def health():
     健康检查接口，返回服务的状态信息。
     """
     return {
-        "status": "healthy" if state.model is not None else "starting",
+        "status": state.status,
         "model": MODEL_NAME,
         "dimension": DIMENSION,
         "device": DEVICE,
@@ -119,11 +186,30 @@ async def health():
     }
 
 
+@app.get("/health/live")
+async def liveness():
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+async def readiness():
+    if state.status != "healthy" or state.model is None:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content={"status": state.status, "error_type": state.error_type},
+        )
+    return {"status": "healthy", "model": MODEL_NAME, "dimension": DIMENSION}
+
+
 @app.post("/v1/embeddings")
-async def embeddings(body: EmbeddingRequest):
+async def embeddings(body: EmbeddingRequest, request: Request):
     """
     核心的 embedding 接口，接收文本并返回其向量表示。
     """
+    if state.model is None:
+        raise HTTPException(status_code=503, detail=f"model is {state.status}")
+
     # 检查请求中的模型名称是否与服务加载的模型一致
     if body.model != MODEL_NAME:
         raise HTTPException(status_code=400, detail=f"unsupported model: {body.model}")
@@ -139,17 +225,36 @@ async def embeddings(body: EmbeddingRequest):
         )
 
     # 使用异步锁保证线程安全
-    async with state.lock:
-        # 在独立的线程中执行模型的 encode 方法，避免阻塞主循环
-        result = await asyncio.to_thread(
-            state.model.encode,
-            texts,
-            batch_size=MAX_BATCH_SIZE,
-            max_length=8192,  # BGE-M3 支持的最大长度
-            return_dense=True,  # 只返回 dense vector
-            return_sparse=False,
-            return_colbert_vecs=False,
-        )
+    trace_id = request.headers.get("X-Trace-ID")
+    task_id = request.headers.get("X-Task-ID")
+    session_id = request.headers.get("X-Session-ID")
+    started_at = time.perf_counter()
+    state.request_count += 1
+    state.input_count += len(texts)
+    try:
+        async with state.lock:
+            result = await asyncio.to_thread(
+                state.model.encode,
+                texts,
+                batch_size=MAX_BATCH_SIZE,
+                max_length=8192,
+                return_dense=True,
+                return_sparse=False,
+                return_colbert_vecs=False,
+            )
+    except Exception as exc:
+        state.failure_count += 1
+        logging.getLogger(__name__).exception("embedding_request", extra={
+            "trace_id": trace_id, "task_id": task_id, "session_id": session_id,
+            "batch_size": len(texts), "status": "failed",
+            "error_type": type(exc).__name__})
+        raise
+    elapsed = time.perf_counter() - started_at
+    state.inference_seconds += elapsed
+    logging.getLogger(__name__).info("embedding_request", extra={
+        "trace_id": trace_id, "task_id": task_id, "session_id": session_id,
+        "batch_size": len(texts), "status": "completed",
+        "elapsed_ms": round(elapsed * 1000)})
 
     # 从结果中提取 dense vector 并转换为列表
     vectors = result["dense_vecs"].tolist()
@@ -168,3 +273,26 @@ async def embeddings(body: EmbeddingRequest):
             "total_tokens": sum(len(text) for text in texts),
         },
     }
+
+
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    payload = "\n".join([
+        "# TYPE sky_embedding_requests_total counter",
+        f"sky_embedding_requests_total {state.request_count}",
+        "# TYPE sky_embedding_failures_total counter",
+        f"sky_embedding_failures_total {state.failure_count}",
+        "# TYPE sky_embedding_inputs_total counter",
+        f"sky_embedding_inputs_total {state.input_count}",
+        "# TYPE sky_embedding_inference_seconds_total counter",
+        f"sky_embedding_inference_seconds_total {state.inference_seconds}",
+        "# TYPE sky_embedding_model_ready gauge",
+        f'sky_embedding_model_ready{{model="{MODEL_NAME}",device="{DEVICE}"}} {1 if state.status == "healthy" else 0}',
+        "",
+    ])
+    payload += "# TYPE sky_embedding_http_requests_total counter\n"
+    for (method, status), count in http_requests.items():
+        payload += f'sky_embedding_http_requests_total{{method="{method}",status="{status}"}} {count}\n'
+    payload += "# TYPE sky_embedding_http_request_duration_seconds_total counter\n"
+    payload += f"sky_embedding_http_request_duration_seconds_total {http_latency_seconds}\n"
+    return Response(payload, media_type="text/plain; version=0.0.4; charset=utf-8")
