@@ -123,7 +123,7 @@ services:
 
   sky-agent:
     build:
-      context: ./sky-agent
+      context: ./agent-service
       dockerfile: Dockerfile
     image: ${SKY_AGENT_IMAGE:-sky-agent:module2}
     restart: unless-stopped

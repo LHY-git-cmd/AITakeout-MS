@@ -1,7 +1,7 @@
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$agentRoot = Join-Path $projectRoot 'sky-agent'
+$agentRoot = Join-Path $projectRoot 'agent-service'
 
 $embedding = Invoke-RestMethod 'http://127.0.0.1:8001/health' -TimeoutSec 10
 if ($embedding.status -ne 'healthy' -or $embedding.dimension -ne 1024) {
