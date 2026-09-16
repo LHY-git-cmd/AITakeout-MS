@@ -193,14 +193,14 @@
               <div class="confirmation-actions">
                 <el-button
                   size="small"
-                  :disabled="message.confirmation.processing || message.confirmation.decided"
+                  :disabled="message.confirmation.processing || message.confirmation.decided || message.confirmation.retryable === false"
                   @click="decideTool(message, false)"
                 >拒绝</el-button>
                 <el-button
                   type="danger"
                   size="small"
                   :loading="message.confirmation.processing"
-                  :disabled="message.confirmation.decided"
+                  :disabled="message.confirmation.decided || message.confirmation.retryable === false"
                   @click="decideTool(message, true)"
                 >确认执行</el-button>
               </div>
@@ -216,6 +216,11 @@
               <strong>{{ message.failure.message }}</strong>
               <p>{{ message.failure.action }}</p>
               <small v-if="message.failure.taskId">任务 ID：{{ message.failure.taskId }}</small>
+              <el-button
+                v-if="message.failure.recovery !== 'none'"
+                size="small"
+                @click="recoverAgentFailure(message)"
+              >{{ recoveryButtonText(message.failure.recovery) }}</el-button>
             </section>
             <div
               v-if="message.citations && message.citations.length"
@@ -403,7 +408,7 @@ export default Vue.extend({
     }
   },
   methods: {
-    async refreshAgentHealth() {
+    async refreshAgentHealth(): Promise<boolean> {
       try {
         const response: any = await getAgentHealth()
         const payload = response.data?.data || {}
@@ -415,11 +420,13 @@ export default Vue.extend({
             errorType: typeof payload.errorType === 'string' ? payload.errorType : null,
           }
         }
+        return true
       } catch (_) {
         // 单次健康查询失败只能显示未知状态，不能影响会话和正在执行的任务。
         if (!this.pageDestroyed) {
           this.agentHealth = { status: 'unknown', errorType: null }
         }
+        return false
       }
     },
     async loadSessions() {
@@ -596,7 +603,12 @@ export default Vue.extend({
             ? `${assistant.content}\n\n（已停止生成）`
             : '已停止生成。'
         } else {
-          this.applyStreamFailure(assistant, error, this.currentTaskId)
+          this.applyStreamFailure(
+            assistant,
+            error,
+            this.currentTaskId,
+            this.streamController ? 'stream' : 'submit'
+          )
         }
       } finally {
         assistant.streaming = false
@@ -606,10 +618,43 @@ export default Vue.extend({
         this.streamController = null
       }
     },
-    applyStreamFailure(assistant: ChatMessage, error?: any, taskId?: string) {
-      const failure = normalizeAgentError(error || { code: 'ERR_NETWORK', request: {} }, taskId)
+    applyStreamFailure(
+      assistant: ChatMessage,
+      error?: any,
+      taskId?: string,
+      phase: 'submit' | 'stream' = 'stream'
+    ) {
+      const failure = normalizeAgentError(error || { code: 'ERR_NETWORK', request: {} }, taskId, phase)
       assistant.failure = failure
       this.$message.error(failure.message)
+    },
+    recoveryButtonText(recovery: string) {
+      return {
+        refreshTask: '刷新当前状态',
+        newPlainSession: '新建普通会话并保留原问题',
+        refreshHealth: '刷新服务状态',
+      }[recovery] || ''
+    },
+    async recoverAgentFailure(message: ChatMessage) {
+      const failure = message.failure
+      if (!failure || failure.recovery === 'none') return
+      try {
+        if (failure.recovery === 'refreshTask') {
+          if (failure.taskId) await this.getAgentTaskStatus(failure.taskId)
+          if (this.sessionId) await this.openSession(this.sessionId)
+        } else if (failure.recovery === 'newPlainSession') {
+          const index = this.messages.indexOf(message)
+          const previous = index > 0 ? this.messages[index - 1] : null
+          const originalQuestion = previous && previous.role === 'user' ? previous.content : this.draft
+          this.newChat()
+          this.draft = originalQuestion || ''
+        } else if (!(await this.refreshAgentHealth())) {
+          throw new Error('Agent health refresh failed')
+        }
+        this.$message.success('已刷新当前状态')
+      } catch (_) {
+        this.$message.error('恢复操作未完成，请稍后重试')
+      }
     },
     async stopGeneration() {
       if (!this.running || this.cancelling) {
@@ -632,7 +677,13 @@ export default Vue.extend({
       }
     },
     applyAgentEvent(event: AgentStreamEnvelope, assistant: ChatMessage) {
-      const body: any = event.data || {}
+      if (event.event === 'task_error') {
+        const body = event.data && typeof event.data === 'object' ? event.data : {}
+        assistant.failure = normalizeAgentError({ response: { data: body } }, event.taskId, 'stream')
+        this.$nextTick(this.scrollToBottom)
+        return
+      }
+      const body: any = event.data && typeof event.data === 'object' ? event.data : {}
       this.streamStatus = '正在思考...'
       const text =
         body.content ||
@@ -640,7 +691,7 @@ export default Vue.extend({
         body.token ||
         body.text ||
         (event.event === 'task_end' ? body.result : '') ||
-        (typeof body === 'string' ? body : '')
+        (typeof event.data === 'string' ? event.data : '')
       if (text && !(event.event === 'task_end' && assistant.content)) {
         assistant.content += text
       }
@@ -655,10 +706,9 @@ export default Vue.extend({
           processing: false,
           decided: false,
           decision: '',
+          retryable: true,
+          taskId: event.taskId,
         }
-      }
-      if (event.event === 'task_error') {
-        assistant.failure = normalizeAgentError({ response: { data: body } }, event.taskId)
       }
       if (event.event === 'task_cancelled') {
         assistant.content = assistant.content
@@ -727,9 +777,11 @@ export default Vue.extend({
         confirmation.decision = approved ? '已确认，正在执行…' : '已拒绝，本次操作不会执行。'
         this.$message.success(approved ? '操作已确认' : '操作已拒绝')
       } catch (error) {
-        const failure = normalizeAgentError(error)
+        const failure = normalizeAgentError(error, confirmation.taskId)
+        message.failure = failure
+        confirmation.retryable = failure.retryable
         confirmation.decision = `${failure.message}，${failure.action}`
-        if (failure.kind === 'confirmationExpired') {
+        if (!failure.retryable || failure.kind === 'conflict' || failure.kind === 'confirmationExpired') {
           confirmation.decided = true
         }
         this.$message.error(confirmation.decision)

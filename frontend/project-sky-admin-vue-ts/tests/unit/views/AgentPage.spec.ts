@@ -389,6 +389,7 @@ describe('AgentPage stream events', () => {
       message: 'Agent 当前繁忙',
       action: '稍后重试，不会自动重提原任务',
       retryable: true,
+      recovery: 'none',
       taskId: 'task-1',
     })
     expect(JSON.stringify(assistant.failure)).not.toContain('secret')
@@ -425,6 +426,105 @@ describe('AgentPage stream events', () => {
     })
     expect(message.confirmation.decision).not.toContain('secret')
     expect(context.$message.error).toHaveBeenCalledWith('操作确认已过期，重新发起原业务请求')
+  })
+
+  it('does not append a string task error payload to received tokens', () => {
+    const methods = agentMethods()
+    const assistant: any = { role: 'assistant', content: '已接收内容', citations: [] }
+    const context = {
+      streamStatus: '正在思考...',
+      $nextTick: jest.fn(),
+      scrollToBottom: jest.fn(),
+    }
+
+    methods.applyAgentEvent.call(context, {
+      taskId: 'task-safe-2',
+      seqNo: 2,
+      event: 'task_error',
+      data: 'java.lang.IllegalStateException at http://internal?token=secret',
+    }, assistant)
+
+    expect(assistant.content).toBe('已接收内容')
+    expect(assistant.failure).toMatchObject({
+      kind: 'unknown',
+      taskId: 'task-safe-2',
+    })
+    expect(JSON.stringify(assistant)).not.toContain('secret')
+  })
+
+  it('refreshes the current task and session for a conflict recovery action', async() => {
+    const methods = agentMethods()
+    const context: any = {
+      sessionId: 'session-1',
+      getAgentTaskStatus: jest.fn().mockResolvedValue(1),
+      openSession: jest.fn().mockResolvedValue(undefined),
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, {
+      failure: { kind: 'conflict', recovery: 'refreshTask', taskId: 'task-1' },
+    })
+
+    expect(context.getAgentTaskStatus).toHaveBeenCalledWith('task-1')
+    expect(context.openSession).toHaveBeenCalledWith('session-1')
+    expect(context.$message.error).not.toHaveBeenCalled()
+  })
+
+  it('starts a plain session and keeps the original question for knowledge recovery', async() => {
+    const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '',
+      failure: { kind: 'knowledge', recovery: 'newPlainSession' },
+    }
+    const context: any = {
+      sessionId: 'session-locked',
+      kbId: 'kb-1',
+      kbLocked: true,
+      draft: '',
+      messages: [{ role: 'user', content: '保留这个知识库问题' }, assistant],
+      newChat: methods.newChat,
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, assistant)
+
+    expect(context.sessionId).toBe('')
+    expect(context.kbId).toBe('')
+    expect(context.kbLocked).toBe(false)
+    expect(context.draft).toBe('保留这个知识库问题')
+  })
+
+  it('shows a safe message when refreshing an unavailable service fails', async() => {
+    const methods = agentMethods()
+    const context: any = {
+      refreshAgentHealth: jest.fn().mockResolvedValue(false),
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, {
+      failure: { kind: 'unavailable', recovery: 'refreshHealth' },
+    })
+
+    expect(context.$message.success).not.toHaveBeenCalled()
+    expect(context.$message.error).toHaveBeenCalledWith('恢复操作未完成，请稍后重试')
+  })
+
+  it('disables confirmation re-submission when a forbidden error is not retryable', async() => {
+    const methods = agentMethods()
+    ;(confirmAgentTool as jest.Mock).mockRejectedValueOnce({
+      response: { status: 403, data: { message: 'http://internal?token=secret' } },
+    })
+    const message: any = {
+      confirmation: { id: 'confirmation-forbidden', taskId: 'task-3', processing: false, decided: false, decision: '' },
+    }
+    const context = { $message: { error: jest.fn(), success: jest.fn() } }
+
+    await methods.decideTool.call(context, message, true)
+
+    expect(message.confirmation).toMatchObject({ processing: false, decided: true, retryable: false })
+    expect(message.failure).toMatchObject({ kind: 'forbidden', taskId: 'task-3' })
+    expect(JSON.stringify(message)).not.toContain('secret')
   })
 
   it('closes only the local stream when the page is destroyed', () => {
