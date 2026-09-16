@@ -11,7 +11,7 @@ import com.sky.entity.AgentKnowledgeBase;
 import com.sky.entity.AgentKnowledgeDocument;
 import com.sky.entity.AgentKnowledgeIndexTask;
 import com.sky.exception.AgentBusinessException;
-import com.sky.exception.PermissionDeniedException;
+import com.sky.exception.AgentPermissionDeniedException;
 import com.sky.mapper.AgentKnowledgeMapper;
 import com.sky.properties.AgentProperties;
 import jakarta.annotation.PreDestroy;
@@ -284,7 +284,7 @@ public class AgentKnowledgeService implements ApplicationRunner {
     public AgentKnowledgeIndexTask getIndexTask(String taskId) {
         AgentKnowledgeIndexTask task = mapper.getIndexTask(taskId);
         if (task == null) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         requireDocument(task.getDocumentId());
         return task;
@@ -337,12 +337,12 @@ public class AgentKnowledgeService implements ApplicationRunner {
      *
      * @param kbId 知识库ID。
      * @return 知识库实体。
-     * @throws PermissionDeniedException 如果知识库不存在或用户无权访问。
+     * @throws AgentPermissionDeniedException 如果知识库不存在或用户无权访问。
      */
     private AgentKnowledgeBase requireBase(String kbId) {
         AgentKnowledgeBase value = mapper.getOwnedBase(kbId, BaseContext.getCurrentId());
         if (value == null) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         return value;
     }
@@ -352,12 +352,12 @@ public class AgentKnowledgeService implements ApplicationRunner {
      *
      * @param id 文档ID。
      * @return 文档实体。
-     * @throws PermissionDeniedException 如果文档不存在或用户无权访问。
+     * @throws AgentPermissionDeniedException 如果文档不存在或用户无权访问。
      */
     private AgentKnowledgeDocument requireDocument(String id) {
         AgentKnowledgeDocument value = mapper.getOwnedDocument(id, BaseContext.getCurrentId());
         if (value == null) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         return value;
     }

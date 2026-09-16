@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sky.agent.AgentClient;
 import com.sky.context.BaseContext;
 import com.sky.entity.AgentSession;
+import com.sky.exception.PermissionDeniedException;
 import com.sky.handler.GlobalExceptionHandler;
 import com.sky.mapper.AgentCitationMapper;
 import com.sky.mapper.AgentEventMapper;
@@ -18,6 +19,7 @@ import com.sky.service.agent.AgentEventStreamCoordinator;
 import com.sky.service.agent.AgentKnowledgeService;
 import com.sky.service.agent.AgentMessageCacheService;
 import com.sky.service.agent.AgentSummaryService;
+import com.sky.service.EmployeeService;
 import com.sky.service.impl.AgentServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -27,9 +29,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.http.MediaType;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.mockito.Mockito.when;
@@ -52,8 +57,10 @@ class AgentAuthorizationHttpTest {
     @Mock private AgentCitationMapper citationMapper;
     @Mock private AgentSessionSummaryMapper summaryMapper;
     @Mock private AgentEventHub eventHub;
+    @Mock private EmployeeService employeeService;
 
     private MockMvc mvc;
+    private MockMvc nonAgentMvc;
 
     @BeforeEach
     void setUp() {
@@ -66,6 +73,11 @@ class AgentAuthorizationHttpTest {
         mvc = MockMvcBuilders.standaloneSetup(
                         new AgentController(agentService, agentClient, eventHub, new ObjectMapper()),
                         new AgentKnowledgeController(knowledgeService))
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .build();
+        EmployeeController employeeController = new EmployeeController();
+        ReflectionTestUtils.setField(employeeController, "employeeService", employeeService);
+        nonAgentMvc = MockMvcBuilders.standaloneSetup(employeeController)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -102,6 +114,31 @@ class AgentAuthorizationHttpTest {
         when(knowledgeMapper.getOwnedDocument("document-owned-by-another-admin", 7L)).thenReturn(null);
 
         assertForbidden(get("/admin/agent/documents/document-owned-by-another-admin/content"));
+    }
+
+    @Test
+    void anotherAdministratorCannotSubmitToTheirDeletedSessionWithoutResourceDisclosure() throws Exception {
+        when(sessionMapper.getBySessionIdForUpdate("deleted-session-owned-by-another-admin")).thenReturn(
+                AgentSession.builder().sessionId("deleted-session-owned-by-another-admin")
+                        .userId(8L).status(3).build());
+
+        assertForbidden(post("/admin/agent/tasks/submit")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"taskId":"task-for-deleted-session","query":"question",
+                         "sessionId":"deleted-session-owned-by-another-admin"}
+                        """));
+    }
+
+    @Test
+    void nonAgentPermissionDeniedKeepsItsOriginalMessage() throws Exception {
+        when(employeeService.getById(9L))
+                .thenThrow(new PermissionDeniedException("当前管理员无权执行该操作"));
+
+        nonAgentMvc.perform(get("/admin/employee/9"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.msg").value("当前管理员无权执行该操作"));
     }
 
     private void assertForbidden(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)

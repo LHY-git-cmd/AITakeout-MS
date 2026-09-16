@@ -12,8 +12,8 @@ import com.sky.context.BaseContext;
 import com.sky.dto.*;
 import com.sky.entity.*;
 import com.sky.exception.AgentBusinessException;
+import com.sky.exception.AgentPermissionDeniedException;
 import com.sky.exception.AgentTaskConflictException;
-import com.sky.exception.PermissionDeniedException;
 import com.sky.enumeration.AdminRole;
 import com.sky.mapper.*;
 import com.sky.mapper.AgentSessionSummaryMapper;
@@ -132,13 +132,13 @@ public class AgentServiceImpl implements AgentService {
         } else {
             session = sessionMapper.getBySessionIdForUpdate(sessionId);
             if (session == null) {
-                throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+                throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            }
+            if (!userId.equals(session.getUserId())) {
+                throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
             }
             if (session.getStatus() == 3) { // 3: deleted
                 throw new AgentBusinessException("会话已删除: " + sessionId);
-            }
-            if (!userId.equals(session.getUserId())) {
-                throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
             }
             bindKnowledgeBase(session, requestedKbId, userId);
         }
@@ -162,7 +162,7 @@ public class AgentServiceImpl implements AgentService {
             // 插入失败，意味着任务已存在，进行冲突检查
             AgentTask winner = taskMapper.getByTaskIdAndUserId(taskId, userId);
             if (winner == null) {
-                throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+                throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
             }
             if (winner.getRequestHash() != null && !winner.getRequestHash().equals(requestHash)) {
                 throw new AgentTaskConflictException("taskId已被其他请求使用");
@@ -259,10 +259,10 @@ public class AgentServiceImpl implements AgentService {
         Long userId = BaseContext.getCurrentId();
         AgentSession session = sessionMapper.getBySessionId(sessionId);
         if (session == null) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         if (!userId.equals(session.getUserId())) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
 
         AgentSessionVO vo = new AgentSessionVO();
@@ -290,11 +290,11 @@ public class AgentServiceImpl implements AgentService {
     public void updateSession(AgentSessionUpdateDTO dto) {
         AgentSession session = sessionMapper.getBySessionId(dto.getSessionId());
         if (session == null) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         Long userId = BaseContext.getCurrentId();
         if (!userId.equals(session.getUserId())) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
 
         AgentSession update = AgentSession.builder()
@@ -408,13 +408,13 @@ public class AgentServiceImpl implements AgentService {
      *
      * @param taskId 任务ID
      * @return 如果任务存在且属于当前用户，则返回任务实体
-     * @throws PermissionDeniedException 如果任务不存在或用户无权访问
+     * @throws AgentPermissionDeniedException 如果任务不存在或用户无权访问
      */
     private AgentTask getOwnedTask(String taskId) {
         Long userId = BaseContext.getCurrentId();
         AgentTask task = taskMapper.getByTaskIdAndUserId(taskId, userId);
         if (task == null) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         return task;
     }
@@ -493,7 +493,7 @@ public class AgentServiceImpl implements AgentService {
         }
         AgentKnowledgeBase kb = knowledgeMapper.getOwnedBase(kbId, userId);
         if (kb == null) {
-            throw new PermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         if (kb.getStatus() == null || kb.getStatus() != 1) {
             throw new AgentBusinessException("知识库未启用");
