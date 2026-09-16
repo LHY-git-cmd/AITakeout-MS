@@ -25,7 +25,7 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public Result<String> permissionDeniedExceptionHandler(PermissionDeniedException ex) {
         log.warn("管理端权限拒绝：{}", ex.getMessage());
-        return Result.error(ex.getMessage());
+        return Result.error("资源不存在或无权访问");
     }
 
     /**
