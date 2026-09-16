@@ -13,7 +13,9 @@ import com.sky.mapper.AgentMessageMapper;
 import com.sky.mapper.AgentSessionMapper;
 import com.sky.mapper.AgentSessionSummaryMapper;
 import com.sky.mapper.AgentTaskMapper;
+import com.sky.mapper.EmployeeMapper;
 import com.sky.properties.AgentProperties;
+import com.sky.interceptor.AdminPermissionInterceptor;
 import com.sky.service.agent.AgentEventHub;
 import com.sky.service.agent.AgentEventStreamCoordinator;
 import com.sky.service.agent.AgentKnowledgeService;
@@ -21,6 +23,7 @@ import com.sky.service.agent.AgentMessageCacheService;
 import com.sky.service.agent.AgentSummaryService;
 import com.sky.service.EmployeeService;
 import com.sky.service.impl.AgentServiceImpl;
+import com.sky.service.security.AdminAuthorizationService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,9 +61,11 @@ class AgentAuthorizationHttpTest {
     @Mock private AgentSessionSummaryMapper summaryMapper;
     @Mock private AgentEventHub eventHub;
     @Mock private EmployeeService employeeService;
+    @Mock private EmployeeMapper employeeMapper;
 
     private MockMvc mvc;
     private MockMvc nonAgentMvc;
+    private MockMvc permissionMvc;
 
     @BeforeEach
     void setUp() {
@@ -80,6 +85,12 @@ class AgentAuthorizationHttpTest {
         nonAgentMvc = MockMvcBuilders.standaloneSetup(employeeController)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
+        permissionMvc = MockMvcBuilders.standaloneSetup(
+                        new AgentKnowledgeController(knowledgeService), employeeController)
+                .setControllerAdvice(new GlobalExceptionHandler())
+                .addInterceptors(new AdminPermissionInterceptor(new AdminAuthorizationService(employeeMapper)))
+                .build();
+        BaseContext.setCurrentRole("ADMIN");
     }
 
     @AfterEach
@@ -136,6 +147,26 @@ class AgentAuthorizationHttpTest {
                 .thenThrow(new PermissionDeniedException("当前管理员无权执行该操作"));
 
         nonAgentMvc.perform(get("/admin/employee/9"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.msg").value("当前管理员无权执行该操作"));
+    }
+
+    @Test
+    void agentWritePermissionDeniedByInterceptorUsesSafeMessage() throws Exception {
+        permissionMvc.perform(post("/admin/agent/knowledge-bases")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.msg").value("资源不存在或无权访问"));
+    }
+
+    @Test
+    void nonAgentWritePermissionDeniedByInterceptorKeepsOriginalMessage() throws Exception {
+        permissionMvc.perform(post("/admin/employee")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.msg").value("当前管理员无权执行该操作"));
