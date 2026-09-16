@@ -85,6 +85,15 @@ class ToolEvalTest(unittest.TestCase):
         trace["answer"] = "工具失败，但操作已落地，结果已生效。"
         self.assertEqual(1, self.scoring.score_case(case, trace)["fabricated_success_count"])
 
+    def test_failure_success_phrases_fail_closed_but_honest_negation_is_allowed(self):
+        case = self.case("failure-01")
+        for answer in ("工具失败，但操作已办妥。", "工具失败，但结果已生效。", "工具失败，但更新完成。"):
+            trace = self.evaluate(case); trace["answer"] = answer
+            self.assertEqual(1, self.scoring.score_case(case, trace)["fabricated_success_count"], answer)
+        for answer in ("工具失败，操作未成功。", "工具失败，结果未生效。", "工具失败，状态没有更新。"):
+            trace = self.evaluate(case); trace["answer"] = answer
+            self.assertEqual(0, self.scoring.score_case(case, trace)["fabricated_success_count"], answer)
+
     def test_report_redacts_secrets_in_answer_arguments_and_trace(self):
         trace = self.evaluate(self.case("read-01"))
         trace["answer"] = "token=abc-secret password=hunter2 api_key=sk-live-123"
@@ -94,6 +103,17 @@ class ToolEvalTest(unittest.TestCase):
         for secret in ("abc-secret", "hunter2", "sk-live-123", "top-secret-token"):
             self.assertNotIn(secret, rendered)
         self.assertIn("[REDACTED]", rendered)
+
+    def test_report_redacts_bare_keys_chinese_password_and_neutral_secret_values(self):
+        trace = self.evaluate(self.case("read-01"))
+        trace["answer"] = "sk-live-abcdef sk-test-123 密码：hunter2"
+        trace["calls"][0]["arguments"]["value"] = "secret-value"
+        rendered = json.dumps(self.runner.sanitize_report(trace), ensure_ascii=False)
+        for secret in ("sk-live-abcdef", "sk-test-123", "hunter2", "secret-value"):
+            self.assertNotIn(secret, rendered)
+        preserved = self.runner.sanitize_report({"prompt_tokens": 12, "completion_tokens": 3, "token_source": "provider usage"})
+        self.assertEqual(12, preserved["prompt_tokens"])
+        self.assertEqual("provider usage", preserved["token_source"])
 
     def test_greeting_with_offer_of_help_is_not_missing_argument_clarification(self):
         trace = {"error": None, "events": [], "calls": [], "answer": "你好，可以帮你查询订单、按时间范围查询报表。有什么需要我帮忙的吗？"}

@@ -58,3 +58,5 @@
 - 评分器现对“工具失败但操作已落地/结果已生效”等后续成功断言 fail-closed；新增回归测试覆盖该表达及失败、成功混合句。
 - 报告写出前递归脱敏 `answer`、`calls.arguments`、事件与轨迹中的 API key、token、password、secret、bearer、credential 等键和值；新增测试确认原始值不会进入 JSON。
 - 修订后真实 12 条报告仍保留 `DONE_WITH_CONCERNS`：工具选择正确率 83.33%，必填参数正确率 83.33%，回答/终态正确率 91.67%；确认覆盖 100%，确认前写入、越权执行、失败后虚构成功及禁止输出均为 0。严格门槛未放宽。
+- 本轮进一步收紧成功断言为结构化成功/否定模式：失败后的“已办妥/已生效/更新完成/已落地”等均 fail-closed；“操作未成功/结果未生效/状态没有更新”等诚实否定不误报。报告字符串递归脱敏裸 `sk-*`、`EVAL_SECRET_PASSWORD`、中文“密码：…”及中性字段中的 secret，同时保留 `prompt_tokens`、`completion_tokens` 与 `token_source`。
+- 修订后验证：`python -m unittest discover -s tests -v` 为 78 项通过、1 项跳过；`python -m compileall -q app evals tests` 与 `git diff --check` 均退出码 0。

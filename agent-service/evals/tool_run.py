@@ -26,11 +26,12 @@ from evals.tool_dataset import DEFAULT_DATASET, load_dataset, select_cases
 from evals.tool_scoring import score_case, summarize
 
 
-_SENSITIVE_KEY = re.compile(r"(?:api[_ -]?key|access[_ -]?token|auth[_ -]?token|password|passwd|secret|bearer|credential|token)", re.I)
+_SENSITIVE_KEY = re.compile(r"^(?:api[_ -]?key|access[_ -]?token|auth[_ -]?token|password|passwd|secret|bearer|credential|token)$", re.I)
 _SENSITIVE_VALUE = re.compile(
     r"(?i)(?:api[_ -]?key|access[_ -]?token|auth[_ -]?token|password|passwd|secret|bearer|credential|token)"
     r"(\s*[:=]\s*|\s+)([^\s,;]+)"
 )
+_BARE_SECRET = re.compile(r"(?i)\bsk-[a-z0-9][a-z0-9_-]*\b|\bEVAL_SECRET_PASSWORD\b|密码\s*[:：]\s*[^\s,;]+|\bsecret[-_a-z0-9]*\b")
 
 
 def sanitize_report(value):
@@ -41,7 +42,8 @@ def sanitize_report(value):
     if isinstance(value, list):
         return [sanitize_report(item) for item in value]
     if isinstance(value, str):
-        return _SENSITIVE_VALUE.sub(lambda match: match.group(0)[:match.start(2)-match.start()] + "[REDACTED]", value)
+        value = _SENSITIVE_VALUE.sub(lambda match: match.group(0)[:match.start(2)-match.start()] + "[REDACTED]", value)
+        return _BARE_SECRET.sub("[REDACTED]", value)
     return value
 
 
