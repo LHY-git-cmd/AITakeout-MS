@@ -4,6 +4,7 @@ import com.sky.constant.MessageConstant;
 import com.sky.exception.BaseException;
 import com.sky.exception.AgentTaskConflictException;
 import com.sky.exception.AgentConfirmationConflictException;
+import com.sky.exception.AgentPermissionDeniedException;
 import com.sky.exception.PermissionDeniedException;
 import com.sky.result.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,13 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(AgentPermissionDeniedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public Result<String> agentPermissionDeniedExceptionHandler(AgentPermissionDeniedException ex) {
+        log.warn("Agent资源权限拒绝：{}", ex.getMessage());
+        return Result.error("资源不存在或无权访问");
+    }
 
     @ExceptionHandler(PermissionDeniedException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
