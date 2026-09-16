@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { LogIn, LogOut, Phone, UserRound } from '@lucide/vue'
+import { LogIn, LogOut, MapPin, Phone, UserRound } from '@lucide/vue'
+import { RouterLink } from 'vue-router'
 import PageScaffold from '@/components/PageScaffold.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -27,5 +28,9 @@ const uiStore = useUiStore()
         <LogIn :size="18" aria-hidden="true" /> 登录
       </button>
     </div>
+    <RouterLink class="profile-menu-link" to="/addresses">
+      <MapPin :size="20" aria-hidden="true" />
+      <span><strong>收货地址</strong><small>管理配送联系人和地址</small></span>
+    </RouterLink>
   </PageScaffold>
 </template>

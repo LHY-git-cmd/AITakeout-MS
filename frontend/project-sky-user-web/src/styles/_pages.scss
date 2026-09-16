@@ -2274,6 +2274,194 @@
   }
 }
 
+/* 点餐页新版布局：搜索、单列商品及可调宽度 AI 侧栏。 */
+.menu-searchbar {
+  display: flex;
+  height: 58px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.menu-searchbar:focus-within {
+  border-color: #f4ad82;
+  box-shadow: 0 0 0 3px rgb(234 88 12 / 12%);
+}
+
+.menu-searchbar input {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--color-ink);
+  background: transparent;
+  font-size: 16px;
+}
+
+.menu-searchbar input::placeholder {
+  color: #94a3b8;
+}
+
+.menu-page {
+  padding-bottom: 76px;
+}
+
+.menu-workspace {
+  grid-template-columns: 174px minmax(360px, 1fr) var(--ai-panel-width, 320px);
+  grid-template-rows: 58px auto;
+  align-items: start;
+  align-content: start;
+}
+
+.menu-workspace > .menu-searchbar {
+  grid-column: 1 / 3;
+}
+
+.product-area__heading > div {
+  margin-left: auto;
+}
+
+.product-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ai-chat-panel {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.ai-chat-panel {
+  display: flex;
+  align-self: stretch;
+  position: relative;
+  min-width: 260px;
+  min-height: calc(100vh - var(--header-height) - 164px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.ai-chat-panel__resize {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.ai-chat-panel__resize::after {
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 3px;
+  height: 46px;
+  border-radius: 999px;
+  background: #d8d3cd;
+  content: '';
+  transform: translateY(-50%);
+}
+
+.ai-chat-panel__resize:hover::after,
+.ai-chat-panel__resize:focus-visible::after {
+  background: var(--color-brand);
+}
+
+.ai-chat-panel__resize:focus-visible {
+  outline: 3px solid rgb(234 88 12 / 24%);
+  outline-offset: 1px;
+}
+
+.ai-chat-panel header {
+  display: flex;
+  height: 60px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--color-line);
+  color: var(--color-brand-dark);
+}
+
+.ai-chat-panel__content {
+  flex: 1;
+  background: linear-gradient(180deg, #fff 0%, #fffaf5 100%);
+}
+
+.profile-menu-link {
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px 18px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.profile-menu-link > svg {
+  color: var(--color-brand);
+}
+
+.profile-menu-link span {
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-menu-link small {
+  color: var(--color-muted);
+}
+
+@media (max-width: 1199px) {
+  .menu-workspace {
+    grid-template-columns: 136px minmax(0, 1fr) minmax(260px, var(--ai-panel-width, 300px));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .menu-workspace {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+
+  .ai-chat-panel {
+    grid-column: 1 / -1;
+    min-height: 320px;
+  }
+
+  .ai-chat-panel__resize {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .menu-searchbar {
+    height: 50px;
+    border-radius: 12px;
+  }
+
+  .menu-workspace {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 12px;
+    margin-top: 18px;
+  }
+
+  .ai-chat-panel {
+    margin: 0 16px;
+  }
+}
+
 /* Visual refresh: warm food-service hierarchy with compact, scannable cards. */
 .shop-summary {
   position: relative;
@@ -2550,5 +2738,39 @@
 
   .product-card {
     box-shadow: 0 3px 12px rgb(23 32 51 / 5%);
+  }
+}
+
+/* 保证新版三栏宽度规则不被旧版视觉样式覆盖。 */
+.menu-workspace {
+  grid-template-columns: 174px minmax(360px, 1fr) var(--ai-panel-width, 320px);
+}
+
+.product-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 1199px) {
+  .menu-workspace {
+    grid-template-columns: 136px minmax(0, 1fr) minmax(260px, var(--ai-panel-width, 300px));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .menu-workspace {
+    grid-template-columns: 120px minmax(0, 1fr);
+  }
+
+  .ai-chat-panel {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .menu-workspace {
+    grid-template-columns: 96px minmax(0, 1fr);
+    grid-template-rows: 50px auto;
   }
 }

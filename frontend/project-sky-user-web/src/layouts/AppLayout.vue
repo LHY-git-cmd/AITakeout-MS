@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { CircleUserRound, History, House, LogIn, MapPin, ShoppingBag, X } from '@lucide/vue'
+import { CircleUserRound, History, House, ShoppingBag, UtensilsCrossed, X } from '@lucide/vue'
 import LoginDialog from '@/components/LoginDialog.vue'
 import CartPanel from '@/components/CartPanel.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -21,6 +21,7 @@ const navigation = [
 ]
 
 const pageTitle = computed(() => String(route.meta.title ?? '在线点餐'))
+const showFloatingCart = computed(() => String(route.name) === 'menu')
 const isActive = (names: string[]) => names.includes(String(route.name))
 
 function handleUnauthorized() {
@@ -54,41 +55,32 @@ watch(() => authStore.token, (token, previousToken) => {
   <div class="app-shell">
     <header class="site-header">
       <div class="site-header__inner">
-        <RouterLink class="brand" to="/" aria-label="苍穹外卖首页">
-          <span class="brand__mark">苍</span>
-          <span class="brand__name">苍穹外卖</span>
+        <RouterLink class="brand" to="/" aria-label="智能点餐平台首页">
+            <span class="brand__mark" aria-hidden="true"><UtensilsCrossed :size="21" /></span>
+          <span class="brand__name">智能点餐平台</span>
         </RouterLink>
 
         <nav class="desktop-nav" aria-label="主导航">
-          <RouterLink
-            v-for="item in navigation"
-            :key="item.to"
-            :to="item.to"
-            :class="['desktop-nav__link', { 'is-active': isActive(item.match) }]"
-          >
-            {{ item.label }}
-          </RouterLink>
+          <template v-for="(item, index) in navigation" :key="item.to">
+            <RouterLink
+              :to="item.to"
+              :class="['desktop-nav__link', { 'is-active': isActive(item.match) }]"
+            >
+              {{ item.label }}
+            </RouterLink>
+            <button
+              v-if="index === 0"
+              class="desktop-nav__link desktop-nav__link--disabled"
+              type="button"
+              aria-label="分类功能暂未开放"
+              disabled
+            >
+              <span>分类</span>
+            </button>
+          </template>
         </nav>
 
-        <div class="header-actions">
-          <RouterLink v-if="authStore.isAuthenticated" class="account-link" to="/profile">
-            <CircleUserRound :size="18" aria-hidden="true" />
-            <span>{{ authStore.displayName }}</span>
-          </RouterLink>
-          <button v-else class="account-link" type="button" @click="uiStore.openLogin">
-            <LogIn :size="18" aria-hidden="true" />
-            <span>登录</span>
-          </button>
-          <RouterLink class="location-link" to="/addresses">
-            <MapPin :size="18" aria-hidden="true" />
-            <span>收货地址</span>
-          </RouterLink>
-          <button class="cart-button" type="button" aria-label="打开购物车" @click="uiStore.openCart">
-            <ShoppingBag :size="20" aria-hidden="true" />
-            <span>购物车</span>
-            <span class="cart-button__count">{{ cartStore.totalCount }}</span>
-          </button>
-        </div>
+        <div aria-hidden="true" />
       </div>
     </header>
 
@@ -99,6 +91,17 @@ watch(() => authStore.token, (token, previousToken) => {
     <main class="page-content">
       <RouterView />
     </main>
+
+    <button
+      v-if="showFloatingCart"
+      class="floating-cart"
+      type="button"
+      aria-label="打开购物车"
+      @click="uiStore.openCart"
+    >
+      <ShoppingBag :size="26" aria-hidden="true" />
+      <span v-if="cartStore.totalCount" class="floating-cart__count">{{ cartStore.totalCount }}</span>
+    </button>
 
     <Transition name="drawer">
       <div v-if="uiStore.cartOpen" class="drawer-layer" role="presentation" @click.self="uiStore.closeCart">

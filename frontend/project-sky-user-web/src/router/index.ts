@@ -63,7 +63,7 @@ const router = createRouter({
 })
 
 router.afterEach((to) => {
-  document.title = `${String(to.meta.title ?? '在线点餐')} - 苍穹外卖`
+  document.title = '智能点餐平台'
 })
 
 export default router

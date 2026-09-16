@@ -75,6 +75,18 @@
   color: var(--color-brand-dark);
 }
 
+.desktop-nav__link--disabled {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: default;
+}
+
+.desktop-nav__link--disabled:disabled {
+  color: var(--color-muted);
+  opacity: 1;
+}
+
 .header-actions {
   display: flex;
   justify-content: flex-end;
@@ -614,5 +626,103 @@
 
   .register-field--full {
     grid-column: auto;
+  }
+}
+
+/* 智能点餐页顶部入口与悬浮购物车。 */
+.header-start {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 18px;
+}
+
+.category-trigger {
+  display: inline-flex;
+  min-width: 88px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  color: var(--color-muted);
+  background: var(--color-surface);
+  font-weight: 650;
+  cursor: default;
+}
+
+.category-trigger:disabled {
+  opacity: .72;
+}
+
+.floating-cart {
+  display: grid;
+  position: fixed;
+  z-index: 45;
+  bottom: 28px;
+  left: 50%;
+  width: 64px;
+  height: 64px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--color-brand);
+  box-shadow: 0 12px 28px rgb(194 65 12 / 34%);
+  cursor: pointer;
+  transform: translateX(-50%);
+}
+
+.floating-cart:hover {
+  background: var(--color-brand-dark);
+  box-shadow: 0 15px 32px rgb(194 65 12 / 42%);
+  transform: translateX(-50%) translateY(-2px);
+}
+
+.floating-cart:active {
+  transform: translateX(-50%) translateY(1px) !important;
+}
+
+.floating-cart__count {
+  display: grid;
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--color-ink);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+@media (max-width: 767px) {
+  .header-start {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .brand__name {
+    display: inline;
+    font-size: 16px;
+  }
+
+  .category-trigger {
+    min-width: 76px;
+    height: 38px;
+    padding: 0 10px;
+  }
+
+  .floating-cart {
+    bottom: calc(var(--mobile-nav-height) + 18px + env(safe-area-inset-bottom));
+    width: 56px;
+    height: 56px;
   }
 }
