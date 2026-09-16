@@ -231,7 +231,7 @@
         </article>
         <div v-if="running" class="running-line" role="status" aria-live="polite">
           <i class="el-icon-loading" />
-          正在思考...
+          {{ streamStatus }}
         </div>
       </div>
 
@@ -268,12 +268,18 @@ import {
   getAgentSession,
   updateAgentSession,
   submitAgentTask,
+  getAgentTask,
   cancelAgentTask,
   confirmAgentTool,
   rejectAgentTool,
 } from '@/api/agent'
 import { listKnowledgeBases } from '@/api/knowledge'
 import { UserModule } from '@/store/modules/user'
+import {
+  consumeAgentEventStream,
+  type AgentStreamDependencies,
+  type AgentStreamEnvelope,
+} from '@/utils/agentSse'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -303,6 +309,8 @@ export default Vue.extend({
       cancelRequested: false,
       currentTaskId: '',
       streamController: null as AbortController | null,
+      streamStatus: '正在思考...',
+      pageDestroyed: false,
       loadingSessions: false,
       loadingArchived: false,
       suggestions: [
@@ -338,6 +346,13 @@ export default Vue.extend({
     }
     this.loadSessions()
     this.loadKnowledgeBases()
+  },
+  beforeDestroy() {
+    // 页面销毁只释放浏览器端 SSE，不把本地清理误当作后台任务取消。
+    this.pageDestroyed = true
+    if (this.streamController) {
+      this.streamController.abort()
+    }
   },
   methods: {
     async loadSessions() {
@@ -465,6 +480,7 @@ export default Vue.extend({
       this.messages.push(assistant)
       this.running = true
       this.cancelRequested = false
+      this.streamStatus = '正在思考...'
       this.$nextTick(this.scrollToBottom)
       try {
         const taskId =
@@ -478,6 +494,9 @@ export default Vue.extend({
           kbId: this.kbId || null,
           model: this.model || null,
         })
+        if (this.pageDestroyed) {
+          return
+        }
         const payload = res.data?.data || {}
         this.currentTaskId = payload.taskId || taskId
         this.sessionId = payload.sessionId || this.sessionId
@@ -501,8 +520,7 @@ export default Vue.extend({
             ? `${assistant.content}\n\n（已停止生成）`
             : '已停止生成。'
         } else {
-          assistant.content = '抱歉，请求暂时失败，请稍后重试。'
-          this.$message.error('AI 服务请求失败')
+          this.applyStreamFailure(assistant)
         }
       } finally {
         assistant.streaming = false
@@ -511,6 +529,18 @@ export default Vue.extend({
         this.currentTaskId = ''
         this.streamController = null
       }
+    },
+    applyStreamFailure(assistant: ChatMessage) {
+      if (assistant.content) {
+        const message = '连接恢复失败，已保留当前内容，可重新进入会话查看。'
+        if (!assistant.content.includes(message)) {
+          assistant.content = `${assistant.content}\n\n${message}`
+        }
+        this.$message.error('AI 服务连接恢复失败')
+        return
+      }
+      assistant.content = '抱歉，请求暂时失败，请稍后重试。'
+      this.$message.error('AI 服务请求失败')
     },
     async stopGeneration() {
       if (!this.running || this.cancelling) {
@@ -532,76 +562,93 @@ export default Vue.extend({
         this.cancelling = false
       }
     },
-    async consumeEvents(taskId: string, assistant: ChatMessage, signal: AbortSignal) {
+    applyAgentEvent(event: AgentStreamEnvelope, assistant: ChatMessage) {
+      const body: any = event.data || {}
+      this.streamStatus = '正在思考...'
+      const text =
+        body.content ||
+        body.delta ||
+        body.token ||
+        body.text ||
+        (event.event === 'task_end' ? body.result : '') ||
+        (typeof body === 'string' ? body : '')
+      if (text && !(event.event === 'task_end' && assistant.content)) {
+        assistant.content += text
+      }
+      if (event.event === 'task_end') {
+        assistant.citations = (body.citations || []).map(this.normalizeCitation)
+      }
+      if (event.event === 'tool_confirmation_required') {
+        assistant.confirmation = {
+          id: body.confirmation_id,
+          summary: body.summary || '执行业务状态修改',
+          expiresAt: body.expires_at,
+          processing: false,
+          decided: false,
+          decision: '',
+        }
+      }
+      if (event.event === 'task_error') {
+        const errorMessage = body.error_msg || body.message || '任务执行失败'
+        assistant.content = assistant.content
+          ? `${assistant.content}\n\n（${errorMessage}）`
+          : errorMessage
+      }
+      if (event.event === 'task_cancelled') {
+        assistant.content = assistant.content
+          ? `${assistant.content}\n\n（已停止生成）`
+          : '已停止生成。'
+      }
+      this.$nextTick(this.scrollToBottom)
+    },
+    async getAgentTaskStatus(taskId: string) {
+      const response: any = await getAgentTask(taskId)
+      return Number(response.data?.data?.status)
+    },
+    async consumeEvents(
+      taskId: string,
+      assistant: ChatMessage,
+      signal: AbortSignal,
+      dependencies: AgentStreamDependencies = {}
+    ) {
       if (!taskId) {
         return
       }
-      const base = process.env.VUE_APP_BASE_API || '/api'
-      const response = await fetch(`${base}/agent/tasks/${taskId}/events`, {
-        headers: { token: UserModule.token, Accept: 'text/event-stream' },
+      let receivedTerminalEvent = false
+      const result = await consumeAgentEventStream(
+        taskId,
+        UserModule.token,
         signal,
-      })
-      if (!response.ok || !response.body) {
-        throw new Error('SSE unavailable')
-      }
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      while (true) {
-        const chunk = await reader.read()
-        if (chunk.done) {
-          break
-        }
-        buffer += decoder.decode(chunk.value, { stream: true })
-        const parts = buffer.split('\n\n')
-        buffer = parts.pop() || ''
-        parts.forEach((part: string) => {
-          const data = part
-            .split('\n')
-            .filter((line) => line.indexOf('data:') === 0)
-            .map((line) => line.slice(5).trim())
-            .join('')
-          if (!data) {
-            return
-          }
-          try {
-            const event: any = JSON.parse(data)
-            const body = event.data || {}
-            const text =
-              body.content ||
-              body.delta ||
-              body.token ||
-              body.text ||
-              (event.event === 'task_end' ? body.result : '') ||
-              (typeof body === 'string' ? body : '')
-            if (text && !(event.event === 'task_end' && assistant.content)) {
-              assistant.content += text
+        {
+          onEvent: (event) => {
+            this.applyAgentEvent(event, assistant)
+            receivedTerminalEvent = [
+              'task_end',
+              'task_error',
+              'task_cancelled',
+            ].includes(event.event) || receivedTerminalEvent
+          },
+          getTaskStatus: (id) => this.getAgentTaskStatus(id),
+          onReconnect: (attempt, maxAttempts) => {
+            this.streamStatus = `连接中断，正在恢复（${attempt}/${maxAttempts}）...`
+          },
+          onBackground: () => {
+            const message = '任务仍在后台执行，可重新进入会话查看。'
+            if (!assistant.content.includes(message)) {
+              assistant.content = assistant.content
+                ? `${assistant.content}\n\n${message}`
+                : message
             }
-            if (event.event === 'task_end') {
-              assistant.citations = (body.citations || []).map(
-                this.normalizeCitation
-              )
-            }
-            if (event.event === 'tool_confirmation_required') {
-              assistant.confirmation = {
-                id: body.confirmation_id,
-                summary: body.summary || '执行业务状态修改',
-                expiresAt: body.expires_at,
-                processing: false,
-                decided: false,
-                decision: '',
-              }
-            }
-            if (event.event === 'task_error') {
-              assistant.content =
-                body.error_msg || body.message || '任务执行失败'
-            }
+            this.streamStatus = message
             this.$nextTick(this.scrollToBottom)
-          } catch (_) {
-            /* ignore keep-alive frames */
-          }
-        })
+          },
+        },
+        dependencies
+      )
+      if (result.terminal && !receivedTerminalEvent && this.sessionId) {
+        await this.openSession(this.sessionId)
       }
+      return result
     },
     async decideTool(message: ChatMessage, approved: boolean) {
       const confirmation = message.confirmation
