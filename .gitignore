@@ -7,6 +7,7 @@
 *.pyc
 /.env
 /build/
+/.worktrees/
 sky-embedding/models/
 sky-embedding/.cache/
 sky-agent/data/
