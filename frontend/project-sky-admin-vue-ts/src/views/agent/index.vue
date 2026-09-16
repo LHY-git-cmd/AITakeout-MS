@@ -208,6 +208,15 @@
                 {{ message.confirmation.decision }}
               </div>
             </section>
+            <section
+              v-if="message.failure"
+              class="agent-error-recovery"
+              role="alert"
+            >
+              <strong>{{ message.failure.message }}</strong>
+              <p>{{ message.failure.action }}</p>
+              <small v-if="message.failure.taskId">任务 ID：{{ message.failure.taskId }}</small>
+            </section>
             <div
               v-if="message.citations && message.citations.length"
               class="citations"
@@ -282,6 +291,10 @@ import {
   type AgentStreamDependencies,
   type AgentStreamEnvelope,
 } from '@/utils/agentSse'
+import {
+  normalizeAgentError,
+  type AgentErrorPresentation,
+} from '@/utils/agentErrors'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -289,6 +302,7 @@ interface ChatMessage {
   streaming?: boolean
   citations?: any[]
   confirmation?: any
+  failure?: AgentErrorPresentation
 }
 
 type AgentHealthStatus = 'online' | 'degraded' | 'offline' | 'unknown'
@@ -548,6 +562,7 @@ export default Vue.extend({
           window.crypto && window.crypto.randomUUID
             ? window.crypto.randomUUID()
             : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+        this.currentTaskId = taskId
         const res: any = await submitAgentTask({
           taskId,
           query,
@@ -581,7 +596,7 @@ export default Vue.extend({
             ? `${assistant.content}\n\n（已停止生成）`
             : '已停止生成。'
         } else {
-          this.applyStreamFailure(assistant)
+          this.applyStreamFailure(assistant, error, this.currentTaskId)
         }
       } finally {
         assistant.streaming = false
@@ -591,17 +606,10 @@ export default Vue.extend({
         this.streamController = null
       }
     },
-    applyStreamFailure(assistant: ChatMessage) {
-      if (assistant.content) {
-        const message = '连接恢复失败，已保留当前内容，可重新进入会话查看。'
-        if (!assistant.content.includes(message)) {
-          assistant.content = `${assistant.content}\n\n${message}`
-        }
-        this.$message.error('AI 服务连接恢复失败')
-        return
-      }
-      assistant.content = '抱歉，请求暂时失败，请稍后重试。'
-      this.$message.error('AI 服务请求失败')
+    applyStreamFailure(assistant: ChatMessage, error?: any, taskId?: string) {
+      const failure = normalizeAgentError(error || { code: 'ERR_NETWORK', request: {} }, taskId)
+      assistant.failure = failure
+      this.$message.error(failure.message)
     },
     async stopGeneration() {
       if (!this.running || this.cancelling) {
@@ -650,10 +658,7 @@ export default Vue.extend({
         }
       }
       if (event.event === 'task_error') {
-        const errorMessage = body.error_msg || body.message || '任务执行失败'
-        assistant.content = assistant.content
-          ? `${assistant.content}\n\n（${errorMessage}）`
-          : errorMessage
+        assistant.failure = normalizeAgentError({ response: { data: body } }, event.taskId)
       }
       if (event.event === 'task_cancelled') {
         assistant.content = assistant.content
@@ -722,12 +727,9 @@ export default Vue.extend({
         confirmation.decision = approved ? '已确认，正在执行…' : '已拒绝，本次操作不会执行。'
         this.$message.success(approved ? '操作已确认' : '操作已拒绝')
       } catch (error) {
-        const value: any = error
-        const message = value && value.response && value.response.data
-          ? value.response.data.msg
-          : ''
-        confirmation.decision = message || '确认状态提交失败，请重试。'
-        if (message && (message.indexOf('已过期') >= 0 || message.indexOf('已处理') >= 0)) {
+        const failure = normalizeAgentError(error)
+        confirmation.decision = `${failure.message}，${failure.action}`
+        if (failure.kind === 'confirmationExpired') {
           confirmation.decided = true
         }
         this.$message.error(confirmation.decision)
@@ -990,6 +992,24 @@ export default Vue.extend({
   margin-right: 7px;
   border-radius: 50%;
   background: #26b57a;
+}
+
+.agent-error-recovery {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #f5c2c7;
+  border-radius: 8px;
+  background: #fff8f8;
+  color: #442326;
+}
+
+.agent-error-recovery p {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+.agent-error-recovery small {
+  color: #667085;
 }
 .status-dot.status-degraded { background: #d99a24; }
 .status-dot.status-offline { background: #d9534f; }

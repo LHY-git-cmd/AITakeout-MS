@@ -1,6 +1,6 @@
 import AgentPage from '@/views/agent/index.vue'
 import type { AgentStreamEnvelope } from '@/utils/agentSse'
-import { getAgentHealth, submitAgentTask } from '@/api/agent'
+import { confirmAgentTool, getAgentHealth, submitAgentTask } from '@/api/agent'
 import { TextDecoder, TextEncoder } from 'util'
 
 jest.mock('@/api/agent', () => ({
@@ -235,8 +235,12 @@ describe('AgentPage stream events', () => {
       data: { error_msg: '模型连接中断' },
     }, assistant)
 
-    expect(assistant.content).toContain('已经收到的部分内容')
-    expect(assistant.content).toContain('模型连接中断')
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure).toMatchObject({
+      kind: 'unknown',
+      message: '请求未完成',
+      taskId: 'task-1',
+    })
   })
 
   it('uses the reliable stream client to resume and render the final answer', async() => {
@@ -353,9 +357,74 @@ describe('AgentPage stream events', () => {
 
     methods.applyStreamFailure.call(context, assistant)
 
-    expect(assistant.content).toContain('已经收到的部分内容')
-    expect(assistant.content).toContain('连接恢复失败')
-    expect(context.$message.error).toHaveBeenCalledWith('AI 服务连接恢复失败')
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure).toMatchObject({
+      kind: 'network',
+      message: '连接中断，正在恢复',
+    })
+    expect(context.$message.error).toHaveBeenCalledWith('连接中断，正在恢复')
+  })
+
+  it('keeps received tokens and presents a safe recovery action for submit errors', () => {
+    const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '已经收到的部分内容',
+      citations: [],
+    }
+    const context = {
+      $message: { error: jest.fn() },
+    }
+
+    methods.applyStreamFailure.call(context, assistant, {
+      response: {
+        status: 429,
+        data: { message: 'http://internal/queue?token=secret' },
+      },
+    }, 'task-1')
+
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure).toEqual({
+      kind: 'busy',
+      message: 'Agent 当前繁忙',
+      action: '稍后重试，不会自动重提原任务',
+      retryable: true,
+      taskId: 'task-1',
+    })
+    expect(JSON.stringify(assistant.failure)).not.toContain('secret')
+    expect(context.$message.error).toHaveBeenCalledWith('Agent 当前繁忙')
+  })
+
+  it('uses the safe expired-confirmation recovery instead of a backend error message', async() => {
+    const methods = agentMethods()
+    ;(confirmAgentTool as jest.Mock).mockRejectedValueOnce({
+      response: {
+        status: 409,
+        data: {
+          errorType: 'CONFIRMATION_EXPIRED',
+          message: 'java.lang.IllegalStateException at http://internal?token=secret',
+        },
+      },
+    })
+    const message: any = {
+      confirmation: {
+        id: 'confirmation-1',
+        processing: false,
+        decided: false,
+        decision: '',
+      },
+    }
+    const context = { $message: { error: jest.fn(), success: jest.fn() } }
+
+    await methods.decideTool.call(context, message, true)
+
+    expect(message.confirmation).toMatchObject({
+      processing: false,
+      decided: true,
+      decision: '操作确认已过期，重新发起原业务请求',
+    })
+    expect(message.confirmation.decision).not.toContain('secret')
+    expect(context.$message.error).toHaveBeenCalledWith('操作确认已过期，重新发起原业务请求')
   })
 
   it('closes only the local stream when the page is destroyed', () => {
