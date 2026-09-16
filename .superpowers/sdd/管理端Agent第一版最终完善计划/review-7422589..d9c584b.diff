@@ -1,0 +1,179 @@
+d9c584b feat: add compose acceptance workflow
+ scripts/run-agent-v1-acceptance.ps1                | 48 ++++++++++++++++------
+ ...225\205\351\232\234\345\244\204\347\220\206.md" |  2 +-
+ ...252\214\346\224\266\350\256\260\345\275\225.md" |  2 +-
+ 3 files changed, 38 insertions(+), 14 deletions(-)
+diff --git a/scripts/run-agent-v1-acceptance.ps1 b/scripts/run-agent-v1-acceptance.ps1
+index 7a66615..927e70e 100644
+--- a/scripts/run-agent-v1-acceptance.ps1
++++ b/scripts/run-agent-v1-acceptance.ps1
+@@ -60,20 +60,20 @@ function Test-HttpReady {
+             Add-Check $Name 'PASS' ("HTTP {0}" -f $response.StatusCode)
+         } else { Add-Check $Name 'FAIL' ("HTTP {0}" -f $response.StatusCode) }
+     } catch { Add-Check $Name 'FAIL' 'endpoint unavailable or returned a non-success status' }
+ }
+ 
+ function Get-ContainerTokenHash([string]$Service) {
+     $composePrefix = @('--project-name', $ProjectName)
+     foreach ($file in $ComposeFile) { $composePrefix += @('--file', (Join-Path $projectRoot $file)) }
+-    $lines = & docker compose @composePrefix ps -q $Service 2>$null
+-    $containerId = ($lines | Select-Object -Last 1).Trim()
++    try { $lines = & docker compose @composePrefix ps -q $Service 2>$null } catch { return $null }
++    $containerId = (($lines | Select-Object -Last 1) | Out-String).Trim()
+     if (-not $containerId) { return $null }
+-    $envLines = & docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' $containerId 2>$null
++    try { $envLines = & docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' $containerId 2>$null } catch { return $null }
+     $entry = $envLines | Where-Object { $_ -like 'AGENT_INTERNAL_SERVICE_TOKEN=*' } | Select-Object -First 1
+     if (-not $entry) { return $null }
+     $token = $entry.Substring('AGENT_INTERNAL_SERVICE_TOKEN='.Length)
+     $bytes = [Text.Encoding]::UTF8.GetBytes($token)
+     return ([BitConverter]::ToString(([Security.Cryptography.SHA256]::Create()).ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
+ }
+ 
+ $checks = @(); $failed = $false; $createdIds = @(); $scenarioStatuses = @(); $tokenHashExpected = $null
+@@ -102,17 +102,18 @@ try {
+             } else { Add-Check 'internal-token-consistency' 'FAIL' 'token hash missing or inconsistent; secret value was not printed' }
+         }
+     } else { Add-Check 'compose-up' 'NOT_RUN' 'NoStart was specified' }
+ 
+     $psCode = Invoke-Compose @('ps')
+     Add-Check 'compose-ps' ($(if ($psCode -eq 0) { 'PASS' } else { 'FAIL' })) 'Container status command completed'
+     if (-not $NoStart -and $psCode -eq 0) {
+         [void](Invoke-Compose @('ps', '--format', 'json'))
+-        $rows = @($lastComposeOutput | ConvertFrom-Json)
++        try { $rows = @($lastComposeOutput | ConvertFrom-Json) }
++        catch { Add-Check 'compose-ps-json' 'FAIL' 'docker compose ps JSON output could not be parsed'; $rows = @() }
+         $required = @('mysql', 'redis', 'qdrant', 'sky-embedding', 'sky-agent', 'sky-server')
+         foreach ($service in $required) {
+             $row = $rows | Where-Object { $_.Service -eq $service -or $_.Name -like "*$service*" } | Select-Object -First 1
+             $health = if ($row) { [string]$row.Health } else { '' }
+             if ($health -eq 'healthy') { Add-Check ("health-$service") 'PASS' 'container reports healthy' }
+             else { Add-Check ("health-$service") 'FAIL' ("expected healthy, observed '{0}'" -f $health) }
+         }
+         Test-HttpReady 'server-readiness' "$ServerBaseUrl/actuator/health/readiness"
+@@ -123,48 +124,71 @@ try {
+ 
+     $scenarioIds = 1..12 | ForEach-Object { 'E2E-{0:D2}' -f $_ }
+     if ($ScenarioRunner) {
+         $runnerPath = (Resolve-Path $ScenarioRunner).Path
+         $runnerReport = Join-Path $reportDirectory ("{0}-scenarios.json" -f $BatchId)
+         & pwsh -NoProfile -File $runnerPath -BatchId $BatchId -Prefix $BatchId -OutputPath $runnerReport
+         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $runnerReport)) { Add-Check 'scenario-runner' 'FAIL' 'scenario runner failed or did not produce a report' }
+         else {
+-            $scenarioData = Get-Content -Raw $runnerReport | ConvertFrom-Json
+-            $scenarioStatuses = @($scenarioData.scenarios)
+-            $createdIds = @($scenarioData.created_ids)
++            try {
++                $scenarioData = Get-Content -Raw $runnerReport | ConvertFrom-Json
++                $scenarioStatuses = @($scenarioData.scenarios)
++                $createdIds = @($scenarioData.created_ids)
++            } catch {
++                Add-Check 'scenario-schema' 'FAIL' 'scenario runner report is not valid JSON'; $scenarioStatuses = @(); $createdIds = @()
++            }
+             $invalid = @($createdIds | Where-Object { $_ -notlike "$BatchId*" })
+             if ($invalid.Count -gt 0) { Add-Check 'created-data-prefix' 'FAIL' 'runner returned an ID outside the fixed batch prefix' }
+             else { Add-Check 'created-data-prefix' 'PASS' 'all created IDs use the fixed batch prefix' }
+             $expectedSet = @($scenarioIds)
+             $actualIds = @($scenarioStatuses | ForEach-Object { $_.id })
+             $missing = @($expectedSet | Where-Object { $_ -notin $actualIds })
+             $unexpected = @($actualIds | Where-Object { $_ -notin $expectedSet })
+             $duplicates = @($actualIds | Group-Object | Where-Object { $_.Count -gt 1 })
+             if ($missing.Count -gt 0 -or $unexpected.Count -gt 0 -or $duplicates.Count -gt 0) {
+                 Add-Check 'scenario-completeness' 'FAIL' 'runner must return exactly one result for each E2E-01..E2E-12'
+             } else { Add-Check 'scenario-completeness' 'PASS' 'exactly 12 scenario results were returned' }
++            $requiredFields = @('status', 'evidence', 'task_id', 'session_id', 'admin_role', 'event_sequence', 'final_state')
++            foreach ($scenario in $scenarioStatuses) {
++                if ([string]$scenario.status -ne 'PASS') { continue }
++                $missingFields = @($requiredFields | Where-Object {
++                    $property = $scenario.PSObject.Properties[$_]
++                    if ($null -eq $property -or $null -eq $property.Value) { return $true }
++                    if ($property.Value -is [string]) { return [string]::IsNullOrWhiteSpace($property.Value) }
++                    if ($property.Value -is [System.Collections.IDictionary]) { return $property.Value.Count -eq 0 }
++                    if ($property.Value -is [pscustomobject]) { return @($property.Value.PSObject.Properties).Count -eq 0 }
++                    return $false
++                })
++                if ($missingFields.Count -gt 0) {
++                    Add-Check ("scenario-evidence-$($scenario.id)") 'FAIL' ("PASS scenario is missing evidence fields: {0}" -f ($missingFields -join ', '))
++                }
++            }
+         }
+     } else {
+         foreach ($id in $scenarioIds) { $scenarioStatuses += [ordered]@{ id = $id; status = 'NOT_RUN'; evidence = $null; note = 'No ScenarioRunner was supplied; user execution required' } }
+         Add-Check 'application-scenarios' 'NOT_RUN' '12 E2E scenarios were not executed; no pass is inferred'
+     }
+ 
+     if ($CleanupRunner -and $createdIds.Count -gt 0) {
+         $manifest = Join-Path $reportDirectory ("{0}-cleanup-manifest.json" -f $BatchId)
+         $cleanupReport = Join-Path $reportDirectory ("{0}-cleanup.json" -f $BatchId)
+         @{ batch_id = $BatchId; prefix = $BatchId; created_ids = $createdIds } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 $manifest
+         & pwsh -NoProfile -File (Resolve-Path $CleanupRunner).Path -ManifestPath $manifest -Prefix $BatchId -OutputPath $cleanupReport
+         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $cleanupReport)) { Add-Check 'cleanup' 'FAIL' 'cleanup runner failed or did not produce evidence' }
+         else {
+-            $cleanupData = Get-Content -Raw $cleanupReport | ConvertFrom-Json
+-            $deletedIds = @($cleanupData.deleted_ids)
+-            $invalidDeletes = @($deletedIds | Where-Object { $_ -notin $createdIds })
+-            if ($invalidDeletes.Count -gt 0) { Add-Check 'cleanup' 'FAIL' 'cleanup reported an ID outside the exact creation manifest' }
+-            else { Add-Check 'cleanup' 'PASS' 'cleanup runner completed against the exact manifest IDs' }
++            try {
++                $cleanupData = Get-Content -Raw $cleanupReport | ConvertFrom-Json
++                $deletedIds = @($cleanupData.deleted_ids)
++                $createdUnique = @($createdIds | Sort-Object -Unique)
++                $deletedUnique = @($deletedIds | Sort-Object -Unique)
++                $sameSet = ($createdUnique.Count -gt 0 -and $createdUnique.Count -eq $deletedUnique.Count -and (@(Compare-Object $createdUnique $deletedUnique).Count -eq 0) -and $deletedIds.Count -eq $deletedUnique.Count)
++                if (-not $sameSet) { Add-Check 'cleanup' 'FAIL' 'deleted_ids must exactly equal the unique created_ids set' }
++                else { Add-Check 'cleanup' 'PASS' 'cleanup runner completed against exactly the created IDs' }
++            } catch { Add-Check 'cleanup' 'FAIL' 'cleanup report is not valid JSON or lacks deleted_ids' }
+         }
+     } elseif ($createdIds.Count -eq 0) { Add-Check 'cleanup' 'NOT_RUN' 'no created IDs were reported; nothing was deleted' }
+     else { Add-Check 'cleanup' 'BLOCKED' 'created IDs exist but no CleanupRunner was supplied' }
+ }
+ finally {
+     if ($StopAfter -and -not $NoStart) { [void](Invoke-Compose @('stop')) }
+     Pop-Location
+ }
+diff --git "a/\351\241\271\347\233\256\346\226\207\346\241\243/\346\250\241\345\235\227\344\270\203-\351\203\250\347\275\262\350\277\220\347\273\264\344\270\216\346\225\205\351\232\234\345\244\204\347\220\206.md" "b/\351\241\271\347\233\256\346\226\207\346\241\243/\346\250\241\345\235\227\344\270\203-\351\203\250\347\275\262\350\277\220\347\273\264\344\270\216\346\225\205\351\232\234\345\244\204\347\220\206.md"
+index 42fef00..bb01d98 100644
+--- "a/\351\241\271\347\233\256\346\226\207\346\241\243/\346\250\241\345\235\227\344\270\203-\351\203\250\347\275\262\350\277\220\347\273\264\344\270\216\346\225\205\351\232\234\345\244\204\347\220\206.md"
++++ "b/\351\241\271\347\233\256\346\226\207\346\241\243/\346\250\241\345\235\227\344\270\203-\351\203\250\347\275\262\350\277\220\347\273\264\344\270\216\346\225\205\351\232\234\345\244\204\347\220\206.md"
+@@ -286,17 +286,17 @@ compose config --quiet、（默认）up -d --build、ps、必需服务健康检
+   -Output build/reports/agent-v1-acceptance.json
+ 
+ # 显式传入场景执行器时，执行器必须输出 scenarios、created_ids 字段
+ # 且所有 created_ids 都以脚本传入的 agent-v1-acceptance-<批次> 前缀开头。
+ .\scripts\run-agent-v1-acceptance.ps1 -ScenarioRunner .\path\to\scenario-runner.ps1 `
+   -CleanupRunner .\path\to\cleanup-runner.ps1
+ ```
+ 
+-脚本无 ScenarioRunner 时会为 E2E-01 至 E2E-12 写入 NOT_RUN，并以退出码 2 结束；这表示“尚未验收”，不是通过。场景执行器必须只创建固定批次前缀的数据，并返回本批次创建的精确 ID。清理执行器只能接收脚本生成的 manifest，对这些精确 ID 执行删除，不得使用全表删除、模糊前缀删除、清空集合或删除卷。发生阻塞、依赖不可用或未提供清理执行器时，报告必须保留 BLOCKED/NOT_RUN，不能改写成通过。
++脚本无 ScenarioRunner 时会为 E2E-01 至 E2E-12 写入 NOT_RUN，并以退出码 2 结束；这表示“尚未验收”，不是通过。场景执行器必须只创建固定批次前缀的数据，并返回本批次创建的精确 ID。每个 PASS 场景还必须提供 status、evidence、task_id、session_id、admin_role、event_sequence 和 final_state 等非空证据字段；空对象不得视为通过。清理执行器只能接收脚本生成的 manifest，对这些精确 ID 执行删除，不得使用全表删除、模糊前缀删除、清空集合或删除卷。发生阻塞、依赖不可用或未提供清理执行器时，报告必须保留 BLOCKED/NOT_RUN，不能改写成通过。
+ 
+ 退出码约定：
+ 
+ | 代码 | 含义 |
+ | ---: | --- |
+ | 0 | 配置、服务健康及所有已声明场景均通过 |
+ | 1 | 配置、健康、令牌一致性或数据安全校验失败 |
+ | 2 | 存在 BLOCKED/NOT_RUN，验收尚未完成 |
+diff --git "a/\351\241\271\347\233\256\346\226\207\346\241\243/\347\256\241\347\220\206\347\253\257Agent\347\254\254\344\270\200\347\211\210\351\252\214\346\224\266\350\256\260\345\275\225.md" "b/\351\241\271\347\233\256\346\226\207\346\241\243/\347\256\241\347\220\206\347\253\257Agent\347\254\254\344\270\200\347\211\210\351\252\214\346\224\266\350\256\260\345\275\225.md"
+index 6424d17..8b0c184 100644
+--- "a/\351\241\271\347\233\256\346\226\207\346\241\243/\347\256\241\347\220\206\347\253\257Agent\347\254\254\344\270\200\347\211\210\351\252\214\346\224\266\350\256\260\345\275\225.md"
++++ "b/\351\241\271\347\233\256\346\226\207\346\241\243/\347\256\241\347\220\206\347\253\257Agent\347\254\254\344\270\200\347\211\210\351\252\214\346\224\266\350\256\260\345\275\225.md"
+@@ -161,17 +161,17 @@
+ #### 模块七执行约定
+ 
+ 使用 scripts/run-agent-v1-acceptance.ps1 生成本批次的 JSON 证据。脚本会先记录 Compose
+ config/up/ps、容器健康、四个 readiness 端点和 AGENT_INTERNAL_SERVICE_TOKEN 哈希一致性。
+ 未提供场景执行器时，E2E-01 至 E2E-12 必须保持“未执行”，脚本退出码为 2，不得据此宣称通过。
+ 
+ 场景执行器只能创建带批次前缀 agent-v1-acceptance-<批次> 的隔离数据，并在输出中列出
+ created_ids、任务/会话/管理员、事件序列和 Java/MySQL 最终状态。清理时只允许将该清单
+-传给精确 ID 清理流程；禁止全表删除、按模糊条件删除、清空 Qdrant 集合或删除 Docker 卷。
++传给精确 ID 清理流程；deleted_ids 去重后必须与 created_ids 集合完全相等；禁止全表删除、按模糊条件删除、清空 Qdrant 集合或删除 Docker 卷。
+ 
+ 每个 E2E 场景还应记录：请求时间线、SSE 最后序号与 Last-Event-ID、确认凭证及审计记录、
+ 故障注入和恢复时间、页面提示截图或脱敏接口响应。失败或环境不可用必须记录为“失败”或
+ “阻塞”，并附证据路径和下一步，不得改成“有条件通过”。
+ 
+ ### 5.7 模块八：文档收口
+ 
+ | 场景 ID | 场景 | 固定预期 | 状态 | 证据路径 |

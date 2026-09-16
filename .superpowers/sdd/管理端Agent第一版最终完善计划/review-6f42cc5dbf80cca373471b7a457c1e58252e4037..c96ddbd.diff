@@ -1,0 +1,326 @@
+c96ddbd feat: add compose acceptance workflow
+ .env.example                                       |  10 ++
+ scripts/run-agent-v1-acceptance.ps1                | 173 +++++++++++++++++++++
+ ...225\205\351\232\234\345\244\204\347\220\206.md" |  47 ++++--
+ ...252\214\346\224\266\350\256\260\345\275\225.md" |  14 ++
+ 4 files changed, 235 insertions(+), 9 deletions(-)
+diff --git a/.env.example b/.env.example
+index 028ada7..b9493f7 100644
+--- a/.env.example
++++ b/.env.example
+@@ -1,25 +1,35 @@
+ # Copy to .env for local development only. Never commit .env or real secrets.
+ 
+ # Runtime / profile
+ SPRING_PROFILES_ACTIVE=dev
+ APP_ENV=development
+ LOG_LEVEL=INFO
+ 
+ # sky-server -> sky-agent
+ AGENT_BASE_URL=http://localhost:8000
+ JAVA_INTERNAL_BASE_URL=http://localhost:8080
++# Must be the same random value (at least 32 characters) in sky-server and sky-agent.
++# The Compose acceptance script compares hashes only and never prints this value.
+ AGENT_INTERNAL_SERVICE_TOKEN=replace-with-random-agent-service-token-at-least-32-chars
+ TOOL_CONFIRMATION_TIMEOUT_SECONDS=300
+ AI_ENABLED=false
+ CORS_ALLOWED_ORIGINS=http://localhost:9528,http://localhost:8081
+ 
++# Compose acceptance defaults; these are identifiers/URLs, not secrets.
++AGENT_ACCEPTANCE_PROJECT_NAME=sky-take-out
++AGENT_ACCEPTANCE_DATA_PREFIX=agent-v1-acceptance-
++AGENT_ACCEPTANCE_SERVER_URL=http://127.0.0.1:8080
++AGENT_ACCEPTANCE_AGENT_URL=http://127.0.0.1:8000
++AGENT_ACCEPTANCE_EMBEDDING_URL=http://127.0.0.1:8001
++AGENT_ACCEPTANCE_QDRANT_URL=http://127.0.0.1:6333
++
+ # MySQL
+ DB_DRIVER_CLASS_NAME=com.mysql.cj.jdbc.Driver
+ DB_HOST=localhost
+ DB_PORT=3306
+ DB_NAME=sky_take_out
+ DB_USERNAME=replace-with-database-user
+ DB_PASSWORD=replace-with-database-password
+ MYSQL_DATABASE=sky_take_out
+ MYSQL_USER=replace-with-database-user
+ MYSQL_PASSWORD=replace-with-database-password
+diff --git a/scripts/run-agent-v1-acceptance.ps1 b/scripts/run-agent-v1-acceptance.ps1
+new file mode 100644
+index 0000000..92d394e
+--- /dev/null
++++ b/scripts/run-agent-v1-acceptance.ps1
+@@ -0,0 +1,173 @@
++<#
++.SYNOPSIS
++执行管理端 Agent 第一版的单机 Docker Compose 验收预检和可选应用场景入口。
++.DESCRIPTION
++用途：审计 Compose 配置、启动服务、检查容器健康状态、依赖 readiness 和内部服务令牌一致性，
++      并为 12 类端到端场景保留可追踪的 PASS/BLOCKED/NOT_RUN 记录。
++输入：Compose 文件、项目名、服务地址、可选场景执行器和清理执行器参数；不接收或打印密钥正文。
++输出：JSON 证据报告（默认 build/reports/agent-v1-acceptance-<批次>.json）及控制台摘要。
++外部调用：docker compose config/up/ps/inspect；可选 Invoke-WebRequest 健康检查；
++          场景执行器和清理执行器仅在显式传入时调用。
++安全约束：脚本只允许测试数据使用固定前缀；清理执行器必须返回本批次精确 ID 的子集。
++          禁止 docker compose down -v、删除数据库、删除 Qdrant 集合或删除命名卷。
++退出码：0=配置、服务健康且所有场景通过；1=预检/健康/安全校验失败；2=存在 BLOCKED 或 NOT_RUN，验收未完成。
++#>
++[CmdletBinding()]
++param(
++    [string[]]$ComposeFile = @('compose.yml'),
++    [string]$ProjectName = 'sky-take-out',
++    [string]$BatchId,
++    [string]$Output,
++    [string]$ServerBaseUrl = 'http://127.0.0.1:8080',
++    [string]$AgentBaseUrl = 'http://127.0.0.1:8000',
++    [string]$EmbeddingBaseUrl = 'http://127.0.0.1:8001',
++    [string]$QdrantBaseUrl = 'http://127.0.0.1:6333',
++    [string]$ScenarioRunner,
++    [string]$CleanupRunner,
++    [switch]$NoStart,
++    [switch]$StopAfter
++)
++
++$ErrorActionPreference = 'Stop'
++$projectRoot = Split-Path -Parent $PSScriptRoot
++if (-not $BatchId) { $BatchId = 'agent-v1-acceptance-' + (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss') }
++if ($BatchId -notmatch '^agent-v1-acceptance-[A-Za-z0-9-]+$') { throw 'BatchId must use the fixed agent-v1-acceptance- prefix' }
++if (-not $Output) { $Output = Join-Path $projectRoot ("build/reports/{0}.json" -f $BatchId) }
++if (-not [IO.Path]::IsPathRooted($Output)) { $Output = Join-Path $projectRoot $Output }
++$reportDirectory = Split-Path -Parent $Output
++New-Item -ItemType Directory -Force -Path $reportDirectory | Out-Null
++
++function Invoke-Compose {
++    param([string[]]$Arguments)
++    $args = @('--project-name', $ProjectName)
++    foreach ($file in $ComposeFile) { $args += @('--file', (Join-Path $projectRoot $file)) }
++    $args += $Arguments
++    $script:lastComposeOutput = @(& docker compose @args 2>&1)
++    return $LASTEXITCODE
++}
++
++function Add-Check {
++    param([string]$Name, [string]$Status, [string]$Detail)
++    $script:checks += [ordered]@{ name = $Name; status = $Status; detail = $Detail }
++    if ($Status -eq 'FAIL') { $script:failed = $true }
++}
++
++function Test-HttpReady {
++    param([string]$Name, [string]$Url)
++    try {
++        $response = Invoke-WebRequest -Uri $Url -Method Get -TimeoutSec 10 -UseBasicParsing
++        if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
++            Add-Check $Name 'PASS' ("HTTP {0}" -f $response.StatusCode)
++        } else { Add-Check $Name 'FAIL' ("HTTP {0}" -f $response.StatusCode) }
++    } catch { Add-Check $Name 'FAIL' 'endpoint unavailable or returned a non-success status' }
++}
++
++function Get-ContainerTokenHash([string]$Service) {
++    $composePrefix = @('--project-name', $ProjectName)
++    foreach ($file in $ComposeFile) { $composePrefix += @('--file', (Join-Path $projectRoot $file)) }
++    $lines = & docker compose @composePrefix ps -q $Service 2>$null
++    $containerId = ($lines | Select-Object -Last 1).Trim()
++    if (-not $containerId) { return $null }
++    $envLines = & docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' $containerId 2>$null
++    $entry = $envLines | Where-Object { $_ -like 'AGENT_INTERNAL_SERVICE_TOKEN=*' } | Select-Object -First 1
++    if (-not $entry) { return $null }
++    $token = $entry.Substring('AGENT_INTERNAL_SERVICE_TOKEN='.Length)
++    $bytes = [Text.Encoding]::UTF8.GetBytes($token)
++    return ([BitConverter]::ToString(([Security.Cryptography.SHA256]::Create()).ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
++}
++
++$checks = @(); $failed = $false; $createdIds = @(); $scenarioStatuses = @(); $tokenHashExpected = $null
++Push-Location $projectRoot
++try {
++    $configCode = Invoke-Compose @('config', '--quiet')
++    Add-Check 'compose-config' ($(if ($configCode -eq 0) { 'PASS' } else { 'FAIL' })) 'Compose configuration parsed without rendering secrets'
++
++    $envPath = Join-Path $projectRoot '.env'
++    $tokenEntry = if (Test-Path $envPath) { Get-Content $envPath | Where-Object { $_ -match '^AGENT_INTERNAL_SERVICE_TOKEN=' } | Select-Object -First 1 } else { $null }
++    $token = if ($tokenEntry) { $tokenEntry.Substring('AGENT_INTERNAL_SERVICE_TOKEN='.Length).Trim() } else { '' }
++    if ($token.Length -ge 32 -and $token -notmatch 'replace-with|change-me') {
++        $localHash = ([BitConverter]::ToString(([Security.Cryptography.SHA256]::Create()).ComputeHash([Text.Encoding]::UTF8.GetBytes($token)))).Replace('-', '').ToLowerInvariant()
++        Add-Check 'internal-token-configured' 'PASS' 'token length and placeholder checks passed; value not recorded'
++        if (-not $NoStart) { $tokenHashExpected = $localHash }
++        else { Add-Check 'internal-token-consistency' 'NOT_RUN' 'NoStart was specified' }
++    } else { Add-Check 'internal-token-configured' 'FAIL' 'AGENT_INTERNAL_SERVICE_TOKEN is missing, too short, or still a placeholder' }
++
++    if (-not $NoStart) {
++        $upCode = Invoke-Compose @('up', '-d', '--build')
++        Add-Check 'compose-up' ($(if ($upCode -eq 0) { 'PASS' } else { 'FAIL' })) 'Compose services requested; no volumes were removed'
++        if ($upCode -eq 0 -and $tokenHashExpected) {
++            $agentHash = Get-ContainerTokenHash 'sky-agent'; $serverHash = Get-ContainerTokenHash 'sky-server'
++            if ($agentHash -and $serverHash -and $agentHash -eq $tokenHashExpected -and $serverHash -eq $tokenHashExpected) {
++                Add-Check 'internal-token-consistency' 'PASS' 'SHA-256 hashes match across .env and running containers'
++            } else { Add-Check 'internal-token-consistency' 'FAIL' 'token hash missing or inconsistent; secret value was not printed' }
++        }
++    } else { Add-Check 'compose-up' 'NOT_RUN' 'NoStart was specified' }
++
++    $psCode = Invoke-Compose @('ps')
++    Add-Check 'compose-ps' ($(if ($psCode -eq 0) { 'PASS' } else { 'FAIL' })) 'Container status command completed'
++    if (-not $NoStart -and $psCode -eq 0) {
++        [void](Invoke-Compose @('ps', '--format', 'json'))
++        $rows = @($lastComposeOutput | ConvertFrom-Json)
++        $required = @('mysql', 'redis', 'qdrant', 'sky-embedding', 'sky-agent', 'sky-server')
++        foreach ($service in $required) {
++            $row = $rows | Where-Object { $_.Service -eq $service -or $_.Name -like "*$service*" } | Select-Object -First 1
++            $health = if ($row) { [string]$row.Health } else { '' }
++            if ($health -eq 'healthy') { Add-Check ("health-$service") 'PASS' 'container reports healthy' }
++            else { Add-Check ("health-$service") 'FAIL' ("expected healthy, observed '{0}'" -f $health) }
++        }
++        Test-HttpReady 'server-readiness' "$ServerBaseUrl/actuator/health/readiness"
++        Test-HttpReady 'agent-readiness' "$AgentBaseUrl/health/ready"
++        Test-HttpReady 'embedding-readiness' "$EmbeddingBaseUrl/health/ready"
++        Test-HttpReady 'qdrant-health' "$QdrantBaseUrl/healthz"
++    }
++
++    $scenarioIds = 1..12 | ForEach-Object { 'E2E-{0:D2}' -f $_ }
++    if ($ScenarioRunner) {
++        $runnerPath = (Resolve-Path $ScenarioRunner).Path
++        $runnerReport = Join-Path $reportDirectory ("{0}-scenarios.json" -f $BatchId)
++        & pwsh -NoProfile -File $runnerPath -BatchId $BatchId -Prefix $BatchId -OutputPath $runnerReport
++        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $runnerReport)) { Add-Check 'scenario-runner' 'FAIL' 'scenario runner failed or did not produce a report' }
++        else {
++            $scenarioData = Get-Content -Raw $runnerReport | ConvertFrom-Json
++            $scenarioStatuses = @($scenarioData.scenarios)
++            $createdIds = @($scenarioData.created_ids)
++            $invalid = @($createdIds | Where-Object { $_ -notmatch [regex]::Escape($BatchId) })
++            if ($invalid.Count -gt 0) { Add-Check 'created-data-prefix' 'FAIL' 'runner returned an ID outside the fixed batch prefix' }
++            else { Add-Check 'created-data-prefix' 'PASS' 'all created IDs use the fixed batch prefix' }
++        }
++    } else {
++        foreach ($id in $scenarioIds) { $scenarioStatuses += [ordered]@{ id = $id; status = 'NOT_RUN'; evidence = $null; note = 'No ScenarioRunner was supplied; user execution required' } }
++        Add-Check 'application-scenarios' 'NOT_RUN' '12 E2E scenarios were not executed; no pass is inferred'
++    }
++
++    if ($CleanupRunner -and $createdIds.Count -gt 0) {
++        $manifest = Join-Path $reportDirectory ("{0}-cleanup-manifest.json" -f $BatchId)
++        $cleanupReport = Join-Path $reportDirectory ("{0}-cleanup.json" -f $BatchId)
++        @{ batch_id = $BatchId; prefix = $BatchId; created_ids = $createdIds } | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 $manifest
++        & pwsh -NoProfile -File (Resolve-Path $CleanupRunner).Path -ManifestPath $manifest -Prefix $BatchId -OutputPath $cleanupReport
++        if ($LASTEXITCODE -ne 0 -or -not (Test-Path $cleanupReport)) { Add-Check 'cleanup' 'FAIL' 'cleanup runner failed or did not produce evidence' }
++        else {
++            $cleanupData = Get-Content -Raw $cleanupReport | ConvertFrom-Json
++            $deletedIds = @($cleanupData.deleted_ids)
++            $invalidDeletes = @($deletedIds | Where-Object { $_ -notin $createdIds })
++            if ($invalidDeletes.Count -gt 0) { Add-Check 'cleanup' 'FAIL' 'cleanup reported an ID outside the exact creation manifest' }
++            else { Add-Check 'cleanup' 'PASS' 'cleanup runner completed against the exact manifest IDs' }
++        }
++    } elseif ($createdIds.Count -eq 0) { Add-Check 'cleanup' 'NOT_RUN' 'no created IDs were reported; nothing was deleted' }
++    else { Add-Check 'cleanup' 'BLOCKED' 'created IDs exist but no CleanupRunner was supplied' }
++}
++finally {
++    if ($StopAfter -and -not $NoStart) { [void](Invoke-Compose @('stop')) }
++    Pop-Location
++}
++
++$report = [ordered]@{
++    batch_id = $BatchId; generated_at = (Get-Date).ToUniversalTime().ToString('o'); project = $ProjectName
++    checks = $checks; scenarios = $scenarioStatuses; created_ids = $createdIds
++    safety = [ordered]@{ destructive_compose_commands = $false; fixed_prefix = $BatchId; volumes_removed = $false }
++}
++$report | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 $Output
++Write-Host ("Acceptance evidence written to {0}" -f $Output)
++if ($failed) { exit 1 }
++if (@($checks | Where-Object { $_.status -in @('NOT_RUN', 'BLOCKED') }).Count -gt 0 -or @($scenarioStatuses | Where-Object { $_.status -ne 'PASS' }).Count -gt 0) { exit 2 }
++exit 0
+diff --git "a/\351\241\271\347\233\256\346\226\207\346\241\243/\346\250\241\345\235\227\344\270\203-\351\203\250\347\275\262\350\277\220\347\273\264\344\270\216\346\225\205\351\232\234\345\244\204\347\220\206.md" "b/\351\241\271\347\233\256\346\226\207\346\241\243/\346\250\241\345\235\227\344\270\203-\351\203\250\347\275\262\350\277\220\347\273\264\344\270\216\346\225\205\351\232\234\345\244\204\347\220\206.md"
+index 8d06a67..42fef00 100644
+--- "a/\351\241\271\347\233\256\346\226\207\346\241\243/\346\250\241\345\235\227\344\270\203-\351\203\250\347\275\262\350\277\220\347\273\264\344\270\216\346\225\205\351\232\234\345\244\204\347\220\206.md"
++++ "b/\351\241\271\347\233\256\346\226\207\346\241\243/\346\250\241\345\235\227\344\270\203-\351\203\250\347\275\262\350\277\220\347\273\264\344\270\216\346\225\205\351\232\234\345\244\204\347\220\206.md"
+@@ -257,19 +257,48 @@ MySQL 使用备份中的 `mysql.sql` 导入空数据库。Qdrant 按 `qdrant-sna
+ | LLM 401/403 | 日志错误类型 `AUTH_FAILED` | 检查提供商、Key 权限和容器是否已重新创建；不得在日志打印 Key |
+ | LLM 429/5xx/超时 | `RATE_LIMITED`、`UPSTREAM_5XX`、`TIMEOUT` 指标 | 检查退避、并发、总超时和提供商状态；不要无限重试 |
+ | SSE 中断 | 用 `task_id` 对照 Java/Agent 事件和 LLM 流日志 | 判断是浏览器断开、Java 转发、Agent 取消还是 LLM 流中断；已有输出后不得重试拼接 |
+ | MySQL/Flyway 启动失败 | `sky-server` 日志和 Flyway 历史表 | 检查数据库权限、连接地址和迁移校验；禁止手工改历史表 |
+ | Redis 不可用 | Java readiness 和 Redis 容器日志 | 检查密码、AOF、磁盘及 `redis:6379` 容器网络地址 |
+ | 问答无引用或错误引用 | 运行模块六报告并查看逐题来源 | 检查授权版本范围、阈值、Embedding revision 和 Qdrant 集合，不要先降低发布门槛 |
+ | 磁盘增长 | `docker system df`、卷和日志大小 | 按保留策略清理旧备份/指标；先确认归属，禁止直接删除活动卷 |
+ 
+ 推荐按以下顺序定位：`docker compose ps` → 应用 readiness → 依赖健康 → 带 `task_id` 的日志 → 指标与告警 → 配置差异。不要通过关闭鉴权、取消版本过滤或把密钥打印到日志来临时绕过问题。
+ 
+-## 10. 已验证记录（2026-09-12）
+-
+-- 本地与外部模式的 `docker compose config --quiet` 均通过。
+-- BGE-M3 revision 和 3 个关键文件的大小、SHA-256 校验通过。
+-- 所有 PowerShell 运维脚本均通过语法解析。
+-- 当前完整 Compose 的 MySQL、Redis、Qdrant、Embedding、Agent、Java 均为 healthy；观测组件正常运行。
+-- Java 47 个测试通过；Python 36 个测试通过，1 个旧外部 E2E 按设计跳过。
+-- 模块六 Mock 全量与真实 LLM 小样本门禁通过。
+-- 隔离备份恢复演练通过；MySQL、Qdrant、Agent 卷及结构化校验清单均验证成功，标志为 `DRILL_SUCCESS: mysql, qdrant, agent-volume, checksums`。
++## 10. 历史记录（2026-09-12）
++
++本节是历史快照，不代表当前提交或当前部署环境已经通过模块七。执行模块七时必须重新运行验收脚本并在《管理端 Agent 第一版验收记录》中填写可定位证据；未重新执行的项目统一记为“未执行”，不得沿用下列结论作为上线依据。
++
++- 历史快照曾记录本地与外部模式的 compose config --quiet 通过。
++- 历史快照曾记录 BGE-M3 revision、Java/Python 测试、模块六评测和隔离备份恢复演练结果。
++- 当前 Compose 健康状态、真实模型调用、12 类端到端场景和安全门槛必须以本次批次报告为准。
++
++## 11. 模块七验收脚本与安全清理
++
++脚本 scripts/run-agent-v1-acceptance.ps1 是可审计的预检入口。它执行
++compose config --quiet、（默认）up -d --build、ps、必需服务健康检查、Java/Agent/Embedding/Qdrant readiness 检查，并只比较 AGENT_INTERNAL_SERVICE_TOKEN 的 SHA-256 哈希，不输出令牌本身。脚本不会执行 compose down -v，也不会删除数据库、Qdrant 集合或 Docker 命名卷。
++
++```powershell
++# 仅做配置检查，不启动或停止容器
++.\scripts\run-agent-v1-acceptance.ps1 -NoStart -Output build/reports/agent-v1-preflight.json
++
++# 启动并检查单机 Compose；场景由执行人随后通过 ScenarioRunner 提供
++.\scripts\run-agent-v1-acceptance.ps1 -ProjectName sky-take-out `
++  -Output build/reports/agent-v1-acceptance.json
++
++# 显式传入场景执行器时，执行器必须输出 scenarios、created_ids 字段
++# 且所有 created_ids 都以脚本传入的 agent-v1-acceptance-<批次> 前缀开头。
++.\scripts\run-agent-v1-acceptance.ps1 -ScenarioRunner .\path\to\scenario-runner.ps1 `
++  -CleanupRunner .\path\to\cleanup-runner.ps1
++```
++
++脚本无 ScenarioRunner 时会为 E2E-01 至 E2E-12 写入 NOT_RUN，并以退出码 2 结束；这表示“尚未验收”，不是通过。场景执行器必须只创建固定批次前缀的数据，并返回本批次创建的精确 ID。清理执行器只能接收脚本生成的 manifest，对这些精确 ID 执行删除，不得使用全表删除、模糊前缀删除、清空集合或删除卷。发生阻塞、依赖不可用或未提供清理执行器时，报告必须保留 BLOCKED/NOT_RUN，不能改写成通过。
++
++退出码约定：
++
++| 代码 | 含义 |
++| ---: | --- |
++| 0 | 配置、服务健康及所有已声明场景均通过 |
++| 1 | 配置、健康、令牌一致性或数据安全校验失败 |
++| 2 | 存在 BLOCKED/NOT_RUN，验收尚未完成 |
++
++验收记录至少要保存批次 ID、Git/镜像指纹、每个场景的任务/会话/管理员/事件序列、Java/MySQL 终态、确认与审计证据、故障恢复证据和清理 manifest；日志只保留 trace ID、task ID、模型、耗时和脱敏错误摘要。
+diff --git "a/\351\241\271\347\233\256\346\226\207\346\241\243/\347\256\241\347\220\206\347\253\257Agent\347\254\254\344\270\200\347\211\210\351\252\214\346\224\266\350\256\260\345\275\225.md" "b/\351\241\271\347\233\256\346\226\207\346\241\243/\347\256\241\347\220\206\347\253\257Agent\347\254\254\344\270\200\347\211\210\351\252\214\346\224\266\350\256\260\345\275\225.md"
+index 086bae8..6424d17 100644
+--- "a/\351\241\271\347\233\256\346\226\207\346\241\243/\347\256\241\347\220\206\347\253\257Agent\347\254\254\344\270\200\347\211\210\351\252\214\346\224\266\350\256\260\345\275\225.md"
++++ "b/\351\241\271\347\233\256\346\226\207\346\241\243/\347\256\241\347\220\206\347\253\257Agent\347\254\254\344\270\200\347\211\210\351\252\214\346\224\266\350\256\260\345\275\225.md"
+@@ -151,20 +151,34 @@
+ | E2E-04 | 只读工具查询 | 工具、参数和结果正确 | 未执行 | 未生成 |
+ | E2E-05 | 查询后写操作 | 多步骤连续，并产生确认卡片 | 未执行 | 未生成 |
+ | E2E-06 | 确认并执行 | 一次性执行，业务状态和审计一致 | 未执行 | 未生成 |
+ | E2E-07 | 拒绝、过期、重复确认 | 均不重复执行写操作 | 未执行 | 未生成 |
+ | E2E-08 | 确认前角色降级 | Java 权威鉴权拒绝执行 | 未执行 | 未生成 |
+ | E2E-09 | 执行中取消 | Python 停止，Java 状态为 4 | 未执行 | 未生成 |
+ | E2E-10 | SSE 断线恢复 | 无遗漏、无重复，终态一致 | 未执行 | 未生成 |
+ | E2E-11 | 依赖短暂故障和恢复 | 状态和提示准确，恢复后可继续使用 | 未执行 | 未生成 |
+ | E2E-12 | 任务幂等与冲突 | 同请求安全重放，不同请求返回 409 | 未执行 | 未生成 |
+ 
++#### 模块七执行约定
++
++使用 scripts/run-agent-v1-acceptance.ps1 生成本批次的 JSON 证据。脚本会先记录 Compose
++config/up/ps、容器健康、四个 readiness 端点和 AGENT_INTERNAL_SERVICE_TOKEN 哈希一致性。
++未提供场景执行器时，E2E-01 至 E2E-12 必须保持“未执行”，脚本退出码为 2，不得据此宣称通过。
++
++场景执行器只能创建带批次前缀 agent-v1-acceptance-<批次> 的隔离数据，并在输出中列出
++created_ids、任务/会话/管理员、事件序列和 Java/MySQL 最终状态。清理时只允许将该清单
++传给精确 ID 清理流程；禁止全表删除、按模糊条件删除、清空 Qdrant 集合或删除 Docker 卷。
++
++每个 E2E 场景还应记录：请求时间线、SSE 最后序号与 Last-Event-ID、确认凭证及审计记录、
++故障注入和恢复时间、页面提示截图或脱敏接口响应。失败或环境不可用必须记录为“失败”或
++“阻塞”，并附证据路径和下一步，不得改成“有条件通过”。
++
+ ### 5.7 模块八：文档收口
+ 
+ | 场景 ID | 场景 | 固定预期 | 状态 | 证据路径 |
+ | --- | --- | --- | --- | --- |
+ | DOC-01 | 历史报告核对 | 已完成能力不再被描述为当前缺口 | 未执行 | 未生成 |
+ | DOC-02 | 运维可执行性 | 新维护者按文档可部署并完成冒烟验证 | 未执行 | 未生成 |
+ | DOC-03 | 已知边界 | 明确单机、单 Agent worker、非高可用 | 未执行 | 未生成 |
+ 
+ ### 5.8 模块九：发布回归
+ 
