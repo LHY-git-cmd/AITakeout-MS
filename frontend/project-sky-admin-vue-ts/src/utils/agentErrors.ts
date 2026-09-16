@@ -9,7 +9,7 @@ export type AgentErrorKind =
   | 'confirmationExpired'
   | 'unknown'
 
-export type AgentErrorPhase = 'submit' | 'stream'
+export type AgentErrorPhase = 'submit' | 'stream' | 'streamStopped'
 export type AgentRecoveryAction = 'none' | 'refreshTask' | 'newPlainSession' | 'refreshHealth'
 
 export interface AgentErrorPresentation {
@@ -108,9 +108,13 @@ export function normalizeAgentError(
     return presentation('busy', 'Agent 当前繁忙', '稍后重试，不会自动重提原任务', true, 'none', taskId)
   }
   if (!response && ((error && error.request) || ['ERR_NETWORK', 'ECONNRESET', 'ETIMEDOUT'].includes(error && error.code))) {
-    return phase === 'submit'
-      ? presentation('network', '网络连接失败，请检查网络后手动重试', '检查网络后手动重试，不会自动重提原任务', true, 'none', taskId)
-      : presentation('network', '连接中断，正在恢复', '自动执行有限 SSE 重连', true, 'refreshTask', taskId)
+    if (phase === 'submit') {
+      return presentation('network', '网络连接失败，请检查网络后手动重试', '检查网络后手动重试，不会自动重提原任务', true, 'none', taskId)
+    }
+    if (phase === 'streamStopped') {
+      return presentation('network', '连接恢复已停止，请查询任务状态', '查询任务状态', true, 'refreshTask', taskId)
+    }
+    return presentation('network', '连接中断，正在恢复', '自动执行有限 SSE 重连', true, 'refreshTask', taskId)
   }
   return presentation('unknown', '请求未完成', '请使用任务 ID 联系管理员定位日志', true, taskId ? 'refreshTask' : 'none', taskId)
 }

@@ -607,7 +607,7 @@ export default Vue.extend({
             assistant,
             error,
             this.currentTaskId,
-            this.streamController ? 'stream' : 'submit'
+            this.streamController ? 'streamStopped' : 'submit'
           )
         }
       } finally {
@@ -622,7 +622,7 @@ export default Vue.extend({
       assistant: ChatMessage,
       error?: any,
       taskId?: string,
-      phase: 'submit' | 'stream' = 'stream'
+      phase: 'submit' | 'stream' | 'streamStopped' = 'stream'
     ) {
       const failure = normalizeAgentError(error || { code: 'ERR_NETWORK', request: {} }, taskId, phase)
       assistant.failure = failure
@@ -640,8 +640,15 @@ export default Vue.extend({
       if (!failure || failure.recovery === 'none') return
       try {
         if (failure.recovery === 'refreshTask') {
-          if (failure.taskId) await this.getAgentTaskStatus(failure.taskId)
-          if (this.sessionId) await this.openSession(this.sessionId)
+          if (!failure.taskId) throw new Error('Agent task id is required')
+          const status = await this.getAgentTaskStatus(failure.taskId)
+          if ([2, 3, 4].includes(status)) {
+            if (this.sessionId) await this.openSession(this.sessionId)
+          } else if (status === 0 || status === 1) {
+            this.streamStatus = '任务仍在后台执行，可稍后查询。'
+          } else {
+            throw new Error('Agent task status is invalid')
+          }
         } else if (failure.recovery === 'newPlainSession') {
           const index = this.messages.indexOf(message)
           const previous = index > 0 ? this.messages[index - 1] : null

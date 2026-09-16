@@ -452,22 +452,68 @@ describe('AgentPage stream events', () => {
     expect(JSON.stringify(assistant)).not.toContain('secret')
   })
 
-  it('refreshes the current task and session for a conflict recovery action', async() => {
+  it('keeps partial content and recovery entry while a refreshed task is still running', async() => {
     const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '已经收到的部分内容',
+      failure: { kind: 'conflict', recovery: 'refreshTask', taskId: 'task-1' },
+    }
     const context: any = {
       sessionId: 'session-1',
+      streamStatus: '连接恢复已停止，请查询任务状态',
       getAgentTaskStatus: jest.fn().mockResolvedValue(1),
       openSession: jest.fn().mockResolvedValue(undefined),
       $message: { success: jest.fn(), error: jest.fn() },
     }
 
-    await methods.recoverAgentFailure.call(context, {
-      failure: { kind: 'conflict', recovery: 'refreshTask', taskId: 'task-1' },
-    })
+    await methods.recoverAgentFailure.call(context, assistant)
 
     expect(context.getAgentTaskStatus).toHaveBeenCalledWith('task-1')
+    expect(context.openSession).not.toHaveBeenCalled()
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure.taskId).toBe('task-1')
+    expect(context.streamStatus).toBe('任务仍在后台执行，可稍后查询。')
+    expect(context.$message.error).not.toHaveBeenCalled()
+  })
+
+  it('reloads the session only after a refreshed task reaches a terminal state', async() => {
+    const methods = agentMethods()
+    const context: any = {
+      sessionId: 'session-1',
+      getAgentTaskStatus: jest.fn().mockResolvedValue(2),
+      openSession: jest.fn().mockResolvedValue(undefined),
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, {
+      failure: { kind: 'timeout', recovery: 'refreshTask', taskId: 'task-terminal' },
+    })
+
     expect(context.openSession).toHaveBeenCalledWith('session-1')
     expect(context.$message.error).not.toHaveBeenCalled()
+  })
+
+  it('keeps local content and task recovery when refreshing task status fails', async() => {
+    const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '已经收到的部分内容',
+      failure: { kind: 'network', recovery: 'refreshTask', taskId: 'task-lookup' },
+    }
+    const context: any = {
+      sessionId: 'session-1',
+      getAgentTaskStatus: jest.fn().mockRejectedValue(new Error('network offline')),
+      openSession: jest.fn(),
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, assistant)
+
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure.taskId).toBe('task-lookup')
+    expect(context.openSession).not.toHaveBeenCalled()
+    expect(context.$message.error).toHaveBeenCalledWith('恢复操作未完成，请稍后重试')
   })
 
   it('starts a plain session and keeps the original question for knowledge recovery', async() => {
@@ -525,6 +571,43 @@ describe('AgentPage stream events', () => {
     expect(message.confirmation).toMatchObject({ processing: false, decided: true, retryable: false })
     expect(message.failure).toMatchObject({ kind: 'forbidden', taskId: 'task-3' })
     expect(JSON.stringify(message)).not.toContain('secret')
+  })
+
+  it('stops recovery after four SSE failures and offers a task status query', async() => {
+    const methods = agentMethods()
+    const assistant: any = { role: 'assistant', content: '已接收内容', citations: [] }
+    const context: any = {
+      streamStatus: '连接中断，正在恢复（3/3）...',
+      sessionId: 'session-1',
+      applyAgentEvent: jest.fn(),
+      getAgentTaskStatus: jest.fn().mockRejectedValue(new Error('network offline')),
+      openSession: jest.fn(),
+      $nextTick: jest.fn(),
+      scrollToBottom: jest.fn(),
+      $message: { error: jest.fn() },
+    }
+    const networkError = Object.assign(new Error('offline'), { code: 'ERR_NETWORK', request: {} })
+    const fetchFn = jest.fn().mockRejectedValue(networkError)
+
+    await expect(methods.consumeEvents.call(
+      context,
+      'task-stream-1',
+      assistant,
+      new AbortController().signal,
+      { fetchFn, sleep: async() => undefined }
+    )).rejects.toThrow('network offline')
+    methods.applyStreamFailure.call(context, assistant, networkError, 'task-stream-1', 'streamStopped')
+
+    expect(fetchFn).toHaveBeenCalledTimes(4)
+    expect(assistant.content).toBe('已接收内容')
+    expect(assistant.failure).toMatchObject({
+      kind: 'network',
+      message: '连接恢复已停止，请查询任务状态',
+      action: '查询任务状态',
+      recovery: 'refreshTask',
+      taskId: 'task-stream-1',
+    })
+    expect(context.$message.error).toHaveBeenCalledWith('连接恢复已停止，请查询任务状态')
   })
 
   it('closes only the local stream when the page is destroyed', () => {
