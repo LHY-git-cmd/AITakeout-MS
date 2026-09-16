@@ -85,6 +85,19 @@ service.interceptors.response.use(
     // 请求完成，删除请求中状态
     const key = getRequestKey(response.config);
     removePending(key);
+    // Agent 业务失败有时仍以 2xx 返回；转为 rejection，保留原始结构化字段给页面分类。
+    if (
+      typeof response.config.url === 'string' &&
+      response.config.url.indexOf('/agent/') === 0 &&
+      response.data &&
+      Object.prototype.hasOwnProperty.call(response.data, 'code') &&
+      response.data.code !== 1
+    ) {
+      const error: any = new Error('Agent request failed')
+      error.response = response
+      error.config = response.config
+      return Promise.reject(error)
+    }
     // if (response.data.code === 0) {
     //   Message.error(response.data.msg)
     //   // if(response.data.msg === 'NOTLOGIN' || response.data.msg === '未登录'){
@@ -111,11 +124,14 @@ service.interceptors.response.use(
           error.message = '请求错误'
       }
     }
-    //请求响应中的config的url会带上代理的api需要去掉
-    error.config.url = error.config.url.replace('/api', '')
-    // 请求完成，删除请求中状态
-    const key = getRequestKey(error.config);
-    removePending(key);
+    // 仅在 Axios 提供请求配置时清理 pending；异常结构仍需原样传给页面分类。
+    if (error && error.config) {
+      if (typeof error.config.url === 'string') {
+        error.config.url = error.config.url.replace('/api', '')
+      }
+      const key = getRequestKey(error.config);
+      removePending(key);
+    }
     // console.log(error, pending, 'error11')
     // Message({
     //   'message': error.message,

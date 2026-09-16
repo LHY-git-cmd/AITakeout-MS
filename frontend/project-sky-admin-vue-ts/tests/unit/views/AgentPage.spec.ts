@@ -1,6 +1,6 @@
 import AgentPage from '@/views/agent/index.vue'
 import type { AgentStreamEnvelope } from '@/utils/agentSse'
-import { getAgentHealth, submitAgentTask } from '@/api/agent'
+import { confirmAgentTool, getAgentHealth, submitAgentTask } from '@/api/agent'
 import { TextDecoder, TextEncoder } from 'util'
 
 jest.mock('@/api/agent', () => ({
@@ -235,8 +235,12 @@ describe('AgentPage stream events', () => {
       data: { error_msg: '模型连接中断' },
     }, assistant)
 
-    expect(assistant.content).toContain('已经收到的部分内容')
-    expect(assistant.content).toContain('模型连接中断')
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure).toMatchObject({
+      kind: 'unknown',
+      message: '请求未完成',
+      taskId: 'task-1',
+    })
   })
 
   it('uses the reliable stream client to resume and render the final answer', async() => {
@@ -353,9 +357,257 @@ describe('AgentPage stream events', () => {
 
     methods.applyStreamFailure.call(context, assistant)
 
-    expect(assistant.content).toContain('已经收到的部分内容')
-    expect(assistant.content).toContain('连接恢复失败')
-    expect(context.$message.error).toHaveBeenCalledWith('AI 服务连接恢复失败')
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure).toMatchObject({
+      kind: 'network',
+      message: '连接中断，正在恢复',
+    })
+    expect(context.$message.error).toHaveBeenCalledWith('连接中断，正在恢复')
+  })
+
+  it('keeps received tokens and presents a safe recovery action for submit errors', () => {
+    const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '已经收到的部分内容',
+      citations: [],
+    }
+    const context = {
+      $message: { error: jest.fn() },
+    }
+
+    methods.applyStreamFailure.call(context, assistant, {
+      response: {
+        status: 429,
+        data: { message: 'http://internal/queue?token=secret' },
+      },
+    }, 'task-1')
+
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure).toEqual({
+      kind: 'busy',
+      message: 'Agent 当前繁忙',
+      action: '稍后重试，不会自动重提原任务',
+      retryable: true,
+      recovery: 'none',
+      taskId: 'task-1',
+    })
+    expect(JSON.stringify(assistant.failure)).not.toContain('secret')
+    expect(context.$message.error).toHaveBeenCalledWith('Agent 当前繁忙')
+  })
+
+  it('uses the safe expired-confirmation recovery instead of a backend error message', async() => {
+    const methods = agentMethods()
+    ;(confirmAgentTool as jest.Mock).mockRejectedValueOnce({
+      response: {
+        status: 409,
+        data: {
+          errorType: 'CONFIRMATION_EXPIRED',
+          message: 'java.lang.IllegalStateException at http://internal?token=secret',
+        },
+      },
+    })
+    const message: any = {
+      confirmation: {
+        id: 'confirmation-1',
+        processing: false,
+        decided: false,
+        decision: '',
+      },
+    }
+    const context = { $message: { error: jest.fn(), success: jest.fn() } }
+
+    await methods.decideTool.call(context, message, true)
+
+    expect(message.confirmation).toMatchObject({
+      processing: false,
+      decided: true,
+      decision: '操作确认已过期，重新发起原业务请求',
+    })
+    expect(message.confirmation.decision).not.toContain('secret')
+    expect(context.$message.error).toHaveBeenCalledWith('操作确认已过期，重新发起原业务请求')
+  })
+
+  it('does not append a string task error payload to received tokens', () => {
+    const methods = agentMethods()
+    const assistant: any = { role: 'assistant', content: '已接收内容', citations: [] }
+    const context = {
+      streamStatus: '正在思考...',
+      $nextTick: jest.fn(),
+      scrollToBottom: jest.fn(),
+    }
+
+    methods.applyAgentEvent.call(context, {
+      taskId: 'task-safe-2',
+      seqNo: 2,
+      event: 'task_error',
+      data: 'java.lang.IllegalStateException at http://internal?token=secret',
+    }, assistant)
+
+    expect(assistant.content).toBe('已接收内容')
+    expect(assistant.failure).toMatchObject({
+      kind: 'unknown',
+      taskId: 'task-safe-2',
+    })
+    expect(JSON.stringify(assistant)).not.toContain('secret')
+  })
+
+  it('keeps partial content and recovery entry while a refreshed task is still running', async() => {
+    const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '已经收到的部分内容',
+      failure: { kind: 'conflict', recovery: 'refreshTask', taskId: 'task-1' },
+    }
+    const context: any = {
+      sessionId: 'session-1',
+      streamStatus: '连接恢复已停止，请查询任务状态',
+      getAgentTaskStatus: jest.fn().mockResolvedValue(1),
+      openSession: jest.fn().mockResolvedValue(undefined),
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, assistant)
+
+    expect(context.getAgentTaskStatus).toHaveBeenCalledWith('task-1')
+    expect(context.openSession).not.toHaveBeenCalled()
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure.taskId).toBe('task-1')
+    expect(context.streamStatus).toBe('任务仍在后台执行，可稍后查询。')
+    expect(context.$message.error).not.toHaveBeenCalled()
+  })
+
+  it('reloads the session only after a refreshed task reaches a terminal state', async() => {
+    const methods = agentMethods()
+    const context: any = {
+      sessionId: 'session-1',
+      getAgentTaskStatus: jest.fn().mockResolvedValue(2),
+      openSession: jest.fn().mockResolvedValue(undefined),
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, {
+      failure: { kind: 'timeout', recovery: 'refreshTask', taskId: 'task-terminal' },
+    })
+
+    expect(context.openSession).toHaveBeenCalledWith('session-1')
+    expect(context.$message.error).not.toHaveBeenCalled()
+  })
+
+  it('keeps local content and task recovery when refreshing task status fails', async() => {
+    const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '已经收到的部分内容',
+      failure: { kind: 'network', recovery: 'refreshTask', taskId: 'task-lookup' },
+    }
+    const context: any = {
+      sessionId: 'session-1',
+      getAgentTaskStatus: jest.fn().mockRejectedValue(new Error('network offline')),
+      openSession: jest.fn(),
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, assistant)
+
+    expect(assistant.content).toBe('已经收到的部分内容')
+    expect(assistant.failure.taskId).toBe('task-lookup')
+    expect(context.openSession).not.toHaveBeenCalled()
+    expect(context.$message.error).toHaveBeenCalledWith('恢复操作未完成，请稍后重试')
+  })
+
+  it('starts a plain session and keeps the original question for knowledge recovery', async() => {
+    const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '',
+      failure: { kind: 'knowledge', recovery: 'newPlainSession' },
+    }
+    const context: any = {
+      sessionId: 'session-locked',
+      kbId: 'kb-1',
+      kbLocked: true,
+      draft: '',
+      messages: [{ role: 'user', content: '保留这个知识库问题' }, assistant],
+      newChat: methods.newChat,
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, assistant)
+
+    expect(context.sessionId).toBe('')
+    expect(context.kbId).toBe('')
+    expect(context.kbLocked).toBe(false)
+    expect(context.draft).toBe('保留这个知识库问题')
+  })
+
+  it('shows a safe message when refreshing an unavailable service fails', async() => {
+    const methods = agentMethods()
+    const context: any = {
+      refreshAgentHealth: jest.fn().mockResolvedValue(false),
+      $message: { success: jest.fn(), error: jest.fn() },
+    }
+
+    await methods.recoverAgentFailure.call(context, {
+      failure: { kind: 'unavailable', recovery: 'refreshHealth' },
+    })
+
+    expect(context.$message.success).not.toHaveBeenCalled()
+    expect(context.$message.error).toHaveBeenCalledWith('恢复操作未完成，请稍后重试')
+  })
+
+  it('disables confirmation re-submission when a forbidden error is not retryable', async() => {
+    const methods = agentMethods()
+    ;(confirmAgentTool as jest.Mock).mockRejectedValueOnce({
+      response: { status: 403, data: { message: 'http://internal?token=secret' } },
+    })
+    const message: any = {
+      confirmation: { id: 'confirmation-forbidden', taskId: 'task-3', processing: false, decided: false, decision: '' },
+    }
+    const context = { $message: { error: jest.fn(), success: jest.fn() } }
+
+    await methods.decideTool.call(context, message, true)
+
+    expect(message.confirmation).toMatchObject({ processing: false, decided: true, retryable: false })
+    expect(message.failure).toMatchObject({ kind: 'forbidden', taskId: 'task-3' })
+    expect(JSON.stringify(message)).not.toContain('secret')
+  })
+
+  it('stops recovery after four SSE failures and offers a task status query', async() => {
+    const methods = agentMethods()
+    const assistant: any = { role: 'assistant', content: '已接收内容', citations: [] }
+    const context: any = {
+      streamStatus: '连接中断，正在恢复（3/3）...',
+      sessionId: 'session-1',
+      applyAgentEvent: jest.fn(),
+      getAgentTaskStatus: jest.fn().mockRejectedValue(new Error('network offline')),
+      openSession: jest.fn(),
+      $nextTick: jest.fn(),
+      scrollToBottom: jest.fn(),
+      $message: { error: jest.fn() },
+    }
+    const networkError = Object.assign(new Error('offline'), { code: 'ERR_NETWORK', request: {} })
+    const fetchFn = jest.fn().mockRejectedValue(networkError)
+
+    await expect(methods.consumeEvents.call(
+      context,
+      'task-stream-1',
+      assistant,
+      new AbortController().signal,
+      { fetchFn, sleep: async() => undefined }
+    )).rejects.toThrow('network offline')
+    methods.applyStreamFailure.call(context, assistant, networkError, 'task-stream-1', 'streamStopped')
+
+    expect(fetchFn).toHaveBeenCalledTimes(4)
+    expect(assistant.content).toBe('已接收内容')
+    expect(assistant.failure).toMatchObject({
+      kind: 'network',
+      message: '连接恢复已停止，请查询任务状态',
+      action: '查询任务状态',
+      recovery: 'refreshTask',
+      taskId: 'task-stream-1',
+    })
+    expect(context.$message.error).toHaveBeenCalledWith('连接恢复已停止，请查询任务状态')
   })
 
   it('closes only the local stream when the page is destroyed', () => {
