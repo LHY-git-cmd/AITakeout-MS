@@ -11,6 +11,7 @@ import com.sky.entity.AgentKnowledgeBase;
 import com.sky.entity.AgentKnowledgeDocument;
 import com.sky.entity.AgentKnowledgeIndexTask;
 import com.sky.exception.AgentBusinessException;
+import com.sky.exception.AgentPermissionDeniedException;
 import com.sky.mapper.AgentKnowledgeMapper;
 import com.sky.properties.AgentProperties;
 import jakarta.annotation.PreDestroy;
@@ -63,6 +64,8 @@ import java.util.concurrent.Executors;
 @Slf4j
 @RequiredArgsConstructor
 public class AgentKnowledgeService implements ApplicationRunner {
+
+    private static final String RESOURCE_ACCESS_DENIED = "资源不存在或无权访问";
 
     // 支持的文档类型集合
     // 支持的文档类型集合
@@ -150,6 +153,7 @@ public class AgentKnowledgeService implements ApplicationRunner {
      */
     @Transactional
     public void deleteById(String kbId) {
+        requireBase(kbId);
         mapper.deleteById(kbId);
         // TODO: 删除关联的文档和索引
     }
@@ -280,7 +284,7 @@ public class AgentKnowledgeService implements ApplicationRunner {
     public AgentKnowledgeIndexTask getIndexTask(String taskId) {
         AgentKnowledgeIndexTask task = mapper.getIndexTask(taskId);
         if (task == null) {
-            throw new AgentBusinessException("索引任务不存在");
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         requireDocument(task.getDocumentId());
         return task;
@@ -333,12 +337,12 @@ public class AgentKnowledgeService implements ApplicationRunner {
      *
      * @param kbId 知识库ID。
      * @return 知识库实体。
-     * @throws AgentBusinessException 如果知识库不存在或用户无权访问。
+     * @throws AgentPermissionDeniedException 如果知识库不存在或用户无权访问。
      */
     private AgentKnowledgeBase requireBase(String kbId) {
         AgentKnowledgeBase value = mapper.getOwnedBase(kbId, BaseContext.getCurrentId());
         if (value == null) {
-            throw new AgentBusinessException("知识库不存在或无权访问");
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         return value;
     }
@@ -348,12 +352,12 @@ public class AgentKnowledgeService implements ApplicationRunner {
      *
      * @param id 文档ID。
      * @return 文档实体。
-     * @throws AgentBusinessException 如果文档不存在或用户无权访问。
+     * @throws AgentPermissionDeniedException 如果文档不存在或用户无权访问。
      */
     private AgentKnowledgeDocument requireDocument(String id) {
         AgentKnowledgeDocument value = mapper.getOwnedDocument(id, BaseContext.getCurrentId());
         if (value == null) {
-            throw new AgentBusinessException("文档不存在或无权访问");
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         return value;
     }

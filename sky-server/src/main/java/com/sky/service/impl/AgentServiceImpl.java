@@ -12,6 +12,7 @@ import com.sky.context.BaseContext;
 import com.sky.dto.*;
 import com.sky.entity.*;
 import com.sky.exception.AgentBusinessException;
+import com.sky.exception.AgentPermissionDeniedException;
 import com.sky.exception.AgentTaskConflictException;
 import com.sky.enumeration.AdminRole;
 import com.sky.mapper.*;
@@ -50,6 +51,8 @@ import org.slf4j.MDC;
 @Slf4j
 @RequiredArgsConstructor
 public class AgentServiceImpl implements AgentService {
+
+    private static final String RESOURCE_ACCESS_DENIED = "资源不存在或无权访问";
 
     private final AgentClient agentClient;
     private final AgentSessionMapper sessionMapper;
@@ -129,13 +132,13 @@ public class AgentServiceImpl implements AgentService {
         } else {
             session = sessionMapper.getBySessionIdForUpdate(sessionId);
             if (session == null) {
-                throw new AgentBusinessException("会话不存在: " + sessionId);
+                throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
+            }
+            if (!userId.equals(session.getUserId())) {
+                throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
             }
             if (session.getStatus() == 3) { // 3: deleted
                 throw new AgentBusinessException("会话已删除: " + sessionId);
-            }
-            if (!userId.equals(session.getUserId())) {
-                throw new AgentBusinessException("无权操作该会话");
             }
             bindKnowledgeBase(session, requestedKbId, userId);
         }
@@ -159,7 +162,7 @@ public class AgentServiceImpl implements AgentService {
             // 插入失败，意味着任务已存在，进行冲突检查
             AgentTask winner = taskMapper.getByTaskIdAndUserId(taskId, userId);
             if (winner == null) {
-                throw new AgentBusinessException("任务已存在或无权访问");
+                throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
             }
             if (winner.getRequestHash() != null && !winner.getRequestHash().equals(requestHash)) {
                 throw new AgentTaskConflictException("taskId已被其他请求使用");
@@ -256,10 +259,10 @@ public class AgentServiceImpl implements AgentService {
         Long userId = BaseContext.getCurrentId();
         AgentSession session = sessionMapper.getBySessionId(sessionId);
         if (session == null) {
-            throw new AgentBusinessException("会话不存在: " + sessionId);
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         if (!userId.equals(session.getUserId())) {
-            throw new AgentBusinessException("无权访问该会话");
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
 
         AgentSessionVO vo = new AgentSessionVO();
@@ -287,11 +290,11 @@ public class AgentServiceImpl implements AgentService {
     public void updateSession(AgentSessionUpdateDTO dto) {
         AgentSession session = sessionMapper.getBySessionId(dto.getSessionId());
         if (session == null) {
-            throw new AgentBusinessException("会话不存在: " + dto.getSessionId());
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         Long userId = BaseContext.getCurrentId();
         if (!userId.equals(session.getUserId())) {
-            throw new AgentBusinessException("无权操作该会话");
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
 
         AgentSession update = AgentSession.builder()
@@ -405,13 +408,13 @@ public class AgentServiceImpl implements AgentService {
      *
      * @param taskId 任务ID
      * @return 如果任务存在且属于当前用户，则返回任务实体
-     * @throws AgentBusinessException 如果任务不存在或用户无权访问
+     * @throws AgentPermissionDeniedException 如果任务不存在或用户无权访问
      */
     private AgentTask getOwnedTask(String taskId) {
         Long userId = BaseContext.getCurrentId();
         AgentTask task = taskMapper.getByTaskIdAndUserId(taskId, userId);
         if (task == null) {
-            throw new AgentBusinessException("任务不存在或无权访问");
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
         return task;
     }
@@ -489,8 +492,11 @@ public class AgentServiceImpl implements AgentService {
             return;
         }
         AgentKnowledgeBase kb = knowledgeMapper.getOwnedBase(kbId, userId);
-        if (kb == null || kb.getStatus() == null || kb.getStatus() != 1) {
-            throw new AgentBusinessException("知识库不存在或未启用");
+        if (kb == null) {
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
+        }
+        if (kb.getStatus() == null || kb.getStatus() != 1) {
+            throw new AgentBusinessException("知识库未启用");
         }
     }
 

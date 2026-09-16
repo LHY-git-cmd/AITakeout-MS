@@ -10,6 +10,7 @@ import com.sky.entity.AgentSession;
 import com.sky.entity.AgentTask;
 import com.sky.exception.AgentBusinessException;
 import com.sky.exception.AgentTaskConflictException;
+import com.sky.exception.PermissionDeniedException;
 import com.sky.mapper.AgentCitationMapper;
 import com.sky.mapper.AgentEventMapper;
 import com.sky.mapper.AgentKnowledgeMapper;
@@ -142,7 +143,7 @@ class AgentServiceKnowledgeTest {
         when(sessionMapper.getBySessionIdForUpdate("session-1")).thenReturn(session);
         when(knowledgeMapper.getOwnedBase("kb-1", 7L)).thenReturn(null);
 
-        assertThrows(AgentBusinessException.class, () -> service.submitTask(request("task-3", "kb-1")));
+        assertThrows(PermissionDeniedException.class, () -> service.submitTask(request("task-3", "kb-1")));
 
         verify(agentClient, never()).submit(any(AgentSubmitRequest.class));
     }
@@ -175,10 +176,34 @@ class AgentServiceKnowledgeTest {
                 () -> service.submitTask(request("task-4", "kb-2")));
     }
 
+    @Test
+    void anotherAdministratorCannotSubmitToTheirSession() {
+        AgentSession session = AgentSession.builder().id(11L).sessionId("session-owned-by-another-admin")
+                .userId(8L).status(1).build();
+        when(sessionMapper.getBySessionIdForUpdate(session.getSessionId())).thenReturn(session);
+
+        assertThrows(PermissionDeniedException.class,
+                () -> service.submitTask(request("task-foreign-session", session.getSessionId(), null)));
+
+        verify(agentClient, never()).submit(any(AgentSubmitRequest.class));
+    }
+
+    @Test
+    void anotherAdministratorCannotReadTheirTask() {
+        when(taskMapper.getByTaskIdAndUserId("task-owned-by-another-admin", 7L)).thenReturn(null);
+
+        assertThrows(PermissionDeniedException.class,
+                () -> service.getTaskDetail("task-owned-by-another-admin"));
+    }
+
     private AgentSubmitDTO request(String taskId, String kbId) {
+        return request(taskId, "session-1", kbId);
+    }
+
+    private AgentSubmitDTO request(String taskId, String sessionId, String kbId) {
         AgentSubmitDTO dto = new AgentSubmitDTO();
         dto.setTaskId(taskId);
-        dto.setSessionId("session-1");
+        dto.setSessionId(sessionId);
         dto.setQuery("question");
         dto.setKbId(kbId);
         return dto;
