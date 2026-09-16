@@ -19,7 +19,12 @@ from app.core.config import settings
 from app.core.agent import PythonAgent
 from app.core.task_queue import TaskQueue
 from app.api.routes import router
-from app.models.schemas import HealthResponse
+from app.models.schemas import (
+    DependencyHealth,
+    HealthResponse,
+    LLMHealthSummary,
+    ReadinessResponse,
+)
 from app.knowledge.embedding import HttpEmbeddingProvider
 from app.knowledge.vector_store import MemoryVectorStore, QdrantVectorStore
 from app.knowledge.service import KnowledgeService
@@ -29,6 +34,7 @@ from app.core.trace import current_trace_id
 import uuid
 import time
 from collections import Counter
+from datetime import datetime, timezone
 
 http_requests = Counter()
 http_latency_seconds = 0.0
@@ -74,6 +80,8 @@ async def lifespan(app: FastAPI):
     app.state.task_queue = task_queue
     app.state.knowledge_service = knowledge_service
     app.state.settings = settings
+    # 启动配置验证已经通过；readiness 不会为健康检查额外调用付费模型。
+    app.state.llm_configured = True
     logging.getLogger(__name__).info(
         "Agent service ready: environment=%s port=%s llm_provider=%s llm_model=%s",
         settings.APP_ENV,
@@ -172,10 +180,10 @@ async def liveness():
     return {"status": "alive", "service": settings.APP_NAME}
 
 
-@app.get("/health/ready", summary="就绪检查")
+@app.get("/health/ready", response_model=ReadinessResponse, summary="就绪检查")
 async def readiness(request: Request):
-    """检查进程初始化以及 Qdrant、Embedding 两个运行依赖。"""
-    dependencies = {}
+    """检查初始化和运行依赖，仅返回安全名称、状态和脱敏错误类型。"""
+    dependencies: dict[str, DependencyHealth] = {}
     checks = {
         "qdrant": f"{settings.QDRANT_URL.rstrip('/')}/healthz",
         "embedding": f"{settings.EMBEDDING_BASE_URL.rstrip('/')}/health/ready",
@@ -184,21 +192,58 @@ async def readiness(request: Request):
         for name, url in checks.items():
             try:
                 response = await client.get(url)
-                dependencies[name] = "healthy" if response.is_success else "unavailable"
+                dependencies[name] = DependencyHealth(
+                    status="healthy" if response.is_success else "unavailable",
+                    error_type=None if response.is_success else f"{name.upper()}_UNAVAILABLE",
+                )
             except httpx.HTTPError:
-                dependencies[name] = "unavailable"
+                dependencies[name] = DependencyHealth(
+                    status="unavailable", error_type=f"{name.upper()}_UNAVAILABLE")
 
-    ready = (
-        getattr(request.app.state, "agent", None) is not None
-        and all(value == "healthy" for value in dependencies.values())
+    agent_ready = getattr(request.app.state, "agent", None) is not None
+    dependencies["agent"] = DependencyHealth(
+        status="healthy" if agent_ready else "unavailable",
+        error_type=None if agent_ready else "AGENT_NOT_INITIALIZED",
     )
-    if not ready:
+    llm = await _llm_readiness_summary(getattr(request.app.state, "llm_configured", False))
+    unavailable = next(
+        (item.error_type for item in dependencies.values() if item.status == "unavailable"), None)
+    if not agent_ready:
+        status = "offline"
+        error_type = "AGENT_UNAVAILABLE"
+    elif unavailable or llm.status != "healthy":
+        status = "degraded"
+        error_type = unavailable or llm.error_type
+    else:
+        status = "online"
+        error_type = None
+
+    payload = ReadinessResponse(
+        service=settings.APP_NAME,
+        status=status,
+        checked_at=datetime.now(timezone.utc),
+        dependencies=dependencies,
+        llm=llm,
+        error_type=error_type,
+    ).model_dump(mode="json")
+    if status != "online":
         from fastapi.responses import JSONResponse
-        return JSONResponse(
-            status_code=503,
-            content={"status": "not_ready", "dependencies": dependencies},
-        )
-    return {"status": "ready", "dependencies": dependencies}
+        return JSONResponse(status_code=503, content=payload)
+    return payload
+
+
+async def _llm_readiness_summary(configured: bool) -> LLMHealthSummary:
+    """从启动配置与已有指标派生 LLM 状态，绝不因轮询执行 Prompt。"""
+    if not configured:
+        return LLMHealthSummary(status="unavailable", error_type="LLM_CONFIGURATION_INVALID")
+    calls = (await llm_metrics.snapshot())["calls"]
+    completed = sum(count for key, count in calls.items() if ":completed:" in key)
+    failed = sum(count for key, count in calls.items() if ":failed:" in key)
+    if not completed and not failed:
+        return LLMHealthSummary(status="unknown")
+    if failed > completed:
+        return LLMHealthSummary(status="unavailable", error_type="LLM_CALL_FAILED")
+    return LLMHealthSummary(status="healthy")
 
 
 @app.get("/metrics/llm", summary="LLM 调用指标")

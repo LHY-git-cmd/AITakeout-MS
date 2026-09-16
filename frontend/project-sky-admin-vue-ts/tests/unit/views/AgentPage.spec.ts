@@ -1,6 +1,6 @@
 import AgentPage from '@/views/agent/index.vue'
 import type { AgentStreamEnvelope } from '@/utils/agentSse'
-import { submitAgentTask } from '@/api/agent'
+import { getAgentHealth, submitAgentTask } from '@/api/agent'
 import { TextDecoder, TextEncoder } from 'util'
 
 jest.mock('@/api/agent', () => ({
@@ -8,6 +8,7 @@ jest.mock('@/api/agent', () => ({
   getAgentSession: jest.fn(),
   updateAgentSession: jest.fn(),
   submitAgentTask: jest.fn(),
+  getAgentHealth: jest.fn(),
   getAgentTask: jest.fn(),
   cancelAgentTask: jest.fn(),
   confirmAgentTool: jest.fn(),
@@ -45,6 +46,34 @@ function agentMethods() {
 }
 
 describe('AgentPage stream events', () => {
+  it('starts with an unknown service state until the first health response arrives', () => {
+    const state = (AgentPage as any).options.data()
+
+    expect(state.agentHealth).toEqual({ status: 'unknown', errorType: null })
+  })
+
+  it('uses the safe degraded health result without clearing the active session', async() => {
+    const methods = agentMethods()
+    ;(getAgentHealth as jest.Mock).mockResolvedValueOnce({
+      data: { data: { status: 'degraded', errorType: 'QDRANT_UNAVAILABLE' } },
+    })
+    const context: any = {
+      agentHealth: { status: 'unknown', errorType: null },
+      sessionId: 'session-1',
+      messages: [{ role: 'user', content: '保留中的会话' }],
+      pageDestroyed: false,
+    }
+
+    await methods.refreshAgentHealth.call(context)
+
+    expect(context.agentHealth).toEqual({
+      status: 'degraded',
+      errorType: 'QDRANT_UNAVAILABLE',
+    })
+    expect(context.sessionId).toBe('session-1')
+    expect(context.messages).toHaveLength(1)
+  })
+
   it('applies token content and terminal citations to the current assistant message', () => {
     const methods = agentMethods()
     const assistant = {

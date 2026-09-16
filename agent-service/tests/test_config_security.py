@@ -1,7 +1,10 @@
+import asyncio
+import json
 import unittest
 
 from app.core.agent import PythonAgent
 from app.core.config import Settings
+from app import main
 
 
 class ConfigSecurityTest(unittest.TestCase):
@@ -45,6 +48,46 @@ class ConfigSecurityTest(unittest.TestCase):
         self.assertEqual(46, record.prompt_chars)
         self.assertNotIn("private system prompt", output)
         self.assertNotIn("private employee question", output)
+
+    # 健康检查必须使用安全的依赖名称和错误类型，不能暴露内部服务地址。
+    def test_readiness_reports_qdrant_outage_as_safe_degraded_status(self):
+        class FakeResponse:
+            def __init__(self, success):
+                self.is_success = success
+
+        class FakeClient:
+            def __init__(self):
+                self.calls = 0
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return False
+
+            async def get(self, url):
+                self.calls += 1
+                return FakeResponse(self.calls != 1)
+
+        request = type("Request", (), {
+            "app": type("App", (), {
+                "state": type("State", (), {"agent": object(), "llm_configured": True})()
+            })()
+        })()
+        original_client = main.httpx.AsyncClient
+        main.httpx.AsyncClient = lambda **_: FakeClient()
+        try:
+            response = asyncio.run(main.readiness(request))
+        finally:
+            main.httpx.AsyncClient = original_client
+
+        payload = json.loads(response.body)
+        self.assertEqual(503, response.status_code)
+        self.assertEqual("degraded", payload["status"])
+        self.assertEqual("QDRANT_UNAVAILABLE", payload["error_type"])
+        self.assertEqual("unavailable", payload["dependencies"]["qdrant"]["status"])
+        self.assertIn("checked_at", payload)
+        self.assertNotIn("http://", json.dumps(payload))
 
 
 if __name__ == "__main__":
