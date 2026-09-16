@@ -6,6 +6,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.sky.agent.model.AgentStreamEvent;
 import com.sky.agent.model.AgentSubmitRequest;
 import com.sky.agent.model.AgentSubmitResponse;
@@ -93,19 +94,41 @@ public class AgentClient {
     /**
      * 健康检查
      *
-     * @return 健康状态JSON字符串
+     * @return 脱敏的健康状态 JSON；网络和 503 错误也转换为可展示状态。
      */
-    public String healthCheck() {
-        String url = agentProperties.getBaseUrl() + "/health";
-        log.info("调用Agent健康检查接口: {}", url);
+    public JsonNode healthCheck() {
+        String url = agentProperties.getBaseUrl().replaceAll("/+$", "") + "/health/ready";
+        log.debug("调用Agent健康检查接口");
 
         HttpHeaders headers = new HttpHeaders();
         headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
 
         HttpEntity<String> entity = new HttpEntity<>(headers);
-        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            return objectMapper.readTree(response.getBody());
+        } catch (RestClientResponseException exception) {
+            if (exception.getRawStatusCode() == 503) {
+                try {
+                    return objectMapper.readTree(exception.getResponseBodyAsString());
+                } catch (JsonProcessingException ignored) {
+                    return safeHealth("degraded", "DEPENDENCY_UNAVAILABLE");
+                }
+            }
+            return safeHealth("offline", "AGENT_UNAVAILABLE");
+        } catch (ResourceAccessException exception) {
+            return safeHealth("offline", "AGENT_UNAVAILABLE");
+        } catch (RestClientException | JsonProcessingException exception) {
+            return safeHealth("offline", "AGENT_UNAVAILABLE");
+        }
+    }
 
-        return response.getBody();
+    private JsonNode safeHealth(String status, String errorType) {
+        return objectMapper.createObjectNode()
+                .put("service", "Agent")
+                .put("status", status)
+                .put("checked_at", java.time.Instant.now().toString())
+                .put("error_type", errorType);
     }
 
     /**

@@ -65,9 +65,9 @@
           还没有会话记录
         </div>
       </div>
-      <div class="panel-footer">
-        <span class="status-dot" />
-        Agent 服务在线
+      <div class="panel-footer" role="status" aria-live="polite" aria-atomic="true">
+        <span class="status-dot" :class="`status-${agentHealth.status}`" />
+        {{ agentHealthText }}
       </div>
     </aside>
 
@@ -76,7 +76,7 @@
         <div>
           <span class="header-mark"><i class="el-icon-magic-stick" /></span>
           <span class="header-title">{{ currentTitle }}</span>
-          <el-tag size="mini" type="success">在线</el-tag>
+          <el-tag size="mini" :type="agentHealthTagType">{{ agentHealthText }}</el-tag>
         </div>
         <div class="header-actions">
           <el-select
@@ -85,7 +85,7 @@
             class="kb-select"
             clearable
             placeholder="不使用知识库"
-            :disabled="kbLocked"
+            :disabled="kbLocked || knowledgeUnavailable"
           >
             <el-option
               v-for="item in knowledgeBases"
@@ -94,6 +94,7 @@
               :value="item.kbId"
             />
           </el-select>
+          <span v-if="knowledgeUnavailable" class="health-hint">知识库相关操作暂不可用</span>
           <el-select
             v-model="model"
             size="small"
@@ -248,7 +249,7 @@
             <el-button
               type="primary"
               circle
-              :disabled="cancelling || (!draft.trim() && !running)"
+              :disabled="cancelling || (!draft.trim() && !running) || (!running && (agentHealth.status === 'offline' || (knowledgeUnavailable && kbId)))"
               :icon="running ? 'el-icon-close' : 'el-icon-top'"
               :aria-label="running ? '取消生成' : '发送消息'"
               @click="running ? stopGeneration() : send()"
@@ -268,6 +269,7 @@ import {
   getAgentSession,
   updateAgentSession,
   submitAgentTask,
+  getAgentHealth,
   getAgentTask,
   cancelAgentTask,
   confirmAgentTool,
@@ -287,6 +289,13 @@ interface ChatMessage {
   streaming?: boolean
   citations?: any[]
   confirmation?: any
+}
+
+type AgentHealthStatus = 'online' | 'degraded' | 'offline' | 'unknown'
+
+interface AgentHealth {
+  status: AgentHealthStatus
+  errorType: string | null
 }
 export default Vue.extend({
   name: 'AgentPage',
@@ -311,6 +320,8 @@ export default Vue.extend({
       streamController: null as AbortController | null,
       streamStatus: '正在思考...',
       pageDestroyed: false,
+      agentHealth: { status: 'unknown', errorType: null } as AgentHealth,
+      healthRefreshTimer: null as number | null,
       loadingSessions: false,
       loadingArchived: false,
       suggestions: [
@@ -335,6 +346,23 @@ export default Vue.extend({
         )
       })
     },
+    agentHealthText(): string {
+      const status = (this as any).agentHealth.status as AgentHealthStatus
+      return {
+        online: '服务正常',
+        degraded: '部分能力不可用',
+        offline: '服务不可用',
+        unknown: '状态未知',
+      }[status]
+    },
+    agentHealthTagType(): string {
+      const status = (this as any).agentHealth.status as AgentHealthStatus
+      return { online: 'success', degraded: 'warning', offline: 'danger', unknown: 'info' }[status]
+    },
+    knowledgeUnavailable(): boolean {
+      const errorType = (this as any).agentHealth.errorType
+      return errorType === 'QDRANT_UNAVAILABLE' || errorType === 'EMBEDDING_UNAVAILABLE'
+    },
   },
   mounted() {
     try {
@@ -346,6 +374,8 @@ export default Vue.extend({
     }
     this.loadSessions()
     this.loadKnowledgeBases()
+    this.refreshAgentHealth()
+    this.healthRefreshTimer = window.setInterval(() => this.refreshAgentHealth(), 60000)
   },
   beforeDestroy() {
     // 页面销毁只释放浏览器端 SSE，不把本地清理误当作后台任务取消。
@@ -353,8 +383,31 @@ export default Vue.extend({
     if (this.streamController) {
       this.streamController.abort()
     }
+    if (this.healthRefreshTimer !== null) {
+      window.clearInterval(this.healthRefreshTimer)
+      this.healthRefreshTimer = null
+    }
   },
   methods: {
+    async refreshAgentHealth() {
+      try {
+        const response: any = await getAgentHealth()
+        const payload = response.data?.data || {}
+        const statuses: AgentHealthStatus[] = ['online', 'degraded', 'offline']
+        const status = statuses.includes(payload.status) ? payload.status : 'unknown'
+        if (!this.pageDestroyed) {
+          this.agentHealth = {
+            status,
+            errorType: typeof payload.errorType === 'string' ? payload.errorType : null,
+          }
+        }
+      } catch (_) {
+        // 单次健康查询失败只能显示未知状态，不能影响会话和正在执行的任务。
+        if (!this.pageDestroyed) {
+          this.agentHealth = { status: 'unknown', errorType: null }
+        }
+      }
+    },
     async loadSessions() {
       this.loadingSessions = true
       try {
@@ -466,6 +519,14 @@ export default Vue.extend({
     async send() {
       const query = this.draft.trim()
       if (!query || this.running) {
+        return
+      }
+      if (this.agentHealth && this.agentHealth.status === 'offline') {
+        this.$message.error('Agent 服务不可用，请恢复服务后重试')
+        return
+      }
+      if (this.knowledgeUnavailable && this.kbId) {
+        this.$message.error('知识库服务暂不可用，请等待恢复或新建普通会话')
         return
       }
       this.draft = ''
@@ -929,6 +990,13 @@ export default Vue.extend({
   margin-right: 7px;
   border-radius: 50%;
   background: #26b57a;
+}
+.status-dot.status-degraded { background: #d99a24; }
+.status-dot.status-offline { background: #d9534f; }
+.status-dot.status-unknown { background: #9aa3b0; }
+.health-hint {
+  color: #c88620;
+  font-size: 12px;
 }
 .chat-panel {
   position: relative;

@@ -95,6 +95,28 @@ class HealthResponse(BaseModel):
     uptime_seconds: float = Field(description="服务运行时长（秒）")
 
 
+class DependencyHealth(BaseModel):
+    """就绪检查中单个运行依赖的安全状态。"""
+    status: Literal["healthy", "unavailable"]
+    error_type: Optional[str] = None
+
+
+class LLMHealthSummary(BaseModel):
+    """由配置校验与进程内指标生成的 LLM 摘要，不触发额外模型调用。"""
+    status: Literal["healthy", "unknown", "unavailable"]
+    error_type: Optional[str] = None
+
+
+class ReadinessResponse(BaseModel):
+    """供 Java 健康代理消费的安全就绪状态。"""
+    service: str
+    status: Literal["online", "degraded", "offline"]
+    checked_at: datetime
+    dependencies: Dict[str, DependencyHealth]
+    llm: LLMHealthSummary
+    error_type: Optional[str] = None
+
+
 class KnowledgeIndexRequest(BaseModel):
     task_id: str
     kb_id: str
