@@ -5,6 +5,7 @@ import unittest
 from app.core.agent import PythonAgent
 from app.core.config import Settings
 from app import main
+from app.llm.metrics import LLMMetrics
 
 
 class ConfigSecurityTest(unittest.TestCase):
@@ -88,6 +89,128 @@ class ConfigSecurityTest(unittest.TestCase):
         self.assertEqual("unavailable", payload["dependencies"]["qdrant"]["status"])
         self.assertIn("checked_at", payload)
         self.assertNotIn("http://", json.dumps(payload))
+
+    # LLM 尚无调用记录只影响页面能力状态，不能阻断 Compose 的服务就绪检查。
+    def test_readiness_keeps_cold_start_with_unknown_llm_http_healthy(self):
+        class FakeResponse:
+            is_success = True
+
+        class FakeClient:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_):
+                return False
+
+            async def get(self, _):
+                return FakeResponse()
+
+        request = type("Request", (), {
+            "app": type("App", (), {
+                "state": type("State", (), {"agent": object(), "llm_configured": True})()
+            })()
+        })()
+        original_client = main.httpx.AsyncClient
+        main.httpx.AsyncClient = lambda **_: FakeClient()
+        try:
+            response = asyncio.run(main.readiness(request))
+        finally:
+            main.httpx.AsyncClient = original_client
+
+        self.assertIsInstance(response, dict)
+        self.assertEqual("degraded", response["status"])
+        self.assertEqual("unknown", response["llm"]["status"])
+
+    # 累计成功次数不能覆盖最近连续失败；LLM 核心能力不可用时页面必须离线。
+    def test_readiness_marks_recent_continuous_llm_failures_offline(self):
+        async def record_sequence(metrics):
+            for _ in range(3):
+                await metrics.record(model="model", status="completed", error_type=None,
+                                     elapsed_ms=1, first_token_ms=None,
+                                     prompt_tokens=1, completion_tokens=1)
+            for _ in range(2):
+                await metrics.record(model="model", status="failed", error_type="UPSTREAM",
+                                     elapsed_ms=1, first_token_ms=None,
+                                     prompt_tokens=1, completion_tokens=0)
+
+        metrics = LLMMetrics()
+        asyncio.run(record_sequence(metrics))
+        request = type("Request", (), {
+            "app": type("App", (), {
+                "state": type("State", (), {"agent": object(), "llm_configured": True})()
+            })()
+        })()
+        original_metrics = main.llm_metrics
+        original_client = main.httpx.AsyncClient
+
+        class HealthyClient:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *_): return False
+            async def get(self, _): return type("Response", (), {"is_success": True})()
+
+        main.llm_metrics = metrics
+        main.httpx.AsyncClient = lambda **_: HealthyClient()
+        try:
+            response = asyncio.run(main.readiness(request))
+        finally:
+            main.llm_metrics = original_metrics
+            main.httpx.AsyncClient = original_client
+
+        self.assertEqual("offline", response["status"])
+        self.assertEqual("LLM_CALL_FAILED", response["error_type"])
+
+    # 一次新的成功调用应清除连续失败状态，恢复 LLM 健康能力。
+    def test_llm_metrics_recovers_after_success_following_continuous_failures(self):
+        async def record_sequence(metrics):
+            for _ in range(2):
+                await metrics.record(model="model", status="failed", error_type="UPSTREAM",
+                                     elapsed_ms=1, first_token_ms=None,
+                                     prompt_tokens=1, completion_tokens=0)
+            await metrics.record(model="model", status="completed", error_type=None,
+                                 elapsed_ms=1, first_token_ms=None,
+                                 prompt_tokens=1, completion_tokens=1)
+            return await metrics.snapshot()
+
+        snapshot = asyncio.run(record_sequence(LLMMetrics()))
+        recent = snapshot.get("recent", {})
+        self.assertEqual("completed", recent.get("last_status"))
+        self.assertEqual(0, recent.get("consecutive_failures"))
+
+    # 成功调用恢复后，页面状态应从 LLM 离线恢复为在线。
+    def test_readiness_recovers_online_after_llm_success(self):
+        async def record_sequence(metrics):
+            for _ in range(2):
+                await metrics.record(model="model", status="failed", error_type="UPSTREAM",
+                                     elapsed_ms=1, first_token_ms=None,
+                                     prompt_tokens=1, completion_tokens=0)
+            await metrics.record(model="model", status="completed", error_type=None,
+                                 elapsed_ms=1, first_token_ms=None,
+                                 prompt_tokens=1, completion_tokens=1)
+
+        metrics = LLMMetrics()
+        asyncio.run(record_sequence(metrics))
+        request = type("Request", (), {
+            "app": type("App", (), {
+                "state": type("State", (), {"agent": object(), "llm_configured": True})()
+            })()
+        })()
+        original_metrics = main.llm_metrics
+        original_client = main.httpx.AsyncClient
+
+        class HealthyClient:
+            async def __aenter__(self): return self
+            async def __aexit__(self, *_): return False
+            async def get(self, _): return type("Response", (), {"is_success": True})()
+
+        main.llm_metrics = metrics
+        main.httpx.AsyncClient = lambda **_: HealthyClient()
+        try:
+            response = asyncio.run(main.readiness(request))
+        finally:
+            main.llm_metrics = original_metrics
+            main.httpx.AsyncClient = original_client
+
+        self.assertEqual("online", response["status"])
 
 
 if __name__ == "__main__":

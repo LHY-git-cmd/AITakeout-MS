@@ -208,12 +208,20 @@ async def readiness(request: Request):
     llm = await _llm_readiness_summary(getattr(request.app.state, "llm_configured", False))
     unavailable = next(
         (item.error_type for item in dependencies.values() if item.status == "unavailable"), None)
+    startup_dependencies_ready = (
+        agent_ready and all(item.status == "healthy" for item in dependencies.values()))
     if not agent_ready:
         status = "offline"
         error_type = "AGENT_UNAVAILABLE"
-    elif unavailable or llm.status != "healthy":
+    elif unavailable:
         status = "degraded"
-        error_type = unavailable or llm.error_type
+        error_type = unavailable
+    elif llm.status == "unavailable":
+        status = "offline"
+        error_type = llm.error_type
+    elif llm.status == "unknown":
+        status = "degraded"
+        error_type = None
     else:
         status = "online"
         error_type = None
@@ -226,7 +234,8 @@ async def readiness(request: Request):
         llm=llm,
         error_type=error_type,
     ).model_dump(mode="json")
-    if status != "online":
+    # HTTP readiness只代表服务能否接受请求，页面能力状态单独用 status 表达。
+    if not startup_dependencies_ready:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=503, content=payload)
     return payload
@@ -236,12 +245,10 @@ async def _llm_readiness_summary(configured: bool) -> LLMHealthSummary:
     """从启动配置与已有指标派生 LLM 状态，绝不因轮询执行 Prompt。"""
     if not configured:
         return LLMHealthSummary(status="unavailable", error_type="LLM_CONFIGURATION_INVALID")
-    calls = (await llm_metrics.snapshot())["calls"]
-    completed = sum(count for key, count in calls.items() if ":completed:" in key)
-    failed = sum(count for key, count in calls.items() if ":failed:" in key)
-    if not completed and not failed:
+    recent = (await llm_metrics.snapshot())["recent"]
+    if recent["last_status"] is None:
         return LLMHealthSummary(status="unknown")
-    if failed > completed:
+    if recent["consecutive_failures"] >= 2:
         return LLMHealthSummary(status="unavailable", error_type="LLM_CALL_FAILED")
     return LLMHealthSummary(status="healthy")
 

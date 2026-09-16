@@ -249,7 +249,7 @@
             <el-button
               type="primary"
               circle
-              :disabled="cancelling || (!draft.trim() && !running) || (!running && agentHealth.status === 'offline')"
+              :disabled="cancelling || (!draft.trim() && !running) || (!running && (agentHealth.status === 'offline' || (knowledgeUnavailable && kbId)))"
               :icon="running ? 'el-icon-close' : 'el-icon-top'"
               :aria-label="running ? '取消生成' : '发送消息'"
               @click="running ? stopGeneration() : send()"
@@ -523,6 +523,10 @@ export default Vue.extend({
       }
       if (this.agentHealth && this.agentHealth.status === 'offline') {
         this.$message.error('Agent 服务不可用，请恢复服务后重试')
+        return
+      }
+      if (this.knowledgeUnavailable && this.kbId) {
+        this.$message.error('知识库服务暂不可用，请等待恢复或新建普通会话')
         return
       }
       this.draft = ''
