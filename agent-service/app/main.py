@@ -34,10 +34,17 @@ from app.core.trace import current_trace_id
 import uuid
 import time
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 http_requests = Counter()
 http_latency_seconds = 0.0
+# 实际问答连续失败后的冷却窗口；到期后允许管理员手动发起真实恢复验证。
+LLM_FAILURE_COOLDOWN_SECONDS = 300
+
+
+def _utc_now() -> datetime:
+    """提供可在确定性健康测试中替换的 UTC 时钟。"""
+    return datetime.now(timezone.utc)
 
 configure_logging(settings.LOG_LEVEL)
 
@@ -213,12 +220,12 @@ async def readiness(request: Request):
     if not agent_ready:
         status = "offline"
         error_type = "AGENT_UNAVAILABLE"
-    elif unavailable:
-        status = "degraded"
-        error_type = unavailable
     elif llm.status == "unavailable":
         status = "offline"
         error_type = llm.error_type
+    elif unavailable:
+        status = "degraded"
+        error_type = unavailable
     elif llm.status == "unknown":
         status = "degraded"
         error_type = None
@@ -249,7 +256,10 @@ async def _llm_readiness_summary(configured: bool) -> LLMHealthSummary:
     if recent["last_status"] is None:
         return LLMHealthSummary(status="unknown")
     if recent["consecutive_failures"] >= 2:
-        return LLMHealthSummary(status="unavailable", error_type="LLM_CALL_FAILED")
+        failed_at = datetime.fromisoformat(recent["last_failure_at"])
+        if _utc_now() - failed_at < timedelta(seconds=LLM_FAILURE_COOLDOWN_SECONDS):
+            return LLMHealthSummary(status="unavailable", error_type="LLM_CALL_FAILED")
+        return LLMHealthSummary(status="unknown")
     return LLMHealthSummary(status="healthy")
 
 

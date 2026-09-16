@@ -1,6 +1,8 @@
 import asyncio
 import json
 import unittest
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 from app.core.agent import PythonAgent
 from app.core.config import Settings
@@ -158,6 +160,85 @@ class ConfigSecurityTest(unittest.TestCase):
 
         self.assertEqual("offline", response["status"])
         self.assertEqual("LLM_CALL_FAILED", response["error_type"])
+
+    # LLM 是普通问答核心能力；即使知识库同时异常，整体仍须优先显示离线。
+    def test_readiness_prioritizes_llm_offline_over_qdrant_degraded(self):
+        async def record_failures(metrics):
+            for _ in range(2):
+                await metrics.record(model="model", status="failed", error_type="UPSTREAM",
+                                     elapsed_ms=1, first_token_ms=None,
+                                     prompt_tokens=1, completion_tokens=0)
+
+        metrics = LLMMetrics()
+        asyncio.run(record_failures(metrics))
+        request = type("Request", (), {
+            "app": type("App", (), {
+                "state": type("State", (), {"agent": object(), "llm_configured": True})()
+            })()
+        })()
+        original_metrics = main.llm_metrics
+        original_client = main.httpx.AsyncClient
+
+        class QdrantUnavailableClient:
+            def __init__(self): self.calls = 0
+            async def __aenter__(self): return self
+            async def __aexit__(self, *_): return False
+            async def get(self, _):
+                self.calls += 1
+                return type("Response", (), {"is_success": self.calls != 1})()
+
+        main.llm_metrics = metrics
+        main.httpx.AsyncClient = lambda **_: QdrantUnavailableClient()
+        try:
+            response = asyncio.run(main.readiness(request))
+        finally:
+            main.llm_metrics = original_metrics
+            main.httpx.AsyncClient = original_client
+
+        payload = json.loads(response.body)
+        self.assertEqual("offline", payload["status"])
+        self.assertEqual("LLM_CALL_FAILED", payload["error_type"])
+
+    # 冷却窗口必须是显式正数，供可控时钟的过期判定使用。
+    def test_llm_failure_cooldown_is_positive(self):
+        self.assertGreater(main.LLM_FAILURE_COOLDOWN_SECONDS, 0)
+
+    # 冷却判定必须依赖可替换时钟，避免时间相关测试不稳定。
+    def test_llm_failure_clock_is_injectable(self):
+        self.assertTrue(callable(getattr(main, "_utc_now", None)))
+
+    # 连续调用失败只在冷却窗口内离线，到期后降为可手动验证的 unknown。
+    def test_llm_failure_expires_to_unknown_but_invalid_configuration_does_not(self):
+        async def record_failures(metrics):
+            for _ in range(2):
+                await metrics.record(model="model", status="failed", error_type="UPSTREAM",
+                                     elapsed_ms=1, first_token_ms=None,
+                                     prompt_tokens=1, completion_tokens=0)
+            return await metrics.snapshot()
+
+        metrics = LLMMetrics()
+        snapshot = asyncio.run(record_failures(metrics))
+        failed_at = datetime.fromisoformat(snapshot["recent"]["last_failure_at"])
+        original_metrics = main.llm_metrics
+        main.llm_metrics = metrics
+        try:
+            with patch.object(main, "_utc_now", return_value=failed_at + timedelta(
+                    seconds=main.LLM_FAILURE_COOLDOWN_SECONDS - 1)):
+                within_window = asyncio.run(main._llm_readiness_summary(True))
+            with patch.object(main, "_utc_now", return_value=failed_at + timedelta(
+                    seconds=main.LLM_FAILURE_COOLDOWN_SECONDS)):
+                at_expiration = asyncio.run(main._llm_readiness_summary(True))
+            with patch.object(main, "_utc_now", return_value=failed_at + timedelta(
+                    seconds=main.LLM_FAILURE_COOLDOWN_SECONDS + 1)):
+                after_window = asyncio.run(main._llm_readiness_summary(True))
+                invalid_configuration = asyncio.run(main._llm_readiness_summary(False))
+        finally:
+            main.llm_metrics = original_metrics
+
+        self.assertEqual("unavailable", within_window.status)
+        self.assertEqual("unknown", at_expiration.status)
+        self.assertEqual("unknown", after_window.status)
+        self.assertEqual("unavailable", invalid_configuration.status)
 
     # 一次新的成功调用应清除连续失败状态，恢复 LLM 健康能力。
     def test_llm_metrics_recovers_after_success_following_continuous_failures(self):
