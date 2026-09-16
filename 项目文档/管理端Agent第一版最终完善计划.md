@@ -240,12 +240,12 @@ offline    Agent 不可访问，或当前核心依赖检查返回不可用
 
 #### 执行步骤
 
-- [ ] 为 Python readiness 响应补充 Agent 初始化状态和 LLM 状态摘要，保留 Qdrant、Embedding 状态。
-- [ ] 将 Java `/admin/agent/health` 从字符串响应改为强类型 `AgentHealthVO`。
-- [ ] Java 对 Agent 超时或 503 映射为 `offline/degraded`，健康查询本身返回可展示结构。
-- [ ] 页面进入时查询健康状态，运行期间每 60 秒刷新一次，页面销毁时清理定时器。
-- [ ] 将状态文案改为“服务正常”“部分能力不可用”“服务不可用”“状态未知”。
-- [ ] 单个健康查询失败不得清空会话或中断正在执行的任务。
+- [x] 为 Python readiness 响应补充 Agent 初始化状态和 LLM 状态摘要，保留 Qdrant、Embedding 状态。
+- [x] 将 Java `/admin/agent/health` 从字符串响应改为强类型 `AgentHealthVO`。
+- [x] Java 对 Agent 超时或 503 映射为 `offline/degraded`，健康查询本身返回可展示结构。
+- [x] 页面进入时查询健康状态，运行期间每 60 秒刷新一次，页面销毁时清理定时器。
+- [x] 将状态文案改为“服务正常”“部分能力不可用”“服务不可用”“状态未知”。
+- [x] 单个健康查询失败不得清空会话或中断正在执行的任务。
 
 #### 验收标准
 

@@ -3,6 +3,7 @@ package com.sky.controller.admin;
 import com.sky.agent.AgentClient;
 import com.sky.agent.model.AgentStreamEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.sky.dto.*;
 import com.sky.entity.AgentEvent;
 import com.sky.result.PageResult;
@@ -21,6 +22,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.util.TreeMap;
+import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -47,12 +49,27 @@ public class AgentController {
     /**
      * 检查底层Agent服务的健康状况。
      *
-     * @return 如果服务健康，则返回成功响应。
+     * @return 可展示的强类型健康状态，即使 Agent 当前不可达也会返回安全状态。
      */
     @GetMapping("/health")
     @Operation(summary = "Agent服务健康检查")
-    public Result<String> health() {
-        return Result.success(agentClient.healthCheck());
+    public Result<AgentHealthVO> health() {
+        JsonNode source = agentClient.healthCheck();
+        String status = source.path("status").asText("offline");
+        if (!"online".equals(status) && !"degraded".equals(status) && !"offline".equals(status)) {
+            status = "offline";
+        }
+        String errorType = source.path("error_type").asText("");
+        if (!errorType.isEmpty() && !errorType.matches("[A-Z_]{1,64}")) {
+            errorType = "AGENT_UNAVAILABLE";
+        }
+        AgentHealthVO health = AgentHealthVO.builder()
+                .service(source.path("service").asText("Agent"))
+                .status(status)
+                .checkedAt(source.path("checked_at").asText(Instant.now().toString()))
+                .errorType(errorType.isEmpty() ? null : errorType)
+                .build();
+        return Result.success(health);
     }
 
     // ========== 会话管理 CRUD ==========

@@ -1,7 +1,7 @@
 """轻量级进程内 LLM 指标；后续可由 Prometheus 适配器读取。"""
 import asyncio
 from collections import Counter
-from datetime import date
+from datetime import date, datetime, timezone
 
 from app.core.config import settings
 class LLMMetrics:
@@ -43,6 +43,10 @@ class LLMMetrics:
         self._rag_refusals = 0
         self._rag_errors = 0
         self._rag_scores: list[float] = []
+        self._last_status: str | None = None
+        self._last_success_at: datetime | None = None
+        self._last_failure_at: datetime | None = None
+        self._consecutive_failures = 0
 
     async def record(self, *, model: str, status: str, error_type: str | None,
                      elapsed_ms: float, first_token_ms: float | None,
@@ -78,6 +82,14 @@ class LLMMetrics:
             self._completion_tokens += completion_tokens or 0
             day = date.today().isoformat()
             self._daily[(day, model, status)] += 1
+            recorded_at = datetime.now(timezone.utc)
+            self._last_status = status
+            if status == "completed":
+                self._last_success_at = recorded_at
+                self._consecutive_failures = 0
+            elif status == "failed":
+                self._last_failure_at = recorded_at
+                self._consecutive_failures += 1
             self._estimated_cost += (
                 (prompt_tokens or 0) * settings.LLM_INPUT_COST_PER_MILLION
                 + (completion_tokens or 0) * settings.LLM_OUTPUT_COST_PER_MILLION
@@ -132,6 +144,14 @@ class LLMMetrics:
                 "daily_calls": {
                     f"{day}:{model}:{status}": count
                     for (day, model, status), count in self._daily.items()
+                },
+                "recent": {
+                    "last_status": self._last_status,
+                    "last_success_at": self._last_success_at.isoformat()
+                    if self._last_success_at else None,
+                    "last_failure_at": self._last_failure_at.isoformat()
+                    if self._last_failure_at else None,
+                    "consecutive_failures": self._consecutive_failures,
                 },
                 "rag": {
                     "searches": self._rag_searches,
