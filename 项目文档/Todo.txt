@@ -1,7 +1,5 @@
 管理端 Agent 第一版剩余事项（模块一完成后）
 
-P0：管理端消费 SSE 事件序号，实现事件去重、有限断线重连、Last-Event-ID 续传和 Java/MySQL 最终状态校验。
-
 P1：将静态“Agent 服务在线”替换为 Agent、Qdrant、Embedding 和 LLM 的真实正常、降级、不可用状态。
 
 P1：按 HTTP 状态和结构化错误建立管理端错误分类、恢复提示和可重试动作。
