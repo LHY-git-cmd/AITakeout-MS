@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import time
+import re
 from types import SimpleNamespace
 
 from app.core.agent import PythonAgent
@@ -23,6 +24,25 @@ from app.tools.executor import JavaToolClient, ToolExecutionError
 from app.tools.orchestrator import ToolOrchestrator
 from evals.tool_dataset import DEFAULT_DATASET, load_dataset, select_cases
 from evals.tool_scoring import score_case, summarize
+
+
+_SENSITIVE_KEY = re.compile(r"(?:api[_ -]?key|access[_ -]?token|auth[_ -]?token|password|passwd|secret|bearer|credential|token)", re.I)
+_SENSITIVE_VALUE = re.compile(
+    r"(?i)(?:api[_ -]?key|access[_ -]?token|auth[_ -]?token|password|passwd|secret|bearer|credential|token)"
+    r"(\s*[:=]\s*|\s+)([^\s,;]+)"
+)
+
+
+def sanitize_report(value):
+    """递归移除报告中的凭据模式；仅保留可定位失败的非敏感结构。"""
+    if isinstance(value, dict):
+        return {key: "[REDACTED]" if _SENSITIVE_KEY.search(str(key)) else sanitize_report(item)
+                for key, item in value.items()}
+    if isinstance(value, list):
+        return [sanitize_report(item) for item in value]
+    if isinstance(value, str):
+        return _SENSITIVE_VALUE.sub(lambda match: match.group(0)[:match.start(2)-match.start()] + "[REDACTED]", value)
+    return value
 
 
 class MockGateway:
@@ -217,7 +237,7 @@ def main(argv=None):
                   "message": "评测初始化失败；检查数据契约、模型配置和输入路径。"}
         code = 2
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    output.write_text(json.dumps(sanitize_report(report), ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"passed": report["passed"], "output": str(output), "metrics": report.get("metrics"), "error": report.get("error")}, ensure_ascii=True))
     return code
 

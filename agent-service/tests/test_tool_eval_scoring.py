@@ -79,6 +79,22 @@ class ToolEvalTest(unittest.TestCase):
         trace["answer"] = "工具失败了，但我已完成操作。"
         self.assertEqual(1, self.scoring.score_case(case, trace)["fabricated_success_count"])
 
+    def test_failure_followed_by_claim_result_took_effect_is_fabricated(self):
+        case = self.case("failure-01")
+        trace = self.evaluate(case)
+        trace["answer"] = "工具失败，但操作已落地，结果已生效。"
+        self.assertEqual(1, self.scoring.score_case(case, trace)["fabricated_success_count"])
+
+    def test_report_redacts_secrets_in_answer_arguments_and_trace(self):
+        trace = self.evaluate(self.case("read-01"))
+        trace["answer"] = "token=abc-secret password=hunter2 api_key=sk-live-123"
+        trace["calls"][0]["arguments"]["secret"] = "Bearer top-secret-token"
+        sanitized = self.runner.sanitize_report(trace)
+        rendered = json.dumps(sanitized, ensure_ascii=False)
+        for secret in ("abc-secret", "hunter2", "sk-live-123", "top-secret-token"):
+            self.assertNotIn(secret, rendered)
+        self.assertIn("[REDACTED]", rendered)
+
     def test_greeting_with_offer_of_help_is_not_missing_argument_clarification(self):
         trace = {"error": None, "events": [], "calls": [], "answer": "你好，可以帮你查询订单、按时间范围查询报表。有什么需要我帮忙的吗？"}
         self.assertEqual("completed", self.runner.terminal_state(trace))
