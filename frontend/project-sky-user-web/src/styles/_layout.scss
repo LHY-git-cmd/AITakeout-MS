@@ -1,11 +1,11 @@
-.site-header {
+﻿.site-header {
   position: sticky;
   z-index: 30;
   top: 0;
   height: var(--header-height);
-  background: rgb(255 255 255 / 96%);
+  background: var(--color-header-dark);
+  border-bottom: 2px solid var(--color-gold-line);
   box-shadow: var(--shadow-header);
-  backdrop-filter: blur(12px);
 }
 
 .site-header__inner {
@@ -20,20 +20,36 @@
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   width: fit-content;
-  font-size: 20px;
+  color: #f6efe2;
+  font-family: var(--font-serif);
+  font-size: 21px;
   font-weight: 750;
+  letter-spacing: 1.5px;
 }
 
+/* 朱砂印式标识：双线内框 + 内阴影 */
 .brand__mark {
   display: grid;
-  width: 36px;
-  height: 36px;
+  position: relative;
+  width: 38px;
+  height: 38px;
   place-items: center;
-  border-radius: 11px;
-  color: #fff;
-  background: var(--color-brand);
+  border: 1px solid rgb(232 217 184 / 55%);
+  border-radius: 5px;
+  color: #fff7ec;
+  background: linear-gradient(160deg, #c2452f, #93301f);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 18%), 0 3px 10px rgb(0 0 0 / 30%);
+}
+
+.brand__mark::after {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgb(255 247 236 / 34%);
+  border-radius: 3px;
+  content: '';
+  pointer-events: none;
 }
 
 .desktop-nav {
@@ -48,15 +64,18 @@
   min-width: 72px;
   padding: 0 16px;
   place-items: center;
-  color: var(--color-muted);
+  color: rgb(246 239 226 / 62%);
+  font-family: var(--font-serif);
+  font-size: 16px;
   font-weight: 650;
+  letter-spacing: 1px;
 }
 
 .desktop-nav__link::after {
   position: absolute;
-  right: 18px;
+  right: 16px;
   bottom: 0;
-  left: 18px;
+  left: 16px;
   height: 3px;
   border-radius: 3px 3px 0 0;
   background: transparent;
@@ -64,26 +83,28 @@
 }
 
 .desktop-nav__link.is-active {
-  color: var(--color-ink);
+  color: #f3e3c2;
 }
 
 .desktop-nav__link.is-active::after {
-  background: var(--color-brand);
+  background: linear-gradient(90deg, transparent, var(--color-gold-line), transparent);
 }
 
 .desktop-nav__link:hover {
-  color: var(--color-brand-dark);
+  color: #f6efe2;
 }
 
 .desktop-nav__link--disabled {
   border: 0;
   background: transparent;
   font: inherit;
+  font-family: var(--font-serif);
+  letter-spacing: 1px;
   cursor: default;
 }
 
 .desktop-nav__link--disabled:disabled {
-  color: var(--color-muted);
+  color: rgb(246 239 226 / 42%);
   opacity: 1;
 }
 
@@ -113,10 +134,10 @@
 .account-link:hover,
 .location-link:hover,
 .cart-button:hover {
-  border-color: #f8c6a8;
+  border-color: var(--color-gold-line);
   color: var(--color-brand-dark);
   background: var(--color-brand-soft);
-  box-shadow: 0 5px 14px rgb(234 88 12 / 10%);
+  box-shadow: 0 5px 14px rgb(176 58 46 / 12%);
 }
 
 .account-link {
@@ -324,7 +345,7 @@
 .sex-control button:focus-visible,
 .login-dialog__close:focus-visible,
 .login-dialog__submit:focus-visible {
-  outline: 3px solid rgb(229 72 51 / 25%);
+  outline: 3px solid rgb(176 58 46 / 25%);
   outline-offset: 2px;
 }
 
@@ -458,7 +479,7 @@
 
 .login-dialog input:focus {
   border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px rgb(229 72 51 / 12%);
+  box-shadow: 0 0 0 3px rgb(176 58 46 / 12%);
 }
 
 .login-dialog__error {
@@ -588,8 +609,8 @@
     grid-template-columns: repeat(3, 1fr);
     height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
-    border-top: 1px solid var(--color-line);
-    background: rgb(255 255 255 / 98%);
+    border-top: 1px solid var(--color-gold-line);
+    background: rgb(255 252 246 / 98%);
   }
 
   .mobile-nav__link {
@@ -667,18 +688,18 @@
   height: 64px;
   padding: 0;
   place-items: center;
-  border: 0;
+  border: 1px solid rgb(232 217 184 / 50%);
   border-radius: 50%;
-  color: #fff;
-  background: var(--color-brand);
-  box-shadow: 0 12px 28px rgb(194 65 12 / 34%);
+  color: #fff7ec;
+  background: radial-gradient(120% 120% at 30% 20%, #c84a33, #93301f);
+  box-shadow: 0 12px 28px rgb(142 42 32 / 40%), inset 0 0 0 1px rgb(0 0 0 / 16%);
   cursor: pointer;
   transform: translateX(-50%);
 }
 
 .floating-cart:hover {
-  background: var(--color-brand-dark);
-  box-shadow: 0 15px 32px rgb(194 65 12 / 42%);
+  background: radial-gradient(120% 120% at 30% 20%, #d4553c, #8e2a20);
+  box-shadow: 0 15px 32px rgb(142 42 32 / 48%), inset 0 0 0 1px rgb(0 0 0 / 16%);
   transform: translateX(-50%) translateY(-2px);
 }
 

@@ -1,18 +1,26 @@
 :root {
-  --color-brand: #ea580c;
-  --color-brand-dark: #c2410c;
-  --color-brand-soft: #fff1e8;
-  --color-ink: #172033;
-  --color-muted: #64748b;
-  --color-line: #e8e4df;
-  --color-surface: #ffffff;
-  --color-canvas: #fffaf5;
-  --color-success: #15803d;
-  --color-accent: #2563eb;
-  --color-accent-soft: #eff6ff;
-  --shadow-header: 0 1px 0 rgb(23 32 51 / 8%), 0 8px 24px rgb(23 32 51 / 4%);
-  --shadow-soft: 0 12px 32px rgb(23 32 51 / 7%);
-  --shadow-card: 0 4px 18px rgb(23 32 51 / 5%);
+  /* 中式餐厅风格：宣纸底 + 朱砂 + 暖金 + 墨色 */
+  --color-brand: #b03a2e;
+  --color-brand-dark: #8e2a20;
+  --color-brand-soft: #f8ebe4;
+  --color-ink: #1f1b16;
+  --color-muted: #7a6a57;
+  --color-line: #e4dacb;
+  --color-surface: #fffcf6;
+  --color-canvas: #f7f1e6;
+  --color-success: #3f6b54;
+  --color-accent: #b08a45;
+  --color-accent-soft: #f6efdf;
+  /* 中式辅助色：暖金与深木色 */
+  --color-gold: #b08a45;
+  --color-gold-line: #caab6e;
+  --color-gold-soft: #e8d9b8;
+  --color-header-dark: #241c16;
+  /* 中文衬线字体栈：优先系统宋体，不依赖外网字体 */
+  --font-serif: "Songti SC", "Noto Serif SC", "Source Han Serif SC", SimSun, STSong, "Times New Roman", serif;
+  --shadow-header: 0 2px 14px rgb(31 27 22 / 22%);
+  --shadow-soft: 0 4px 18px rgb(31 27 22 / 7%);
+  --shadow-card: 0 1px 0 #fff inset, 0 4px 18px rgb(31 27 22 / 6%);
   --content-width: 1280px;
   --header-height: 68px;
   --mobile-nav-height: 64px;

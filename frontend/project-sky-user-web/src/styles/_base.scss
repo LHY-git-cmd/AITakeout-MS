@@ -1,4 +1,4 @@
-* {
+﻿* {
   box-sizing: border-box;
 }
 
@@ -8,6 +8,11 @@ html {
   font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
   line-height: 1.5;
   text-rendering: optimizeLegibility;
+  /* 宣纸质感：极淡的斜纹叠加顶部暖金晕染 */
+  background-image:
+    radial-gradient(120% 60% at 50% -10%, rgb(176 138 69 / 10%), transparent 60%),
+    repeating-linear-gradient(0deg, rgb(31 27 22 / 1.2%) 0 2px, transparent 2px 4px);
+  background-attachment: fixed;
 }
 
 body {
@@ -35,7 +40,7 @@ a {
 
 button:focus-visible,
 a:focus-visible {
-  outline: 3px solid rgb(234 88 12 / 28%);
+  outline: 3px solid rgb(176 58 46 / 28%);
   outline-offset: 2px;
 }
 
