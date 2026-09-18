@@ -57,6 +57,8 @@ onBeforeUnmount(stopResize)
       @keydown="handleResizeKey"
     />
     <header><Sparkles :size="20" aria-hidden="true" /><strong>AI 助手</strong></header>
-    <div class="ai-chat-panel__content" />
+    <div class="ai-chat-panel__content">
+      <p>不知道吃什么？问饱饱</p>
+    </div>
   </aside>
 </template>

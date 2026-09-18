@@ -270,7 +270,7 @@
   padding: 0;
   overflow: hidden;
   border: 0;
-  background: #f0f0ed;
+  background: #f1e7d6;
   cursor: pointer;
 }
 
@@ -289,8 +289,8 @@
 .product-image__fallback {
   display: grid;
   place-items: center;
-  color: #a5a59f;
-  background: #eeeeeb;
+  color: #b29b7b;
+  background: #f1e7d6;
 }
 
 .product-card__body {
@@ -1080,7 +1080,7 @@
 .checkout-options input:focus,
 .checkout-options textarea:focus {
   border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px rgb(229 72 51 / 10%);
+  box-shadow: 0 0 0 3px rgb(176 58 46 / 10%);
 }
 
 .form-grid {
@@ -2285,12 +2285,12 @@
   border-radius: 14px;
   color: var(--color-muted);
   background: var(--color-surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 1px 0 #fff inset, var(--shadow-card);
 }
 
 .menu-searchbar:focus-within {
-  border-color: #f4ad82;
-  box-shadow: 0 0 0 3px rgb(234 88 12 / 12%);
+  border-color: var(--color-gold-line);
+  box-shadow: 0 0 0 3px rgb(176 138 69 / 14%);
 }
 
 .menu-searchbar input {
@@ -2305,7 +2305,23 @@
 }
 
 .menu-searchbar input::placeholder {
-  color: #94a3b8;
+  color: #b4a691;
+}
+
+/* 中式餐厅风格：AI 面板空态提示（原为空占位） */
+.ai-chat-panel__content {
+  display: grid;
+  place-content: center;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.ai-chat-panel__content p {
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  letter-spacing: 2px;
 }
 
 .menu-page {
@@ -2379,7 +2395,7 @@
 }
 
 .ai-chat-panel__resize:focus-visible {
-  outline: 3px solid rgb(234 88 12 / 24%);
+  outline: 3px solid rgb(176 58 46 / 24%);
   outline-offset: 1px;
 }
 
@@ -2391,11 +2407,28 @@
   padding: 0 20px;
   border-bottom: 1px solid var(--color-line);
   color: var(--color-brand-dark);
+  background: #fbf6ec;
+  font-family: var(--font-serif);
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
+/* 中式四角星点缀 */
+.ai-chat-panel header::before {
+  color: var(--color-gold);
+  content: '✦';
+  font-size: 14px;
+}
+
+.ai-chat-panel header svg {
+  color: var(--color-gold);
 }
 
 .ai-chat-panel__content {
   flex: 1;
-  background: linear-gradient(180deg, #fff 0%, #fffaf5 100%);
+  background:
+    radial-gradient(90% 55% at 50% 0%, rgb(176 138 69 / 10%), transparent 65%),
+    linear-gradient(180deg, #fffdf8 0%, #fbf4e8 100%);
 }
 
 .profile-menu-link {
@@ -2469,10 +2502,10 @@
   min-height: 184px;
   overflow: hidden;
   padding: 32px 38px;
-  border: 1px solid #f4e4d8;
+  border: 1px solid var(--color-line);
   border-left: 5px solid var(--color-brand);
   border-radius: 16px;
-  background: #fff;
+  background: var(--color-surface);
   box-shadow: var(--shadow-soft);
 }
 
@@ -2482,7 +2515,7 @@
   right: 0;
   width: 34%;
   height: 100%;
-  background: #fff5ed;
+  background: #fbf6ec;
   content: '';
   pointer-events: none;
 }
@@ -2490,6 +2523,7 @@
 .shop-summary h1 {
   margin: 10px 0 14px;
   color: var(--color-ink);
+  font-family: var(--font-serif);
   font-size: clamp(28px, 3vw, 38px);
   letter-spacing: -0.02em;
 }
@@ -2514,11 +2548,11 @@
   gap: 14px;
   min-width: 300px;
   padding: 18px 22px;
-  border: 1px solid #f7d7c2;
+  border: 1px solid var(--color-line);
   border-radius: 14px;
   color: var(--color-brand-dark);
-  background: #fff;
-  box-shadow: 0 8px 22px rgb(194 65 12 / 8%);
+  background: var(--color-surface);
+  box-shadow: 0 8px 22px rgb(142 42 32 / 8%);
 }
 
 .shop-summary__visual-icon {
@@ -2585,12 +2619,15 @@
   min-height: 48px;
   border-left-width: 4px;
   border-radius: 8px;
-  font-size: 14px;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  letter-spacing: 1px;
 }
 
 .category-list button.is-active {
   color: var(--color-brand-dark);
   background: var(--color-brand-soft);
+  font-weight: 750;
 }
 
 .product-area__heading {
@@ -2600,8 +2637,9 @@
 }
 
 .product-area__heading h2 {
+  font-family: var(--font-serif);
   font-size: 23px;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
 }
 
 .product-area__heading span {
@@ -2620,21 +2658,49 @@
 .product-card {
   min-height: 154px;
   overflow: hidden;
-  border: 1px solid #eee5dd;
+  border: 1px solid var(--color-line);
   border-radius: 12px;
+  background: var(--color-surface);
   box-shadow: var(--shadow-card);
 }
 
+/* 朱砂小印：锚定菜品图自身，不依赖图片列宽（桌面 132px / 移动 92px 都不会压到价格） */
+.product-card__image {
+  position: relative;
+}
+
+.product-card__image::after {
+  position: absolute;
+  z-index: 3;
+  bottom: 10px;
+  left: 50%;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 3px;
+  color: #fff7ec;
+  background: var(--color-brand);
+  box-shadow: 0 2px 6px rgb(31 27 22 / 25%);
+  content: '鲜';
+  font-family: var(--font-serif);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
 .product-card:hover {
-  border-color: #f4bf9e;
-  box-shadow: 0 12px 24px rgb(23 32 51 / 9%);
+  border-color: var(--color-gold-line);
+  box-shadow: 0 1px 0 #fff inset, 0 10px 26px rgb(31 27 22 / 10%);
   transform: translateY(-2px);
 }
 
+/* 宽度交给网格列决定：此前固定 132px 会溢出 126px 的列并把菜名压住 */
 .product-card__image {
-  width: 132px;
+  width: 100%;
   min-height: 152px;
-  background: #f8f0e9;
+  background: #f1e7d6;
 }
 
 .product-card__body {
@@ -2642,35 +2708,39 @@
 }
 
 .product-card h3 {
+  font-family: var(--font-serif);
   font-size: 17px;
+  letter-spacing: 1px;
 }
 
 .product-card__body > p {
   margin: 8px 0 12px;
-  color: #718096;
+  color: var(--color-muted);
   line-height: 1.6;
 }
 
 .product-card__footer > strong {
   color: var(--color-brand-dark);
   font-size: 20px;
+  font-variant-numeric: tabular-nums;
 }
 
 .product-card__footer > button,
 .cart-panel__footer button:not(:disabled),
 .product-dialog__footer button,
 .login-dialog__submit {
+  border: 1px solid rgb(232 217 184 / 40%);
   border-radius: 9px;
-  background: var(--color-brand);
-  box-shadow: 0 6px 14px rgb(234 88 12 / 18%);
+  background: linear-gradient(160deg, #c2452f, #9c3225);
+  box-shadow: 0 3px 10px rgb(142 42 32 / 28%);
 }
 
 .product-card__footer > button:hover:not(:disabled),
 .cart-panel__footer button:hover:not(:disabled),
 .product-dialog__footer button:hover:not(:disabled),
 .login-dialog__submit:hover:not(:disabled) {
-  background: var(--color-brand-dark);
-  box-shadow: 0 8px 18px rgb(194 65 12 / 22%);
+  background: linear-gradient(160deg, #ce4c35, #8e2a20);
+  box-shadow: 0 5px 14px rgb(142 42 32 / 36%);
 }
 
 .desktop-cart-panel {
@@ -2737,7 +2807,7 @@
   }
 
   .product-card {
-    box-shadow: 0 3px 12px rgb(23 32 51 / 5%);
+    box-shadow: 0 3px 12px rgb(31 27 22 / 6%);
   }
 }
 
@@ -2772,5 +2842,24 @@
   .menu-workspace {
     grid-template-columns: 96px minmax(0, 1fr);
     grid-template-rows: 50px auto;
+  }
+}
+
+/* 恢复被上面新版规则覆盖掉的窄屏菜品卡尺寸（图片列 92px、卡片 116px 高） */
+@media (max-width: 1199px) {
+  .product-card {
+    grid-template-columns: 92px minmax(0, 1fr);
+    min-height: 116px;
+  }
+
+  .product-card__image {
+    min-height: 114px;
+  }
+
+  .product-card__image::after {
+    bottom: 7px;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
   }
 }
