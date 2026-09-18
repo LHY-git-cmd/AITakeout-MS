@@ -1,0 +1,447 @@
+/* ============================================================================
+   白天模式（浅色主题）
+   ----------------------------------------------------------------------------
+   设计要点：
+   1. 只覆盖「变量 + 反转覆盖层」，不重复整套 Element 覆盖规则；
+      深色覆盖层里的写死值已全部改为语义变量
+      （--field-border / --box-bg / --text-on-accent），因此这里换掉变量即可。
+   2. 星空层是纯装饰：浅色下淡出并停用动画，不占用内容对比度。
+   3. 登录页 / 404 有独立设计，不在本主题作用范围内（选择器已排除）。
+   4. 侧栏与导航栏在浅色下改为白底，用中性灰分隔线。
+   ============================================================================ */
+
+#app.theme-light {
+  /* ---- 表面：整体纯白底 ---- */
+  --sky-deep: #ffffff;
+  --sky-mid: #ffffff;
+  --surface-app: #ffffff;
+  --surface-card: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-inset: #f7f8fa;
+  --surface-hover: rgba(15, 23, 42, 0.05);
+  --surface-stripe: rgba(15, 23, 42, 0.02);
+
+  /* ---- 边框：白底上用更明显的灰，保证分区可见 ---- */
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --field-border: #d7dee8;
+  --box-bg: #ffffff;
+
+  /* ---- 文字：黑字，四级层次 ---- */
+  --text-1: #111827;
+  --text-2: #1f2937;
+  --text-3: #4b5563;
+  --text-4: #6b7280;
+  --text-on-accent: #ffffff;
+
+  /* ---- 品牌与语义色在浅底上加深，保证可读 ---- */
+  --brand: #3b82f6;
+  --brand-pink: #e08ac4;
+  --action: #2563eb;
+  --action-light: #3b82f6;
+  --action-deep: #1d4ed8;
+  --accent: #2563eb;
+  --accent-soft: rgba(37, 99, 235, 0.1);
+  --success: #12a06a;
+  --success-soft: rgba(18, 160, 106, 0.12);
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.1);
+  --warn: #c8860d;
+  --warn-soft: rgba(200, 134, 13, 0.12);
+
+  /* ---- 阴影：浅色下用柔和的冷灰，不要深色投影 ---- */
+  --shadow-card: 0 6px 20px rgba(21, 34, 63, 0.08);
+  --shadow-pop: 0 16px 40px rgba(21, 34, 63, 0.16);
+
+  background-color: var(--surface-app);
+  color: var(--text-2);
+}
+
+/* 深色主题用 #app:not(:has(.login)) 把底色设为 transparent，
+   这里用同等选择器 + 更高优先级把它压回白色 */
+#app.theme-light,
+#app.theme-light:not(:has(.login)) {
+  background-color: #ffffff !important;
+  color: var(--text-2);
+}
+
+/* 浅色模式下 html/body 也跟着变白
+   （深色主题里 html/body 写死了 --sky-deep，这里必须显式压过） */
+html.theme-light,
+body.theme-light,
+html:has(#app.theme-light) {
+  background-color: #ffffff !important;
+}
+
+/* ============================================================================
+   星空层：浅色下淡出 + 停动画（纯装饰，不参与内容对比度）
+   ============================================================================ */
+#app.theme-light .starfield {
+  opacity: 0.16;
+  filter: saturate(0.5);
+}
+
+#app.theme-light .star-layer,
+#app.theme-light .star-mist,
+#app.theme-light .meteor {
+  animation: none !important;
+}
+
+#app.theme-light .meteor {
+  opacity: 0 !important;
+}
+
+/* ============================================================================
+   侧栏 / 导航栏：深色 → 白底
+   ============================================================================ */
+#app.theme-light .sidebar-container {
+  background: #ffffff !important;
+  border-right: 1px solid var(--border) !important;
+  backdrop-filter: none;
+}
+
+#app.theme-light .navbar {
+  background: rgba(255, 255, 255, 0.88) !important;
+  border-bottom: 1px solid var(--border) !important;
+  backdrop-filter: blur(12px);
+}
+
+#app.theme-light .brand {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(224, 138, 196, 0.05) 62%);
+}
+
+/* 面包屑与导航项文字在浅底上要用深色 */
+#app.theme-light .breadcrumb-container,
+#app.theme-light .crumb {
+  color: var(--text-3);
+}
+
+/* 用户下拉箭头（深色主题下是浅色边框箭头） */
+#app.theme-light .el-icon-arrow-down {
+  border-color: var(--text-3) !important;
+}
+
+/* ============================================================================
+   Element 覆盖：把深色主题里写死为透明/白色的地方换成浅色
+   ============================================================================ */
+#app.theme-light .el-table,
+#app.theme-light .el-table__expanded-cell,
+#app.theme-light .el-table tr,
+#app.theme-light .el-table__body,
+#app.theme-light .el-table__header,
+#app.theme-light .el-table__footer,
+#app.theme-light .el-table__body-wrapper,
+#app.theme-light .el-table__header-wrapper,
+#app.theme-light .el-table__footer-wrapper,
+#app.theme-light .el-table__fixed,
+#app.theme-light .el-table__fixed-right,
+#app.theme-light .el-table__empty-block,
+#app.theme-light .el-table__fixed-body-wrapper,
+#app.theme-light .el-table__fixed-footer-wrapper tbody td,
+#app.theme-light .el-table__footer-wrapper tbody td {
+  background-color: #ffffff !important;
+}
+
+#app.theme-light .el-table th.el-table__cell,
+#app.theme-light .el-table th,
+#app.theme-light .el-table thead.is-group th,
+#app.theme-light .el-table__header-wrapper tbody td,
+#app.theme-light .el-table__fixed-header-wrapper thead th {
+  background-color: var(--surface-inset) !important;
+  color: var(--text-3) !important;
+}
+
+#app.theme-light .el-table td.el-table__cell,
+#app.theme-light .el-table td {
+  background-color: transparent !important;
+  color: var(--text-2) !important;
+}
+
+#app.theme-light .el-table--striped .el-table__body tr.el-table__row--striped td {
+  background-color: rgba(15, 23, 42, 0.025) !important;
+}
+
+#app.theme-light .el-table__body tr.hover-row > td,
+#app.theme-light .el-table__body tr:hover > td {
+  background-color: rgba(37, 99, 235, 0.06) !important;
+}
+
+#app.theme-light .el-table__body tr.current-row > td {
+  background-color: rgba(37, 99, 235, 0.1) !important;
+}
+
+#app.theme-light .el-table__fixed-right-patch {
+  background-color: #ffffff !important;
+}
+
+/* 弹窗 / 消息框 / 提示 */
+#app.theme-light .el-dialog,
+#app.theme-light .el-message-box,
+#app.theme-light .el-message,
+#app.theme-light .el-notification,
+#app.theme-light .el-card,
+#app.theme-light .el-drawer,
+#app.theme-light .el-transfer-panel,
+#app.theme-light .el-collapse,
+#app.theme-light .el-collapse-item__header,
+#app.theme-light .el-collapse-item__wrap,
+#app.theme-light .el-cascader-panel,
+#app.theme-light .el-cascader-menu {
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+}
+
+#app.theme-light .el-dialog__header {
+  background-color: var(--surface-inset) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+#app.theme-light .el-dialog__footer {
+  border-top: 1px solid var(--border) !important;
+}
+
+#app.theme-light .el-dialog__title,
+#app.theme-light .el-message-box__title,
+#app.theme-light .el-message-box__content,
+#app.theme-light .el-message__content,
+#app.theme-light .el-notification__title,
+#app.theme-light .el-notification__content,
+#app.theme-light .el-notification__content p {
+  color: var(--text-1) !important;
+}
+
+/* 弹层挂在 body 下，但仍能被 #app.theme-light 的后代选择器命中不到，
+   因此这里用 :has() 兜住（与深色主题同一套思路） */
+html:has(#app.theme-light) {
+  .el-select-dropdown,
+  .el-dropdown-menu,
+  .el-autocomplete-suggestion,
+  .el-picker-panel,
+  .el-popover,
+  .el-cascader__dropdown,
+  .el-table-filter,
+  .el-time-panel {
+    background-color: #ffffff !important;
+    border: 1px solid var(--border-strong) !important;
+    box-shadow: var(--shadow-pop) !important;
+  }
+
+  .el-select-dropdown__item,
+  .el-dropdown-menu__item,
+  .el-cascader-node {
+    color: var(--text-2) !important;
+  }
+
+  .el-select-dropdown__item.hover,
+  .el-select-dropdown__item:hover,
+  .el-select-dropdown__item:active,
+  .el-dropdown-menu__item:not(.is-disabled):hover,
+  .el-cascader-node:not(.is-disabled):hover {
+    background-color: rgba(37, 99, 235, 0.07) !important;
+    color: var(--text-1) !important;
+  }
+
+  .el-select-dropdown__item.selected,
+  .el-select-dropdown.is-multiple .el-select-dropdown__item.selected {
+    background-color: var(--accent-soft) !important;
+    color: var(--accent) !important;
+    font-weight: 600;
+  }
+}
+
+/* 输入类控件 */
+#app.theme-light .el-input__inner,
+#app.theme-light .el-textarea__inner {
+  background-color: #ffffff !important;
+  border-color: var(--field-border) !important;
+  color: var(--text-1) !important;
+}
+
+#app.theme-light .el-input__inner::placeholder,
+#app.theme-light .el-textarea__inner::placeholder {
+  color: var(--text-4) !important;
+}
+
+#app.theme-light .el-input.is-disabled .el-input__inner,
+#app.theme-light .el-textarea.is-disabled .el-textarea__inner {
+  background-color: var(--surface-inset) !important;
+  color: var(--text-4) !important;
+}
+
+#app.theme-light .el-input-group__prepend,
+#app.theme-light .el-input-group__append,
+#app.theme-light .el-input-number__decrease,
+#app.theme-light .el-input-number__increase {
+  background-color: var(--surface-inset) !important;
+  border-color: var(--border) !important;
+  color: var(--text-3) !important;
+}
+
+/* 普通按钮：浅色下用白底 + 灰边，而不是深色主题的半透明白 */
+#app.theme-light .el-button {
+  background-color: #ffffff;
+  border-color: var(--field-border);
+  color: var(--text-1);
+}
+
+#app.theme-light .el-button:hover,
+#app.theme-light .el-button:focus {
+  background-color: #f3f7ff !important;
+  border-color: var(--action) !important;
+  color: var(--action) !important;
+}
+
+#app.theme-light .el-button.is-disabled,
+#app.theme-light .el-button.is-disabled:hover {
+  background-color: var(--surface-inset) !important;
+  border-color: var(--border) !important;
+  color: var(--text-4) !important;
+}
+
+/* 分页 */
+#app.theme-light .el-pagination button,
+#app.theme-light .el-pager li,
+#app.theme-light .el-pagination.is-background .el-pager li {
+  background-color: #ffffff !important;
+  color: var(--text-2) !important;
+  border: 1px solid var(--border);
+}
+
+#app.theme-light .el-pager li.active,
+#app.theme-light .el-pagination.is-background .el-pager li:not(.disabled).active {
+  background: var(--action) !important;
+  color: #ffffff !important;
+}
+
+/* 单选 / 复选 / 标签 */
+#app.theme-light .el-radio__inner,
+#app.theme-light .el-checkbox__inner {
+  background-color: #ffffff;
+  border-color: var(--field-border);
+}
+
+#app.theme-light .el-tag {
+  background-color: var(--accent-soft);
+  border-color: rgba(37, 99, 235, 0.3);
+  color: var(--accent);
+}
+
+#app.theme-light .el-radio-button__inner {
+  background-color: #ffffff !important;
+  border-color: var(--border) !important;
+  color: var(--text-2) !important;
+}
+
+/* 上传控件 */
+#app.theme-light .el-upload--picture-card,
+#app.theme-light .el-upload-dragger,
+#app.theme-light .avatar-uploader .el-upload,
+#app.theme-light .avatar-uploader .avatar-uploader-icon {
+  background-color: var(--surface-inset) !important;
+  border-color: var(--border) !important;
+  color: var(--text-3) !important;
+}
+
+/* loading 遮罩 */
+#app.theme-light .el-loading-mask {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+}
+
+/* 滚动条：浅色下用更深的蓝，保证白底上可见 */
+#app.theme-light ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#app.theme-light ::-webkit-scrollbar-track,
+#app.theme-light ::-webkit-scrollbar-track-piece,
+#app.theme-light ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+#app.theme-light ::-webkit-scrollbar-thumb {
+  background: var(--action, #2563eb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+#app.theme-light ::-webkit-scrollbar-thumb:hover {
+  background: var(--action-deep, #1d4ed8);
+  background-clip: content-box;
+}
+
+#app.theme-light ::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+}
+
+/* 深色模式滚动条：淡蓝滑块 + 透明轨道 */
+#app:not(:has(.login)) ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#app:not(:has(.login)) ::-webkit-scrollbar-track,
+#app:not(:has(.login)) ::-webkit-scrollbar-track-piece,
+#app:not(:has(.login)) ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+#app:not(:has(.login)) ::-webkit-scrollbar-thumb {
+  background: var(--action-light, #60a5fa);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+#app:not(:has(.login)) ::-webkit-scrollbar-thumb:hover {
+  background: var(--action, #3b82f6);
+  background-clip: content-box;
+}
+
+#app:not(:has(.login)) ::-webkit-scrollbar-button {
+  display: none;
+  height: 0;
+}
+
+/* ============================================================================
+   导航栏右上角的用户按钮
+   ----------------------------------------------------------------------------
+   这里必须显式覆盖：全局 .el-button--primary(:hover/:focus) 会把任何类型为
+   primary 的按钮刷成淡蓝渐变 + 白字，导航栏用户按钮也吃到了这条，
+   导致浅色导航栏上「蓝底/白字」糊在一起、看起来像消失了。
+   选择器权重与全局规则相同（0,4,0）且在文件更后面，因此能稳定生效。
+   ============================================================================ */
+#app.theme-light .navbar .avatar-wrapper .el-button--primary,
+#app.theme-light .navbar .avatar-wrapper .el-button--primary:hover,
+#app.theme-light .navbar .avatar-wrapper .el-button--primary:focus,
+#app.theme-light .navbar .avatar-wrapper .el-button--primary.active {
+  background: var(--surface-inset) !important;
+  background-image: none !important;
+  border: 1px solid var(--field-border) !important;
+  color: var(--text-1) !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}
+
+#app.theme-light .navbar .avatar-wrapper .el-button--primary:hover,
+#app.theme-light .navbar .avatar-wrapper .el-button--primary:focus,
+#app.theme-light .navbar .avatar-wrapper .el-button--primary.active {
+  background: #eef2f7 !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-1) !important;
+}
+
+/* 深色主题下同理：用户按钮不应被刷成蓝色渐变 */
+#app:not(:has(.login)) .navbar .avatar-wrapper .el-button--primary,
+#app:not(:has(.login)) .navbar .avatar-wrapper .el-button--primary:hover,
+#app:not(:has(.login)) .navbar .avatar-wrapper .el-button--primary:focus,
+#app:not(:has(.login)) .navbar .avatar-wrapper .el-button--primary.active {
+  background: var(--surface-inset) !important;
+  background-image: none !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-1) !important;
+  font-weight: 500 !important;
+  box-shadow: none !important;
+}

@@ -39,8 +39,9 @@ export default class extends Vue {
 <style lang="scss" scoped>
   .HeadLable{
     // position: absolute;
-    background: #fff;
-    color: #333333;
+    // 透明底 + 跟随主题的主文字色（深色下浅字 / 浅色下深字）
+    background: transparent;
+    color: var(--text-1);
     height: 64px;
     font-size: 16px;
     // width: 300px;
@@ -53,11 +54,11 @@ export default class extends Vue {
     opacity: 0;
     animation: opacity 500ms ease-out 800ms forwards;
     .goBack{
-      border-right: solid 1px #d8dde3;
+      border-right: solid 1px var(--field-border);
       padding-right: 14px;
       margin-right: 14px;
       font-size: 16px;
-      color: #333333;
+      color: var(--text-1);
       cursor: pointer;
       font-weight: 400;
       img{

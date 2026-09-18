@@ -215,8 +215,8 @@ export default Vue.extend({
 <style scoped lang="scss">
 .knowledge-page {
   height: calc(100vh - 84px);
-  background: #f8fafc;
-  color: #1e293b;
+  background: transparent;
+  color: var(--text-2);
 }
 .page-header {
   height: 86px;
@@ -224,16 +224,18 @@ export default Vue.extend({
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fff;
+  // 与信息框统一：淡蓝描边分隔（只留下边，避免整页出现边框盒子）
+  border-bottom: 1px solid var(--field-border);
+  background: var(--surface-card);
 }
 .page-header h1 {
   margin: 0;
   font-size: 22px;
+  color: var(--text-on-accent);
 }
 .page-header p {
   margin: 5px 0 0;
-  color: #64748b;
+  color: var(--text-3);
   font-size: 13px;
 }
 .workspace {
@@ -243,8 +245,8 @@ export default Vue.extend({
 }
 .base-list {
   padding: 14px;
-  border-right: 1px solid #e2e8f0;
-  background: #fff;
+  border-right: 1px solid var(--field-border);
+  background: var(--surface-card);
   overflow: auto;
 }
 .base-list button {
@@ -261,8 +263,8 @@ export default Vue.extend({
 }
 .base-list button:hover,
 .base-list button.active {
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
 }
 .base-list span {
   min-width: 0;
@@ -275,9 +277,13 @@ export default Vue.extend({
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 知识库名称：跟随主题的主文字色（深色下浅字 / 浅色下深字） */
+.base-list strong {
+  color: var(--text-1);
+}
 .base-list small {
   margin-top: 5px;
-  color: #64748b;
+  color: var(--text-3);
 }
 .document-panel {
   min-width: 0;
@@ -293,9 +299,10 @@ export default Vue.extend({
   display: inline;
   margin: 0 10px 0 0;
   font-size: 18px;
+  color: var(--text-1);
 }
 .panel-toolbar span {
-  color: #64748b;
+  color: var(--text-3);
   font-size: 12px;
 }
 .panel-toolbar > div:last-child {
@@ -321,7 +328,7 @@ export default Vue.extend({
   .base-list {
     max-height: 180px;
     border-right: 0;
-    border-bottom: 1px solid #e2e8f0;
+    border-bottom: 1px solid var(--border);
   }
   .document-panel {
     padding: 14px;

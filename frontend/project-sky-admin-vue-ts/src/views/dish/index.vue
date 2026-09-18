@@ -350,16 +350,28 @@ export default class extends Vue {
   &-container {
     margin: 30px;
     .container {
-      background: #fff;
+      background: var(--surface-card);
       position: relative;
       z-index: 1;
       padding: 30px 28px;
       border-radius: 4px;
       //查询黑色按钮样式
+      //查询按钮：品牌黄实心
       .normal-btn {
-        background: #333333;
-        color: white;
+        background: var(--action);
+        border-color: var(--action);
+        color: var(--text-on-accent);
+        font-weight: 600;
         margin-left: 20px;
+        transition: background 0.25s ease, box-shadow 0.25s ease;
+
+        &:hover,
+        &:focus {
+          background: linear-gradient(135deg, var(--action-light) 0%, var(--action) 55%, var(--action-deep) 100%);
+          border-color: var(--action-light);
+          color: var(--text-on-accent);
+          box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+        }
       }
       .tableBar {
         margin-bottom: 20px;
@@ -372,13 +384,13 @@ export default class extends Vue {
             display: inline-block;
             font-size: 14px;
             padding: 0 20px;
-            color: $gray-2;
+            color: var(--text-3);
           }
         }
       }
       .tableBox {
         width: 100%;
-        border: 1px solid $gray-5;
+        border: 1px solid var(--field-border);
         border-bottom: 0;
       }
       .pageList {

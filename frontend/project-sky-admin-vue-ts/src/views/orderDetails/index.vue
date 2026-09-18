@@ -837,7 +837,9 @@ export default class extends Vue {
     // height: 100%;
     min-height: 700px;
     .container {
-      background: #fff;
+      background: var(--surface-card);
+      border: 1px solid var(--field-border);
+      box-shadow: 0 10px 28px rgba(2, 6, 20, 0.35);
       position: relative;
       z-index: 1;
       padding: 30px 28px;
@@ -856,15 +858,47 @@ export default class extends Vue {
             display: inline-block;
             font-size: 14px;
             padding: 0 20px;
-            color: $gray-2;
-            border-right: solid 1px $gray-4;
+            color: var(--text-3);
+            border-right: solid 1px var(--border);
+          }
+        }
+
+        /* 日期范围选择器：Element 的 daterange 内部是浅色白底，
+           深色主题下会露出白块，这里统一成与背景一致的深色表面 */
+        ::v-deep .el-date-editor.el-range-editor {
+          /* 范围选择器本身带 .el-input__inner，Element 会给它浅色底；
+             这里必须 !important，否则可能被其它 .el-input__inner 规则反压 */
+          background-color: var(--surface-inset, rgba(12, 17, 34, 0.55)) !important;
+          border: 1px solid var(--border, rgba(140, 165, 220, 0.16)) !important;
+          border-radius: 6px;
+
+          &.is-active,
+          &:hover {
+            border-color: #3b5a8f !important;
+          }
+
+          .el-range-input {
+            background-color: transparent !important;
+            color: var(--text-1, #eef3ff) !important;
+
+            &::placeholder {
+              color: var(--text-4, #6c7893) !important;
+            }
+          }
+
+          .el-range-separator {
+            color: var(--text-3, #8e9cb8) !important;
+          }
+
+          .el-range__icon,
+          .el-range__close-icon {
+            color: var(--text-3, #8e9cb8) !important;
           }
         }
       }
 
       .tableBox {
         width: 100%;
-        border: 1px solid $gray-5;
         border-bottom: 0;
       }
 
@@ -872,11 +906,22 @@ export default class extends Vue {
         text-align: center;
         margin-top: 30px;
       }
-      //查询黑色按钮样式
+      //查询按钮：品牌黄实心
       .normal-btn {
-        background: #333333;
-        color: white;
+        background: var(--action);
+        border-color: var(--action);
+        color: var(--text-on-accent);
+        font-weight: 600;
         margin-left: 20px;
+        transition: background 0.25s ease, box-shadow 0.25s ease;
+
+        &:hover,
+        &:focus {
+          background: linear-gradient(135deg, var(--action-light) 0%, var(--action) 55%, var(--action-deep) 100%);
+          border-color: var(--action-light);
+          color: var(--text-on-accent);
+          box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+        }
       }
     }
     .hContainer {
@@ -897,7 +942,7 @@ export default class extends Vue {
     line-height: 20px;
     font-size: 14px;
     font-weight: 400;
-    color: #666666;
+    color: var(--text-3);
     text-align: left;
     margin-bottom: 14px;
     &:last-child {
@@ -906,11 +951,11 @@ export default class extends Vue {
     label {
       width: 100px;
       display: inline-block;
-      color: #666;
+      color: var(--text-3);
     }
     .des {
       flex: 1;
-      color: #333333;
+      color: var(--text-1);
     }
   }
 }
@@ -928,7 +973,7 @@ export default class extends Vue {
   .order-status {
     width: 57.25px;
     height: 27px;
-    background: #333333;
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 13.5px;
     color: white;
     margin-left: 19px;
@@ -939,14 +984,14 @@ export default class extends Vue {
     background: #f56c6c;
   }
   p {
-    color: #333;
+    color: var(--text-1);
     label {
-      color: #666;
+      color: var(--text-3);
     }
   }
   .order-num {
     font-size: 16px;
-    color: #2a2929;
+    color: var(--text-1);
     font-weight: bold;
     display: inline-block;
   }
@@ -955,11 +1000,11 @@ export default class extends Vue {
 .order-middle {
   .user-info {
     min-height: 140px;
-    background: #fbfbfa;
+    background: var(--surface-inset);
     margin-top: 23px;
 
     padding: 20px 43px;
-    color: #333;
+    color: var(--text-1);
     .user-info-box {
       min-height: 55px;
       display: flex;
@@ -979,7 +1024,7 @@ export default class extends Vue {
       }
       label {
         margin-right: 17px;
-        color: #666;
+        color: var(--text-3);
       }
 
       .user-address {
@@ -993,8 +1038,8 @@ export default class extends Vue {
     .user-remark {
       min-height: 43px;
       line-height: 43px;
-      background: #fffbf0;
-      border: 1px solid #fbe396;
+      background: rgba(255, 194, 0, 0.12);
+      border: 1px solid rgba(255, 194, 0, 0.35);
       border-radius: 4px;
       margin-top: 10px;
       padding: 6px;
@@ -1004,11 +1049,11 @@ export default class extends Vue {
         display: inline-block;
         min-width: 53px;
         height: 32px;
-        background: #fbe396;
+        background: rgba(255, 194, 0, 0.22);
         border-radius: 4px;
         text-align: center;
         line-height: 32px;
-        color: #333;
+        color: var(--text-1);
         margin-right: 30px;
         // padding: 12px 6px;
       }
@@ -1018,12 +1063,12 @@ export default class extends Vue {
       }
     }
     .orderCancel {
-      background: #ffffff;
+      background: var(--surface-card);
       border: 1px solid #b6b6b6;
 
       div {
         padding: 0 10px;
-        background-color: #e5e4e4;
+        background-color: rgba(255, 255, 255, 0.10);
       }
       span {
         color: #f56c6c;
@@ -1037,7 +1082,7 @@ export default class extends Vue {
     padding: 20px 40px;
     border-bottom: 1px solid #e7e6e6;
     .dish-label {
-      color: #666;
+      color: var(--text-3);
     }
     .dish-list {
       flex: 80%;
@@ -1046,7 +1091,7 @@ export default class extends Vue {
       .dish-item {
         flex: 50%;
         margin-bottom: 14px;
-        color: #333;
+        color: var(--text-1);
         .dish-num {
         }
         .dish-item-box {
@@ -1063,7 +1108,7 @@ export default class extends Vue {
       padding-left: 92px;
       margin-top: 10px;
       label {
-        color: #333333;
+        color: var(--text-1);
         font-weight: bold;
         margin-right: 5px;
       }
@@ -1081,14 +1126,14 @@ export default class extends Vue {
     padding: 20px 40px;
     padding-bottom: 0px;
     .amount-label {
-      color: #666;
+      color: var(--text-3);
       margin-right: 65px;
     }
     .amount-list {
       flex: 80%;
       display: flex;
       flex-wrap: wrap;
-      color: #333;
+      color: var(--text-1);
       // height: 65px;
       .dish-amount,
       .package-amount,
@@ -1194,7 +1239,7 @@ export default class extends Vue {
     margin-left: 40px;
   }
   .el-checkbox__label {
-    color: #333333 !important;
+    color: var(--text-1)!important;
   }
 }
 .empty-box {

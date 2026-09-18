@@ -4,91 +4,75 @@
       <hamburger id="hamburger-container"
                  :is-active="sidebar.opened"
                  class="hamburger-container"
-                 @toggleClick="toggleSideBar" />
-      <span v-if="status===1"
-            class="businessBtn">营业中</span>
-      <span v-else
-            class="businessBtn closing">打烊中</span>
+                 @toggleClick="toggleSideBar"
+      />
+      <!-- 营业状态：小圆点（营业=绿亮 / 打烊=灰灭），悬停显示状态文字 -->
+      <el-tooltip
+        :content="status === 1 ? '营业中' : '打烊中'"
+        placement="bottom"
+        effect="dark"
+        :open-delay="120"
+      >
+        <span
+          class="shop-status"
+          :class="status === 1 ? 'is-open' : 'is-closed'"
+          role="status"
+          :aria-label="status === 1 ? '营业中' : '打烊中'"
+        />
+      </el-tooltip>
     </div>
 
-    <div :key="restKey"
-         class="right-menu">
+    <div class="right-menu">
       <div class="rightStatus">
         <audio ref="audioVo"
-               hidden>
-          <source src="./../../../assets/preview.mp3" type="audio/mp3" />
+               hidden
+        >
+          <source src="./../../../assets/preview.mp3" type="audio/mp3">
         </audio>
         <audio ref="audioVo2"
-               hidden>
-          <source src="./../../../assets/reminder.mp3" type="audio/mp3" />
+               hidden
+        >
+          <source src="./../../../assets/reminder.mp3" type="audio/mp3">
         </audio>
-        <span class="navicon operatingState" @click="handleStatus"><i />营业状态设置</span>
       </div>
-      <div class="avatar-wrapper">
-        <div :class="shopShow?'userInfo':''"
-             @mouseenter="toggleShow"
-             @mouseleave="mouseLeaves">
-          <el-button type="primary"
-                     :class="shopShow?'active':''">
-            {{ name }}<i class="el-icon-arrow-down" />
-          </el-button>
-          <div v-if="shopShow"
-               class="userList">
-            <p class="amendPwdIcon"
-               @click="handlePwd">
-              修改密码<i />
+      <!-- 账户：点击展开 修改密码 / 退出登录（不用悬停，避免与下方内容抢层级） -->
+      <div class="account-entry">
+        <button
+          type="button"
+          class="account-btn"
+          :class="{ active: menuOpen }"
+          :aria-expanded="menuOpen ? 'true' : 'false'"
+          @click.stop="toggleMenu"
+        >
+          <i class="el-icon-user-solid" />
+          <span class="account-name">{{ name }}</span>
+          <i class="el-icon-arrow-up" />
+        </button>
+        <transition name="account-menu-fade">
+          <div v-if="menuOpen" class="account-menu" @click.stop>
+            <p @click="handlePwd">
+              <i class="el-icon-edit-outline" />修改密码
             </p>
-            <p class="outLogin"
-               @click="logout">
-              退出登录<i />
+            <p class="out-login" @click="logout">
+              <i class="el-icon-switch-button" />退出登录
             </p>
           </div>
-        </div>
+        </transition>
       </div>
     </div>
-    <!-- 营业状态弹层 -->
-    <el-dialog title="营业状态设置"
-               :visible.sync="dialogVisible"
-               width="25%"
-               :show-close="false">
-      <el-radio-group v-model="setStatus">
-        <el-radio :label="1">
-          营业中
-          <span>当前餐厅处于营业状态，自动接收任何订单，可点击打烊进入店铺打烊状态。</span>
-        </el-radio>
-        <el-radio :label="0">
-          打烊中
-          <span>当前餐厅处于打烊状态，仅接受营业时间内的预定订单，可点击营业中手动恢复营业状态。</span>
-        </el-radio>
-      </el-radio-group>
-      <span slot="footer"
-            class="dialog-footer">
-        <el-button @click="dialogVisible = false">取 消</el-button>
-        <el-button type="primary"
-                   @click="handleSave">确 定</el-button>
-      </span>
-    </el-dialog>
-    <!-- end -->
     <!-- 修改密码 -->
-    <Password :dialog-form-visible="dialogFormVisible"
-              @handleclose="handlePwdClose" />
-    <!-- end -->
+    <Password :dialog-form-visible="dialogFormVisible" @handleclose="handlePwdClose" />
   </div>
 </template>
 
 <script lang="ts">
-import { Component, Vue, Watch } from 'vue-property-decorator'
+import { Component, Vue } from 'vue-property-decorator'
+import Cookies from 'js-cookie'
 import { AppModule } from '@/store/modules/app'
 import { UserModule } from '@/store/modules/user'
-import Breadcrumb from '@/components/Breadcrumb/index.vue'
 import Hamburger from '@/components/Hamburger/index.vue'
-import { getStatus, setStatus } from '@/api/users'
-import Cookies from 'js-cookie'
-import { debounce, throttle } from '@/utils/common'
-import { setNewData, getNewData } from '@/utils/cookies'
-
-// 接口
-import { getCountUnread } from '@/api/inform'
+import { getStatus } from '@/api/users'
+import { AccountModule } from '@/store/modules/account'
 import { getToken } from '@/utils/cookies'
 // 修改密码弹层
 import Password from '../components/password.vue'
@@ -96,32 +80,18 @@ import Password from '../components/password.vue'
 @Component({
   name: 'Navbar',
   components: {
-    Breadcrumb,
     Hamburger,
     Password,
   },
 })
 export default class extends Vue {
-  private storeId = this.getStoreId
-  private restKey: number = 0
   private websocket = null
   private websocketReconnectTimer = 0
   private websocketClosedByUser = false
-  private newOrder = ''
-  private message = ''
-  private audioIsPlaying = false
-  private audioPaused = false
-  private statusValue = true
-  private audioUrl: './../../../assets/preview.mp3'
-  private shopShow = false
-  private dialogVisible = false
   private status = 1
-  private setStatus = 1
+  private menuOpen = false
   private dialogFormVisible = false
-  private ountUnread = 0
-  // get ountUnread() {
-  //   return Number(getNewData())
-  // }
+
   get sidebar() {
     return AppModule.sidebar
   }
@@ -130,42 +100,74 @@ export default class extends Vue {
     return AppModule.device.toString()
   }
 
-  getuserInfo() {
-    return UserModule.userInfo
-  }
-
   get name() {
-    return (UserModule.userInfo as any).name
-      ? (UserModule.userInfo as any).name
-      : JSON.parse(Cookies.get('user_info') as any).name
+    const fromStore = (UserModule.userInfo as any).name
+    if (fromStore) return fromStore
+    // 登录信息也可能只存在 cookie 里
+    const raw = Cookies.get('user_info')
+    if (!raw) return '管理员'
+    try {
+      return (JSON.parse(raw) as any).name || '管理员'
+    } catch (e) {
+      return '管理员'
+    }
   }
 
-  get getStoreId() {
-    let storeId = ''
-    if (UserModule.storeId) {
-      storeId = UserModule.storeId
-    } else if ((UserModule.userInfo as any).stores != null) {
-      storeId = (UserModule.userInfo as any).stores[0].storeId
-    }
-    return storeId
+  /** 账户下拉：点击切换（不用悬停，避免与下方内容抢层级） */
+  private openMenu() {
+    this.menuOpen = true
   }
+
+  private closeMenu() {
+    this.menuOpen = false
+  }
+
+  private toggleMenu() {
+    this.menuOpen = !this.menuOpen
+  }
+
+  /** 点击页面其它地方关闭下拉 */
+  private handleDocumentClick(event: MouseEvent) {
+    if (!this.menuOpen) return
+    const entry = this.$el && this.$el.querySelector
+      ? this.$el.querySelector('.account-entry')
+      : null
+    if (entry && event.target instanceof Node && entry.contains(event.target)) return
+    this.menuOpen = false
+  }
+
+  private handlePwd() {
+    this.menuOpen = false
+    this.dialogFormVisible = true
+  }
+
+  private handlePwdClose() {
+    this.dialogFormVisible = false
+  }
+
+  private async logout() {
+    this.menuOpen = false
+    this.$store.dispatch('LogOut').then(() => {
+      this.$router.replace({ path: '/login' })
+    })
+  }
+
   mounted() {
-    document.addEventListener('click', this.handleClose)
-    //console.log(this.$store.state.app.statusNumber)
-    // const msg = {
-    //   data: {
-    //     type: 2,
-    //     content: '订单1653904906519客户催单，已下单23分钟，仍未接单。',
-    //     details: '434'
-    //   }
-    // }
     this.getStatus()
+    document.addEventListener('click', this.handleDocumentClick)
   }
+
+  beforeDestroy() {
+    document.removeEventListener('click', this.handleDocumentClick)
+  }
+
   created() {
     this.webSocket()
   }
+
   onload() {
   }
+
   destroyed() {
     this.websocketClosedByUser = true
     window.clearTimeout(this.websocketReconnectTimer)
@@ -176,11 +178,11 @@ export default class extends Vue {
   webSocket() {
     const that = this as any
     this.websocketClosedByUser = false
-    let clientId = Math.random().toString(36).substr(2)
+    const clientId = Math.random().toString(36).substr(2)
     const token = getToken()
     const configuredSocketUrl = process.env.VUE_APP_SOCKET_URL
     const socketBaseUrl = configuredSocketUrl || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/`
-    let socketUrl = `${socketBaseUrl}${clientId}?role=admin&token=${encodeURIComponent(token || '')}`
+    const socketUrl = `${socketBaseUrl}${clientId}?role=admin&token=${encodeURIComponent(token || '')}`
     console.log(socketUrl, 'socketUrl')
     if (typeof WebSocket == 'undefined') {
       that.$notify({
@@ -257,64 +259,16 @@ export default class extends Vue {
   private toggleSideBar() {
     AppModule.ToggleSideBar(false)
   }
-  // 退出
-  private async logout() {
-    this.$store.dispatch('LogOut').then(() => {
-      // location.href = '/'
-      this.$router.replace({ path: '/login' })
-    })
-    // this.$router.push(`/login?redirect=${this.$route.fullPath}`)
-  }
-  // 获取未读消息
-  async getCountUnread() {
-    const { data } = await getCountUnread()
-    if (data.code === 1) {
-      // this.ountUnread = data.data
-      AppModule.StatusNumber(data.data)
-      // setNewData(data.data)
-      // this.$message.success('操作成功！')
-    } else {
-      this.$message.error(data.msg)
-    }
-  }
-  // 营业状态
+
+  // 营业状态徽标：优先用侧栏面板保存的共享值，失败再回退到接口
   async getStatus() {
-    const { data } = await getStatus()
-    this.status = data.data
-    this.setStatus = this.status
-  }
-  // 下拉菜单显示
-  toggleShow() {
-    this.shopShow = true
-  }
-  // 下拉菜单隐藏
-  mouseLeaves() {
-    this.shopShow = false
-  }
-  // 触发空白处下来菜单关闭
-  handleClose() {
-    // clearTimeout(this.leave)
-    // this.shopShow = false
-  }
-  // 设置营业状态
-  handleStatus() {
-    this.dialogVisible = true
-  }
-  // 营业状态设置
-  async handleSave() {
-    const { data } = await setStatus(this.setStatus)
-    if (data.code === 1) {
-      this.dialogVisible = false
-      this.getStatus()
+    try {
+      const { data } = await getStatus()
+      this.status = Number(data.data) === 0 ? 0 : 1
+      AccountModule.SetShopStatus(this.status)
+    } catch (e) {
+      this.status = AccountModule.shopStatus
     }
-  }
-  // 修改密码
-  handlePwd() {
-    this.dialogFormVisible = true
-  }
-  // 关闭密码编辑弹层
-  handlePwdClose() {
-    this.dialogFormVisible = false
   }
 }
 </script>
@@ -322,16 +276,25 @@ export default class extends Vue {
 <style lang="scss" scoped>
 .navbar {
   height: 60px;
-  // overflow: hidden;
+  // 用 flex 布局：左侧状态区固定，账户靠右
+  display: flex;
+  align-items: center;
   position: relative;
-  background: #ffc100;
+  // 导航栏必须浮在内容之上：
+  // sticky + z-index 会让导航栏自成层叠上下文，内部下拉的 z-index 无法越过它，
+  // 若此处层级低于内容卡片，下拉菜单会被卡片盖住。故整体提到内容之上。
+  z-index: 2000;
+  // 深色半透明：用带透明度的深色底，透出下层星空
+  background: rgba(14, 19, 38, 0.74);
+  border-bottom: 1px solid var(--border, rgba(140, 165, 220, 0.16));
+  backdrop-filter: blur(16px) saturate(150%);
 
   // box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
   .statusBox {
-    float: left;
     height: 100%;
     align-items: center;
     display: flex;
+    flex: 0 0 auto;
   }
   .hamburger-container {
     // line-height: 54px;
@@ -342,161 +305,153 @@ export default class extends Vue {
     -webkit-tap-highlight-color: transparent;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.025);
+      background: rgba(255, 255, 255, 0.08);
     }
   }
 
   .breadcrumb-container {
     float: left;
   }
+  /* 右侧区域：靠右对齐 */
   .right-menu {
-    float: right;
-
+    margin-left: auto;
     margin-right: 20px;
-
-    color: #333333;
+    display: flex;
+    align-items: center;
+    color: var(--text-2, #c2cde4);
     font-size: 14px;
-
-    span {
-      padding: 0 10px;
-      width: 130px;
-      display: inline-block;
-      cursor: pointer;
-      &:hover {
-        background: rgba(255, 255, 255, 0.52);
-      }
-    }
-    .amendPwdIcon {
-      i {
-        width: 18px;
-        height: 18px;
-        background: url(./../../../assets/icons/btn_gaimi@2x.png) no-repeat;
-        background-size: contain;
-        margin-top: 8px;
-      }
-    }
-    .outLogin {
-      i {
-        width: 18px;
-        height: 18px;
-        background: url(./../../../assets/icons/btn_close@2x.png) no-repeat 100%
-          100%;
-        background-size: contain;
-        margin-top: 8px;
-      }
-    }
-    .outLogin {
-      cursor: pointer;
-    }
 
     &:focus {
       outline: none;
     }
-
-    .right-menu-item {
-      display: inline-block;
-      padding: 0 8px;
-      height: 100%;
-      font-size: 18px;
-      color: #5a5e66;
-      vertical-align: text-bottom;
-
-      &.hover-effect {
-        cursor: pointer;
-        transition: background 0.3s;
-
-        &:hover {
-          background: rgba(0, 0, 0, 0.025);
-        }
-      }
-    }
-
-    // .avatar-container {
-    // margin-right: 30px;
-
-    // }
   }
   .rightStatus {
     height: 100%;
-    line-height: 60px;
     display: flex;
     align-items: center;
-    float: left;
   }
-  .avatar-wrapper {
-    margin-top: 14px;
-    margin-left: 18px;
+
+  /* ---- 账户按钮 ---- */
+  .account-entry {
     position: relative;
-    // vertical-align: middle;
-    float: right;
-    width: 120px;
-    text-align: left;
-    .user-avatar {
-      cursor: pointer;
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
+    flex: 0 0 auto;
+  }
+
+  .account-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--border, rgba(140, 165, 220, 0.16));
+    border-radius: 6px;
+    background: var(--surface-inset, rgba(255, 255, 255, 0.06));
+    color: var(--text-1, #eef3ff);
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+
+    i {
+      font-size: 15px;
+      flex: 0 0 auto;
     }
 
-    .el-icon-caret-bottom {
-      cursor: pointer;
-      position: absolute;
-      right: -20px;
-      top: 25px;
+    .account-name {
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .el-icon-arrow-up {
       font-size: 12px;
     }
 
-    .el-button--primary {
-      // height: 32px;
-      background: rgba(255, 255, 255, 0.52);
-      border-radius: 4px;
-      padding-top: 0px;
-      padding-bottom: 0px;
-      position: relative;
-      // top: -15px;
-      width: 120px;
-      // padding: 11px 12px 10px;
-      padding-left: 12px;
-      text-align: left;
-      border: 0 none;
+    &:hover,
+    &.active {
+      background: var(--surface-hover, rgba(255, 255, 255, 0.12));
+      border-color: var(--border-strong, rgba(140, 165, 220, 0.3));
+    }
+  }
+
+  /* ---- 账户下拉 ---- */
+  .account-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 132px;
+    padding: 5px;
+    background: var(--surface-raised, rgba(35, 43, 74, 0.96));
+    border: 1px solid var(--border-strong, rgba(140, 165, 220, 0.3));
+    border-radius: 8px;
+    box-shadow: 0 12px 30px rgba(2, 6, 20, 0.45);
+    // 必须浮在内容之上：导航栏同级内容卡片会形成层叠，用足够高的 z-index 压过
+    z-index: 3000;
+    // 导航栏继承的 60px 行高会撑高菜单，这里复位
+    line-height: normal;
+
+    p {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
       height: 32px;
-      line-height: 32px;
-      &.active {
-        background: rgba(250, 250, 250, 0);
-        border: 0 none;
-        .el-icon-arrow-down {
-          transform: rotate(-180deg);
-        }
+      padding: 0 9px;
+      border-radius: 5px;
+      font-size: 13px;
+      color: var(--text-2, #c2cde4);
+      cursor: pointer;
+      white-space: nowrap;
+
+      i {
+        font-size: 14px;
+      }
+
+      &:hover {
+        background: var(--surface-hover, rgba(255, 255, 255, 0.1));
+        color: var(--text-1, #eef3ff);
       }
     }
+
+    .out-login:hover {
+      color: #ff8f8f;
+    }
   }
-  .businessBtn {
-    height: 22px;
-    line-height: 20px;
-    background: #fd3333;
-    border: 1px solid #ffffff;
-    border-radius: 4px;
+
+  /* 展开动画 */
+  .account-menu-fade-enter-active,
+  .account-menu-fade-leave-active {
+    transition: opacity 0.16s ease, transform 0.16s ease;
+  }
+
+  .account-menu-fade-enter,
+  .account-menu-fade-leave-to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  /* ---- 营业状态小圆点 ---- */
+  .shop-status {
     display: inline-block;
-    padding: 0 6px;
-    color: #fff;
+    width: 10px;
+    height: 10px;
+    margin-left: 6px;
+    border-radius: 50%;
+    cursor: default;
+    transition: background 0.25s ease, box-shadow 0.25s ease;
   }
-  .closing {
-    background: #6a6a6a;
+
+  /* 营业中：绿色点亮 + 呼吸光晕 */
+  .shop-status.is-open {
+    background: #34d399;
+    animation: shop-pulse 2.2s ease-in-out infinite;
   }
-  .navicon {
-    i {
-      display: inline-block;
-      width: 18px;
-      height: 18px;
-      vertical-align: sub;
-      margin: 0 4px 0 0;
-    }
-  }
-  .operatingState {
-    i {
-      background: url('./../../../assets/icons/time.png') no-repeat;
-      background-size: contain;
-    }
+
+  /* 打烊中：灰色熄灭，无光晕 */
+  .shop-status.is-closed {
+    background: #6b7280;
+    box-shadow: none;
+    animation: none;
   }
   .mesCenter {
     i {
@@ -509,6 +464,17 @@ export default class extends Vue {
   //   right: 6px;
   // }
 }
+
+/* 营业中的呼吸光晕（放在 scoped 块内，keyframes 名会被一并作用域化） */
+@keyframes shop-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.22), 0 0 10px rgba(52, 211, 153, 0.85);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(52, 211, 153, 0.1), 0 0 16px rgba(52, 211, 153, 1);
+  }
+}
 </style>
 <style lang="scss">
 .el-notification {
@@ -516,9 +482,9 @@ export default class extends Vue {
   width: 419px !important;
   .el-notification__title {
     margin-bottom: 14px;
-    color: #333;
+    color: var(--text-1, #eef3ff);
     .el-notification__content {
-      color: #333;
+      color: var(--text-2, #c2cde4);
     }
   }
 }
@@ -529,11 +495,12 @@ export default class extends Vue {
   .el-dialog__header {
     height: 61px;
     line-height: 60px;
-    background: #fbfbfa;
+    background: rgba(255, 255, 255, 0.03);
     padding: 0 30px;
     font-size: 16px;
-    color: #333;
+    color: var(--text-1, #eef3ff);
     border: 0 none;
+    border-bottom: 1px solid var(--border, rgba(140, 165, 220, 0.16));
   }
   .el-dialog__body {
     padding: 10px 30px 30px;
@@ -543,30 +510,30 @@ export default class extends Vue {
     }
     .el-radio__label {
       padding-left: 5px;
-      color: #333;
+      color: var(--text-1, #eef3ff);
       font-weight: 700;
       span {
         display: block;
         line-height: 20px;
         padding-top: 12px;
-        color: #666;
+        color: var(--text-3, #8e9cb8);
         font-weight: normal;
       }
     }
     .el-radio__input.is-checked .el-radio__inner {
       &::after {
-        background: #333;
+        background: var(--brand-ink, #1a1600);
       }
     }
     .el-radio-group {
       & > .is-checked {
-        border: 1px solid #ffc200;
+        border: 1px solid var(--action);
       }
     }
     .el-radio {
       width: 100%;
-      background: #fbfbfa;
-      border: 1px solid #e5e4e4;
+      background: var(--surface-inset, rgba(12, 17, 34, 0.55));
+      border: 1px solid var(--border, rgba(140, 165, 220, 0.16));
       border-radius: 4px;
       padding: 14px 22px;
       margin-top: 20px;
@@ -595,60 +562,24 @@ export default class extends Vue {
   }
 }
 .el-icon-arrow-down {
-  background: url('./../../../assets/icons/up.png') no-repeat 50% 50%;
-  background-size: contain;
-  width: 8px;
-  height: 8px;
-  transform: rotate(0eg);
+  // 深色导航栏上原来引用的深色箭头图标不可见，这里用边框画一个浅色箭头
+  background: none;
+  border-right: 1.5px solid var(--text-2, #c2cde4);
+  border-bottom: 1.5px solid var(--text-2, #c2cde4);
+  width: 6px;
+  height: 6px;
+  transform: rotate(45deg);
+  transform-origin: 60% 60%;
   margin-left: 16px;
   position: absolute;
   right: 16px;
   top: 12px;
+  transition: transform 0.2s ease;
   &:before {
     content: '';
   }
 }
 
-.userInfo {
-  background: #fff;
-  position: absolute;
-  top: 0px;
-  left: 0;
-  z-index: 99;
-  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.14);
-  width: 100%;
-  border-radius: 4px;
-  line-height: 32px;
-  padding: 0 0 5px;
-  height: 105px;
-  // .active {
-  //   top: 0;
-  //   left: 0;
-  // }
-  .userList {
-    width: 95%;
-    // // margin-top: -5px;
-    // position: absolute;
-    // top: 35px;
-    padding-left: 5px;
-  }
-  p {
-    cursor: pointer;
-    height: 32px;
-    line-height: 32px;
-    padding: 0 5px 0 7px;
-    i {
-      margin-left: 10px;
-
-      vertical-align: middle;
-      margin-top: 4px;
-      float: right;
-    }
-    &:hover {
-      background: #f6f1e1;
-    }
-  }
-}
 .msgTip {
   color: #419eff;
   padding: 0 5px;

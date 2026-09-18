@@ -723,7 +723,7 @@ export default class extends Vue {
     }
     .topLable {
       font-size: 16px;
-      background: #fff;
+      background: var(--surface-card);
       position: relative;
       z-index: 1;
       padding: 15px 28px;
@@ -752,7 +752,7 @@ export default class extends Vue {
         background: $mine;
         cursor: pointer;
         display: inline-block;
-        color: #fff;
+        color: var(--text-on-accent);
         padding: 0px 20px;
         line-height: 30px;
         height: 30px;
@@ -761,7 +761,9 @@ export default class extends Vue {
       }
     }
     .container {
-      background: #fff;
+      background: var(--surface-card);
+      border: 1px solid var(--field-border);
+      box-shadow: 0 10px 28px rgba(2, 6, 20, 0.35);
       position: relative;
       z-index: 1;
       padding: 30px 28px;
@@ -775,7 +777,7 @@ export default class extends Vue {
           height: 80px;
           /*padding-top: 15px;*/
           border-radius: 100%;
-          background: #fff;
+          background: var(--surface-card);
           margin-right: 10px;
           text-align: center;
           display: flex;
@@ -788,7 +790,7 @@ export default class extends Vue {
           padding: 15px;
           flex: 1;
           border-radius: 5px;
-          color: #fff;
+          color: var(--text-on-accent);
           .item {
             div:nth-child(2) {
               font-size: 18px;
@@ -844,7 +846,7 @@ export default class extends Vue {
             }
           }
           .topLab {
-            background: #f0f1f4;
+            background: var(--surface-inset);
             border-radius: 4px;
           }
         }
@@ -864,7 +866,7 @@ export default class extends Vue {
       }
       .butAct {
         background: #3a9bff;
-        color: #fff;
+        color: var(--text-on-accent);
       }
     }
   }

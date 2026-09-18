@@ -73,7 +73,7 @@ export default class extends Vue {
     border: solid 1px #e4e7ed;
     line-height: 30px;
     text-align: center;
-    background: #fff;
+    background: var(--surface-card);
     top: 50px;
     z-index: 99;
     .items {
@@ -81,15 +81,17 @@ export default class extends Vue {
       display: inline-block;
       width: 100%;
       line-height: 35px;
-      border-bottom: solid 1px #f4f4f4;
-      color: #666;
+      border-bottom: solid 1px var(--border, rgba(140, 165, 220, 0.16));
+      color: var(--text-3);
       margin: 0 !important;
+      transition: background 0.25s ease;
       &:hover {
-        background-color: #fffbf0;
+        // 操作项悬停：淡蓝微底 + 渐变过渡
+        background: linear-gradient(90deg, rgba(59, 130, 246, 0.18), rgba(96, 165, 250, 0.08));
       }
       &:active {
-        background-color: #fffbf0;
-        color: #ffc200;
+        background: linear-gradient(90deg, rgba(59, 130, 246, 0.28), rgba(96, 165, 250, 0.14));
+        color: var(--action-light);
       }
     }
     .none {

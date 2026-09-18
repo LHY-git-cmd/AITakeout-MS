@@ -4,16 +4,8 @@
       <div class="panel-heading">
         <div>
           <div class="eyebrow">SKY INTELLIGENCE</div>
-          <h1>AI 助手</h1>
+          <h1>餐饮管理助手</h1>
         </div>
-        <el-button
-          class="new-chat"
-          type="primary"
-          icon="el-icon-plus"
-          circle
-          aria-label="新建会话"
-          @click="newChat"
-        />
       </div>
       <el-button
         class="new-chat-wide"
@@ -143,7 +135,7 @@
       <div ref="messages" class="messages" role="log" aria-live="polite">
         <div v-if="!messages.length" class="welcome-state">
           <div class="welcome-icon"><i class="el-icon-magic-stick" /></div>
-          <h2>你好，我是 Sky AI</h2>
+          <h2>你好，我是餐饮管理助手</h2>
           <p>我可以帮你分析经营数据、查询订单，或协助处理后台工作。</p>
           <div class="suggestions">
             <button
@@ -167,7 +159,7 @@
           </div>
           <div class="message-content">
             <div class="message-name">
-              {{ message.role === 'user' ? '我' : 'Sky AI' }}
+              {{ message.role === 'user' ? '我' : '餐饮管理助手' }}
             </div>
             <div
               class="bubble"
@@ -181,28 +173,45 @@
             <section
               v-if="message.confirmation"
               class="tool-confirmation"
+              :class="confirmationStateClass(message)"
               role="group"
               aria-label="AI 操作确认"
             >
-              <div class="confirmation-heading">
+              <!-- 已结束后不再出现「需要你的确认」标题与超时提示，只保留状态 -->
+              <div v-if="!isConfirmationSettled(message)" class="confirmation-heading">
                 <i class="el-icon-warning-outline" aria-hidden="true" />
                 <strong>需要你的确认</strong>
               </div>
-              <p>{{ message.confirmation.summary }}</p>
-              <small>请在 5 分钟内确认；确认后将立即执行。</small>
-              <div class="confirmation-actions">
+              <div v-else class="confirmation-heading">
+                <i :class="confirmationStateIcon(message)" aria-hidden="true" />
+                <strong>{{ confirmationStateLabel(message) }}</strong>
+              </div>
+              <p class="confirmation-summary">{{ message.confirmation.summary }}</p>
+              <small v-if="!isConfirmationSettled(message)">请在 5 分钟内确认；确认后将立即执行。</small>
+              <div v-if="!isConfirmationSettled(message)" class="confirmation-actions">
                 <el-button
                   size="small"
-                  :disabled="message.confirmation.processing || message.confirmation.decided || message.confirmation.retryable === false"
+                  :disabled="message.confirmation.processing || message.confirmation.retryable === false"
                   @click="decideTool(message, false)"
                 >拒绝</el-button>
                 <el-button
                   type="danger"
                   size="small"
                   :loading="message.confirmation.processing"
-                  :disabled="message.confirmation.decided || message.confirmation.retryable === false"
+                  :disabled="message.confirmation.retryable === false"
                   @click="decideTool(message, true)"
                 >确认执行</el-button>
+              </div>
+              <!-- 失败且可重试时保留明确的恢复入口 -->
+              <div
+                v-else-if="isConfirmationRetryable(message)"
+                class="confirmation-actions"
+              >
+                <el-button
+                  size="small"
+                  :loading="message.confirmation.processing"
+                  @click="retryTool(message)"
+                >重试</el-button>
               </div>
               <div v-if="message.confirmation.decision" class="confirmation-result" role="status">
                 {{ message.confirmation.decision }}
@@ -255,7 +264,7 @@
           <textarea
             v-model="draft"
             rows="1"
-            placeholder="给 Sky AI 发送消息..."
+            placeholder="给餐饮管理助手发送消息..."
             @keydown.enter.exact.prevent="send"
           />
           <div class="composer-toolbar">
@@ -687,6 +696,12 @@ export default Vue.extend({
       if (event.event === 'task_error') {
         const body = event.data && typeof event.data === 'object' ? event.data : {}
         assistant.failure = normalizeAgentError({ response: { data: body } }, event.taskId, 'stream')
+        if (assistant.confirmation) {
+          assistant.confirmation.processing = false
+          assistant.confirmation.decided = true
+          assistant.confirmation.failed = true
+          assistant.confirmation.decision = '执行失败，请查看错误提示。'
+        }
         this.$nextTick(this.scrollToBottom)
         return
       }
@@ -704,6 +719,11 @@ export default Vue.extend({
       }
       if (event.event === 'task_end') {
         assistant.citations = (body.citations || []).map(this.normalizeCitation)
+        if (assistant.confirmation) {
+          assistant.confirmation.processing = false
+          assistant.confirmation.decided = true
+          assistant.confirmation.decision = '已执行完成。'
+        }
       }
       if (event.event === 'tool_confirmation_required') {
         assistant.confirmation = {
@@ -721,6 +741,12 @@ export default Vue.extend({
         assistant.content = assistant.content
           ? `${assistant.content}\n\n（已停止生成）`
           : '已停止生成。'
+        if (assistant.confirmation) {
+          assistant.confirmation.processing = false
+          assistant.confirmation.decided = true
+          assistant.confirmation.cancelled = true
+          assistant.confirmation.decision = '已取消执行。'
+        }
       }
       this.$nextTick(this.scrollToBottom)
     },
@@ -773,6 +799,30 @@ export default Vue.extend({
       }
       return result
     },
+    async retryTool(message: ChatMessage) {
+      const confirmation: any = message.confirmation
+      if (!confirmation || confirmation.processing) return
+      confirmation.processing = true
+      try {
+        await confirmAgentTool(confirmation.id)
+        // 重试成功 → 回到「进行中」，等 task_end / task_error 决定最终状态
+        confirmation.failed = false
+        confirmation.cancelled = false
+        confirmation.decided = true
+        confirmation.decision = '已确认，正在执行…'
+        this.$message.success('已重新提交执行')
+      } catch (error) {
+        const failure = normalizeAgentError(error, confirmation.taskId)
+        confirmation.failed = true
+        confirmation.decided = true
+        confirmation.retryable = failure.retryable
+        confirmation.decision = `${failure.message}，${failure.action}`
+        this.$message.error(confirmation.decision)
+      } finally {
+        confirmation.processing = false
+        this.$nextTick(this.scrollToBottom)
+      }
+    },
     async decideTool(message: ChatMessage, approved: boolean) {
       const confirmation = message.confirmation
       if (!confirmation || confirmation.processing || confirmation.decided) return
@@ -787,6 +837,7 @@ export default Vue.extend({
         const failure = normalizeAgentError(error, confirmation.taskId)
         message.failure = failure
         confirmation.retryable = failure.retryable
+        confirmation.failed = true
         confirmation.decision = `${failure.message}，${failure.action}`
         if (!failure.retryable || failure.kind === 'conflict' || failure.kind === 'confirmationExpired') {
           confirmation.decided = true
@@ -824,6 +875,58 @@ export default Vue.extend({
         return true
       })
     },
+    // AI 确认卡状态：确认完成后不再显示待确认标题/超时/操作按钮，
+    // 失败与取消仍保留明确状态（失败可重试时给出恢复入口）。
+    isConfirmationSettled(message: ChatMessage) {
+      const confirmation: any = message.confirmation
+      if (!confirmation) return false
+      // 用户只点过「确认执行」、还没拿到终态事件 → 视为未结束：显示「正在执行」
+      return !this.isConfirmationInFlight(message)
+    },
+    // 已确认正在执行：decided=true 且尚无终态标记，decision 仍是进行中文案
+    isConfirmationInFlight(message: ChatMessage) {
+      const confirmation: any = message.confirmation || {}
+      return Boolean(
+        confirmation.decided &&
+          !confirmation.failed &&
+          !confirmation.cancelled &&
+          confirmation.decision === '已确认，正在执行…'
+      )
+    },
+    confirmationStateKey(message: ChatMessage) {
+      const confirmation: any = message.confirmation || {}
+      if (confirmation.failed === true) return 'failed'
+      if (confirmation.cancelled === true) return 'cancelled'
+      const decision = String(confirmation.decision || '')
+      if (/已取消|已拒绝/.test(decision)) return 'cancelled'
+      if (/失败|未生效|错误/.test(decision)) return 'failed'
+      return 'done'
+    },
+    confirmationStateClass(message: ChatMessage) {
+      if (!this.isConfirmationSettled(message)) return 'confirmation-pending'
+      return `confirmation-${this.confirmationStateKey(message)}`
+    },
+    confirmationStateLabel(message: ChatMessage) {
+      const key = this.confirmationStateKey(message)
+      if (key === 'failed') return '执行失败'
+      if (key === 'cancelled') return '已取消'
+      return '已执行完成'
+    },
+    confirmationStateIcon(message: ChatMessage) {
+      const key = this.confirmationStateKey(message)
+      if (key === 'failed') return 'el-icon-circle-close'
+      if (key === 'cancelled') return 'el-icon-remove-outline'
+      return 'el-icon-circle-check'
+    },
+    isConfirmationRetryable(message: ChatMessage) {
+      const confirmation: any = message.confirmation
+      return !!(
+        confirmation &&
+        confirmation.decided &&
+        this.confirmationStateKey(message) === 'failed' &&
+        confirmation.retryable !== false
+      )
+    },
     async openCitation(source: any) {
       const base = process.env.VUE_APP_BASE_API || '/api'
       const response = await fetch(
@@ -852,46 +955,91 @@ export default Vue.extend({
 
 <style lang="scss" scoped>
 .tool-confirmation {
-  margin-top: 14px;
-  padding: 16px;
-  border: 1px solid #f5c2c7;
-  border-radius: 10px;
-  background: #fff8f8;
-  color: #442326;
+  margin-top: 8px;
+  padding: 9px 11px;
+  border: 1px solid var(--border, rgba(140, 165, 220, 0.16));
+  border-radius: 8px;
+  background: var(--surface-raised, rgba(35, 43, 74, 0.92));
+  color: var(--text-2, #c2cde4);
+  backdrop-filter: blur(8px);
+}
+/* 待确认：琥珀色提示 */
+.tool-confirmation.confirmation-pending {
+  border-color: rgba(251, 191, 36, 0.42);
+}
+.confirmation-pending .confirmation-heading {
+  color: #fbbf24;
+}
+/* 已执行完成：绿色，只保留摘要 + 状态 */
+.tool-confirmation.confirmation-done {
+  border-color: rgba(52, 211, 153, 0.4);
+}
+.confirmation-done .confirmation-heading {
+  color: #34d399;
+}
+.confirmation-done .confirmation-summary {
+  background: rgba(52, 211, 153, 0.12);
+  border: 1px solid rgba(52, 211, 153, 0.26);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+/* 失败：红色状态，保留重试入口 */
+.tool-confirmation.confirmation-failed {
+  border-color: rgba(255, 107, 107, 0.42);
+}
+.confirmation-failed .confirmation-heading {
+  color: #ff8f8f;
+}
+/* 已取消：中性灰，不喧哗 */
+.tool-confirmation.confirmation-cancelled {
+  border-color: var(--border-strong, rgba(140, 165, 220, 0.3));
+}
+.confirmation-cancelled .confirmation-heading {
+  color: var(--text-3, #8e9cb8);
 }
 
 .confirmation-heading {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: #b42318;
+  gap: 5px;
+  font-size: 13px;
 }
 
 .tool-confirmation p {
-  margin: 10px 0 4px;
-  line-height: 1.6;
+  margin: 6px 0 2px;
+  line-height: 1.45;
+  font-size: 13px;
+  color: var(--text-2, #c2cde4);
+}
+.tool-confirmation.confirmation-done p.confirmation-summary {
+  margin: 2px 0;
+  color: var(--text-1, #eef3ff);
 }
 
 .tool-confirmation small {
-  color: #667085;
+  color: var(--text-4, #6c7893);
+  font-size: 11px;
+  line-height: 1.3;
 }
 
 .confirmation-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 6px;
+  margin-top: 7px;
 }
 
 .confirmation-actions ::v-deep .el-button {
-  min-width: 88px;
-  min-height: 44px;
+  min-width: 72px;
+  min-height: 34px;
+  padding: 7px 12px;
 }
 
 .confirmation-result {
-  margin-top: 10px;
-  color: #475467;
-  font-size: 13px;
+  margin-top: 5px;
+  color: var(--text-3, #8e9cb8);
+  font-size: 12px;
+  line-height: 1.3;
 }
 
 .agent-page {
@@ -899,8 +1047,8 @@ export default Vue.extend({
   min-height: 620px;
   display: flex;
   margin: 0;
-  background: #f7f8fa;
-  color: #1f2937;
+  background: transparent;
+  color: var(--text-1);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     sans-serif;
 }
@@ -909,8 +1057,8 @@ export default Vue.extend({
   flex: 0 0 276px;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-right: 1px solid #e8ebf0;
+  background: var(--surface-card);
+  border-right: 1px solid var(--border);
   padding: 26px 18px 18px;
 }
 .panel-heading {
@@ -920,7 +1068,7 @@ export default Vue.extend({
   padding: 0 8px 20px;
 }
 .eyebrow {
-  color: #97a1b2;
+  color: var(--text-3);
   font-size: 10px;
   letter-spacing: 1.4px;
   font-weight: 700;
@@ -928,27 +1076,56 @@ export default Vue.extend({
 .panel-heading h1 {
   margin: 7px 0 0;
   font-size: 23px;
-  color: #202633;
-}
-.new-chat {
-  background: #1f2937;
-  border-color: #1f2937;
+  color: var(--text-1);
 }
 .new-chat-wide {
   width: 100%;
-  background: #f1f4f8;
+  background: rgba(255,255,255,0.08);
   border: 0;
-  color: #344054;
+  color: var(--text-2);
   margin-bottom: 24px;
 }
 .session-label {
-  color: #98a1af;
+  color: var(--text-3);
   font-size: 12px;
   margin: 0 8px 10px;
 }
 .session-list {
   flex: 1;
   overflow-y: auto;
+  /* 滚动条：淡蓝色滑块，轨道与背景同色（不留灰底） */
+  scrollbar-width: thin;                              /* Firefox */
+  scrollbar-color: var(--action-light, #60a5fa) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  /* 轨道与背景一致，避免出现一条灰带 */
+  &::-webkit-scrollbar-track,
+  &::-webkit-scrollbar-track-piece,
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* 滑块：淡蓝，hover 更亮 */
+  &::-webkit-scrollbar-thumb {
+    background: var(--action-light, #60a5fa);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+
+    &:hover {
+      background: var(--action, #3b82f6);
+      background-clip: content-box;
+    }
+  }
+
+  /* 上下箭头与背景同色 */
+  &::-webkit-scrollbar-button {
+    display: none;
+    height: 0;
+  }
 }
 .session-item {
   position: relative;
@@ -961,16 +1138,16 @@ export default Vue.extend({
   border-radius: 7px;
   text-align: left;
   cursor: pointer;
-  color: #657083;
+  color: var(--text-3);
 }
 .session-item:hover,
 .session-item.active {
-  background: #f2f5f8;
-  color: #1f2937;
+  background: var(--surface-hover);
+  color: var(--text-1);
 }
 .session-icon {
   width: 28px;
-  color: #9ba5b3;
+  color: var(--text-4);
 }
 .session-copy {
   flex: 1;
@@ -988,7 +1165,7 @@ export default Vue.extend({
   font-weight: 500;
 }
 .session-copy small {
-  color: #a3abb7;
+  color: var(--text-4);
   font-size: 11px;
   margin-top: 4px;
 }
@@ -1004,7 +1181,7 @@ export default Vue.extend({
 .empty-sessions {
   padding: 28px 8px;
   text-align: center;
-  color: #a4acb8;
+  color: var(--text-4);
   font-size: 12px;
 }
 .session-menu {
@@ -1014,9 +1191,9 @@ export default Vue.extend({
   z-index: 5;
   width: 112px;
   padding: 5px;
-  border: 1px solid #e4e9f0;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-card);
   box-shadow: 0 8px 20px rgba(28, 40, 58, 0.12);
 }
 .session-menu button {
@@ -1029,19 +1206,21 @@ export default Vue.extend({
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #526174;
+  color: var(--text-2);
   cursor: pointer;
   text-align: left;
   font-size: 12px;
 }
 .session-menu button:hover {
-  background: #f2f5f8;
-  color: #3477ca;
+  background: var(--surface-hover);
+  color: var(--accent);
 }
 .panel-footer {
-  border-top: 1px solid #eef0f3;
-  padding: 16px 8px 0;
-  color: #8a95a4;
+  // 与面板底色一致，不额外画分隔线（避免底部出现一条异色边）
+  background: var(--surface-card);
+  border-top: 1px solid var(--border);
+  padding: 16px 8px 4px;
+  color: var(--text-3);
   font-size: 12px;
 }
 .status-dot {
@@ -1050,16 +1229,16 @@ export default Vue.extend({
   height: 7px;
   margin-right: 7px;
   border-radius: 50%;
-  background: #26b57a;
+  background: var(--success);
 }
 
 .agent-error-recovery {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #f5c2c7;
+  border: 1px solid var(--border-strong);
   border-radius: 8px;
-  background: #fff8f8;
-  color: #442326;
+  background: var(--surface-raised);
+  color: var(--text-2);
 }
 
 .agent-error-recovery p {
@@ -1068,13 +1247,13 @@ export default Vue.extend({
 }
 
 .agent-error-recovery small {
-  color: #667085;
+  color: var(--text-3);
 }
-.status-dot.status-degraded { background: #d99a24; }
+.status-dot.status-degraded { background: var(--warn); }
 .status-dot.status-offline { background: #d9534f; }
 .status-dot.status-unknown { background: #9aa3b0; }
 .health-hint {
-  color: #c88620;
+  color: var(--warn);
   font-size: 12px;
 }
 .chat-panel {
@@ -1092,8 +1271,8 @@ export default Vue.extend({
   z-index: 10;
   width: min(360px, 92vw);
   padding: 22px;
-  border-left: 1px solid #e3e8ee;
-  background: #fff;
+  border-left: 1px solid var(--border);
+  background: var(--surface-card);
   box-shadow: -8px 0 24px rgba(28, 40, 58, 0.08);
 }
 .archive-heading {
@@ -1101,26 +1280,26 @@ export default Vue.extend({
   align-items: flex-start;
   justify-content: space-between;
   padding-bottom: 16px;
-  border-bottom: 1px solid #eef0f3;
+  border-bottom: 1px solid var(--border);
 }
 .archive-heading strong,
 .archive-heading small {
   display: block;
 }
 .archive-heading strong {
-  color: #202633;
+  color: var(--text-1);
   font-size: 17px;
 }
 .archive-heading small {
   margin-top: 5px;
-  color: #9aa3b0;
+  color: var(--text-4);
   font-size: 11px;
 }
 .archive-heading button,
 .archive-delete {
   border: 0;
   background: transparent;
-  color: #8995a4;
+  color: var(--text-3);
   cursor: pointer;
 }
 .archive-list {
@@ -1132,7 +1311,7 @@ export default Vue.extend({
   align-items: center;
   gap: 8px;
   padding: 12px 0;
-  border-bottom: 1px solid #f0f2f5;
+  border-bottom: 1px solid var(--border);
 }
 .archive-open {
   flex: 1;
@@ -1140,7 +1319,7 @@ export default Vue.extend({
   padding: 0;
   border: 0;
   background: transparent;
-  color: #526174;
+  color: var(--text-2);
   cursor: pointer;
   text-align: left;
 }
@@ -1152,10 +1331,10 @@ export default Vue.extend({
   white-space: nowrap;
 }
 .archive-open strong { font-size: 13px; font-weight: 500; }
-.archive-open small { margin-top: 5px; color: #a3abb7; font-size: 11px; }
-.archive-open:hover { color: #3477ca; }
+.archive-open small { margin-top: 5px; color: var(--text-4); font-size: 11px; }
+.archive-open:hover { color: var(--accent); }
 .archive-delete { min-width: 32px; min-height: 32px; }
-.archive-delete:hover { color: #d9534f; }
+.archive-delete:hover { color: var(--danger); }
 .chat-header {
   height: 66px;
   flex: 0 0 66px;
@@ -1163,8 +1342,8 @@ export default Vue.extend({
   align-items: center;
   justify-content: space-between;
   padding: 0 38px;
-  background: #fff;
-  border-bottom: 1px solid #e8ebf0;
+  background: var(--surface-card);
+  border-bottom: 1px solid var(--border);
 }
 .header-mark {
   display: inline-flex;
@@ -1174,8 +1353,8 @@ export default Vue.extend({
   justify-content: center;
   margin-right: 10px;
   border-radius: 8px;
-  background: #eef5ff;
-  color: #3378d5;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .header-title {
   margin-right: 10px;
@@ -1207,19 +1386,19 @@ export default Vue.extend({
   align-items: center;
   justify-content: center;
   border-radius: 17px;
-  background: #eaf2ff;
-  color: #3e82d9;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 25px;
 }
 .welcome-state h2 {
   margin: 18px 0 8px;
-  color: #202633;
+  color: var(--text-1);
   font-size: 25px;
   font-weight: 600;
 }
 .welcome-state p {
   margin: 0 0 27px;
-  color: #8993a2;
+  color: var(--text-3);
   font-size: 14px;
 }
 .suggestions {
@@ -1229,17 +1408,17 @@ export default Vue.extend({
   gap: 10px;
 }
 .suggestions button {
-  border: 1px solid #e1e6ed;
+  border: 1px solid var(--border);
   border-radius: 7px;
-  background: #fff;
-  color: #5e6a7a;
+  background: var(--surface-card);
+  color: var(--text-3);
   padding: 11px 13px;
   cursor: pointer;
   font-size: 12px;
 }
 .suggestions button:hover {
   border-color: #a7c6ef;
-  color: #3477ca;
+  color: var(--accent);
 }
 .suggestions i {
   margin-left: 9px;
@@ -1258,7 +1437,7 @@ export default Vue.extend({
 }
 .message-name {
   margin: 0 0 7px 2px;
-  color: #9aa3b0;
+  color: var(--text-4);
   font-size: 11px;
 }
 .user-row .message-name {
@@ -1274,20 +1453,20 @@ export default Vue.extend({
   word-break: break-word;
 }
 .assistant-bubble {
-  background: #fff;
-  border: 1px solid #e7ebf0;
-  color: #364152;
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  color: var(--text-2);
 }
 .user-bubble {
   background: #202b3c;
-  color: #fff;
+  color: var(--text-on-accent);
 }
 .citations {
   margin-top: 9px;
 }
 .citations-title {
   margin-bottom: 6px;
-  color: #7b8797;
+  color: var(--text-3);
   font-size: 12px;
   font-weight: 500;
 }
@@ -1305,8 +1484,8 @@ export default Vue.extend({
   justify-content: center;
   border: 1px solid #b8d0ed;
   border-radius: 50%;
-  background: #eef5ff;
-  color: #3477ca;
+  background: var(--accent-soft);
+  color: var(--accent);
   font-size: 11px;
   font-weight: 600;
   cursor: default;
@@ -1321,7 +1500,7 @@ export default Vue.extend({
   padding: 7px 9px;
   border-radius: 6px;
   background: #263447;
-  color: #fff;
+  color: var(--text-on-accent);
   content: attr(data-tooltip);
   opacity: 0;
   pointer-events: none;
@@ -1343,10 +1522,10 @@ export default Vue.extend({
   gap: 7px;
   max-width: 100%;
   padding: 8px 11px;
-  border: 1px solid #dfe6ee;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
-  color: #425268;
+  background: var(--surface-card);
+  color: var(--text-2);
   font: inherit;
   font-size: 12px;
   line-height: 1.4;
@@ -1356,7 +1535,7 @@ export default Vue.extend({
 }
 .citation-chip:hover {
   border-color: #b9cee8;
-  background: #f5f9ff;
+  background: var(--surface-inset);
 }
 .citation-chip:focus-visible {
   outline: none;
@@ -1365,17 +1544,17 @@ export default Vue.extend({
 }
 .citation-chip i {
   flex: 0 0 auto;
-  color: #4f87cf;
+  color: var(--accent);
   font-size: 14px;
 }
 .citation-index {
   flex: 0 0 auto;
-  color: #4f87cf;
+  color: var(--accent);
   font-weight: 600;
 }
 .citation-name {
   overflow: hidden;
-  color: #66758a;
+  color: var(--text-3);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1390,12 +1569,12 @@ export default Vue.extend({
   font-size: 12px;
 }
 .assistant-avatar {
-  background: #eaf2ff;
-  color: #3f82d8;
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .user-avatar {
-  background: #dbe3ed;
-  color: #506072;
+  background: rgba(255,255,255,0.14);
+  color: var(--text-2);
 }
 .typing-caret {
   display: inline-block;
@@ -1403,7 +1582,7 @@ export default Vue.extend({
   height: 15px;
   margin-left: 3px;
   vertical-align: -2px;
-  background: #4585d1;
+  background: var(--accent);
   animation: blink 1s step-end infinite;
 }
 .running-line {
@@ -1412,7 +1591,7 @@ export default Vue.extend({
   gap: 8px;
   max-width: 760px;
   margin: -12px auto 20px 0;
-  color: #9ba5b2;
+  color: var(--text-4);
   font-size: 12px;
 }
 .stop-button {
@@ -1422,24 +1601,26 @@ export default Vue.extend({
 }
 .running-line i {
   margin-right: 6px;
-  color: #4f87cf;
+  color: var(--accent);
 }
 .composer-wrap {
   padding: 0 clamp(28px, 8vw, 130px) 21px;
-  background: #f7f8fa;
+  background: transparent;
 }
 .composer {
   max-width: 760px;
   margin: 0 auto;
   padding: 13px 15px 10px;
-  border: 1px solid #dce2e9;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 4px 14px rgba(28, 40, 58, 0.04);
+  /* 贴合深色背景：用比面板更深的 inset 槽色，而不是与背景同色的 card 色 */
+  background: var(--surface-inset);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 18px rgba(2, 6, 20, 0.28);
 }
 .composer:focus-within {
-  border-color: #8bb4e8;
-  box-shadow: 0 0 0 3px rgba(72, 132, 208, 0.1);
+  border-color: rgba(76, 141, 255, 0.65);
+  box-shadow: 0 0 0 3px rgba(76, 141, 255, 0.16), 0 6px 18px rgba(2, 6, 20, 0.28);
 }
 .composer textarea {
   display: block;
@@ -1447,29 +1628,52 @@ export default Vue.extend({
   resize: none;
   border: 0;
   outline: none;
-  color: #253143;
+  background: transparent;
+  caret-color: var(--brand);
+  color: var(--text-1);
   font: inherit;
   font-size: 14px;
   line-height: 1.5;
+}
+.composer textarea::placeholder {
+  color: var(--text-4);
 }
 .composer-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding-top: 9px;
-  color: #a1a9b5;
+  color: var(--text-4);
   font-size: 11px;
 }
 .composer-toolbar .el-button {
   width: 32px;
   height: 32px;
   padding: 0;
-  background: #202b3c;
-  border-color: #202b3c;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-strong);
+  color: var(--text-1);
+}
+/* 发送键为淡蓝（与其它操作按钮统一），禁用时降为中性灰 */
+.composer-toolbar .el-button.el-button--primary:not(.is-disabled) {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--text-on-accent);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+.composer-toolbar .el-button.el-button--primary:not(.is-disabled):hover {
+  background: linear-gradient(
+    135deg,
+    var(--action-light) 0%,
+    var(--action) 55%,
+    var(--action-deep) 100%
+  );
+  border-color: var(--action-light);
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
 }
 .disclaimer {
   padding-top: 8px;
-  color: #a6adb8;
+  color: var(--text-4);
   text-align: center;
   font-size: 11px;
 }

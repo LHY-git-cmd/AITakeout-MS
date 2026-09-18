@@ -1,8 +1,11 @@
 /**
  * 验证菜单搜索与 AI 侧栏拖拽宽度的核心计算，防止界面改动后出现越界或错误筛选。
  */
+// @ts-ignore
 import test from 'node:test'
+// @ts-ignore
 import assert from 'node:assert/strict'
+// @ts-ignore
 import { clampAiPanelWidth, filterMenuProducts } from '../src/utils/menuLayout.ts'
 
 const products = [

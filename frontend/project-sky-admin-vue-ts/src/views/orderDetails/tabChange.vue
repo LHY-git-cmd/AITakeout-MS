@@ -86,9 +86,9 @@ export default class extends Vue {
     height: 40px;
     text-align: center;
     line-height: 40px;
-    color: #333;
-    border: 1px solid #e5e4e4;
-    background-color: white;
+    color: var(--text-1);
+    border: 1px solid var(--field-border);
+    background-color: var(--surface-card);
     border-left: none;
     cursor: pointer;
     .special-item {
@@ -113,11 +113,24 @@ export default class extends Vue {
     }
   }
   .active {
-    background-color: #ffc200;
+    // 选中态：淡蓝底 + 白字；悬停渐变
+    background-color: var(--action);
+    color: var(--text-on-accent);
     font-weight: bold;
+    transition: background 0.25s ease, box-shadow 0.25s ease;
+
+    &:hover {
+      background: linear-gradient(
+        135deg,
+        var(--action-light) 0%,
+        var(--action) 55%,
+        var(--action-deep) 100%
+      );
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+    }
   }
   .tab-item:first-child {
-    border-left: 1px solid #e5e4e4;
+    border-left: 1px solid var(--field-border);
   }
 }
 </style>
