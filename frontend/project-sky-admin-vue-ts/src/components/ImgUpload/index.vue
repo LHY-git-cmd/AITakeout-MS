@@ -131,7 +131,7 @@ export default class extends Vue {
 }
 .upload-tips {
   font-size: 12px;
-  color: #666666;
+  color: var(--text-3, #8e9cb8);
   display: inline-block;
   line-height: 17px;
   margin-left: 36px;
@@ -144,7 +144,7 @@ export default class extends Vue {
   top: 0;
   cursor: default;
   text-align: center;
-  color: #fff;
+  color: var(--text-on-accent);
   opacity: 0;
   font-size: 20px;
   background-color: rgba(0, 0, 0, 0.5);
@@ -166,7 +166,7 @@ export default class extends Vue {
 }
 
 .avatar-uploader .el-upload:hover {
-  border-color: #ffc200;
+  border-color: var(--action);
 }
 .el-upload-span {
   width: 100px;

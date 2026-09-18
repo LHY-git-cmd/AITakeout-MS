@@ -723,7 +723,7 @@ export default class extends Vue {
   .order-status {
     width: 57.25px;
     height: 27px;
-    background: #333333;
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 13.5px;
     color: white;
     margin-left: 19px;
@@ -734,14 +734,14 @@ export default class extends Vue {
     background: #f56c6c;
   }
   p {
-    color: #333;
+    color: var(--text-1);
     label {
-      color: #666;
+      color: var(--text-3);
     }
   }
   .order-num {
     font-size: 16px;
-    color: #2a2929;
+    color: var(--text-1);
     font-weight: bold;
     display: inline-block;
   }
@@ -750,11 +750,11 @@ export default class extends Vue {
 .order-middle {
   .user-info {
     min-height: 140px;
-    background: #fbfbfa;
+    background: var(--surface-inset);
     margin-top: 23px;
 
     padding: 20px 43px;
-    color: #333;
+    color: var(--text-1);
     .user-info-box {
       min-height: 55px;
       display: flex;
@@ -774,7 +774,7 @@ export default class extends Vue {
       }
       label {
         margin-right: 17px;
-        color: #666;
+        color: var(--text-3);
       }
 
       .user-address {
@@ -788,8 +788,8 @@ export default class extends Vue {
     .user-remark {
       height: 43px;
       line-height: 43px;
-      background: #fffbf0;
-      border: 1px solid #fbe396;
+      background: rgba(255, 194, 0, 0.12);
+      border: 1px solid rgba(255, 194, 0, 0.35);
       border-radius: 4px;
       margin-top: 10px;
       padding: 6px;
@@ -799,11 +799,11 @@ export default class extends Vue {
         display: inline-block;
         min-width: 53px;
         height: 32px;
-        background: #fbe396;
+        background: rgba(255, 194, 0, 0.22);
         border-radius: 4px;
         text-align: center;
         line-height: 32px;
-        color: #333;
+        color: var(--text-1);
         margin-right: 30px;
         // padding: 12px 6px;
       }
@@ -812,12 +812,12 @@ export default class extends Vue {
       }
     }
     .orderCancel {
-      background: #ffffff;
+      background: var(--surface-card);
       border: 1px solid #b6b6b6;
 
       div {
         padding: 0 10px;
-        background-color: #e5e4e4;
+        background-color: rgba(255, 255, 255, 0.10);
       }
       span {
         color: #f56c6c;
@@ -831,7 +831,7 @@ export default class extends Vue {
     padding: 20px 40px;
     border-bottom: 1px solid #e7e6e6;
     .dish-label {
-      color: #666;
+      color: var(--text-3);
     }
     .dish-list {
       flex: 80%;
@@ -840,7 +840,7 @@ export default class extends Vue {
       .dish-item {
         flex: 50%;
         margin-bottom: 14px;
-        color: #333;
+        color: var(--text-1);
         .dish-num {
           margin-right: 51px;
         }
@@ -860,7 +860,7 @@ export default class extends Vue {
       padding-left: 92px;
       margin-top: 10px;
       label {
-        color: #333333;
+        color: var(--text-1);
         font-weight: bold;
         margin-right: 5px;
       }
@@ -878,14 +878,14 @@ export default class extends Vue {
     padding: 20px 40px;
     padding-bottom: 0px;
     .amount-label {
-      color: #666;
+      color: var(--text-3);
       margin-right: 65px;
     }
     .amount-list {
       flex: 80%;
       display: flex;
       flex-wrap: wrap;
-      color: #333;
+      color: var(--text-1);
       // height: 65px;
       .dish-amount,
       .package-amount,

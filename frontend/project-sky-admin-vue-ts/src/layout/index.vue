@@ -1,5 +1,7 @@
 <template>
   <div :class="classObj" class="app-wrapper">
+    <!-- 星空位于布局最底层，pointer-events:none，不拦截任何点击 -->
+    <starfield />
     <div
       v-if="classObj.mobile && sidebar.opened"
       class="drawer-bg"
@@ -10,6 +12,8 @@
       <navbar />
       <app-main />
     </div>
+    <!-- 营业状态弹层挂在布局根节点：可继承主题变量，且不被侧栏 overflow 裁切 -->
+    <status-dialog />
   </div>
 </template>
 
@@ -17,7 +21,7 @@
 import { Component } from 'vue-property-decorator'
 import { mixins } from 'vue-class-component'
 import { DeviceType, AppModule } from '@/store/modules/app'
-import { AppMain, Navbar, Sidebar } from './components'
+import { AppMain, Navbar, Sidebar, Starfield, StatusDialog } from './components'
 import ResizeMixin from './mixin/resize'
 
 @Component({
@@ -26,6 +30,8 @@ import ResizeMixin from './mixin/resize'
     AppMain,
     Navbar,
     Sidebar,
+    Starfield,
+    StatusDialog,
   },
 })
 export default class extends mixins(ResizeMixin) {
@@ -53,13 +59,20 @@ export default class extends mixins(ResizeMixin) {
   min-width: 1366px;
   overflow-x: auto;
   overflow-y: hidden;
+  /* 透明底，让最底层星空透上来 */
+  background: transparent;
 }
 
 .main-container {
   height: 100%;
-  background: #f3f4f7;
   position: relative;
   width: calc(100% - 190px);
+  min-height: 100%;
+  transition: margin-left 0.28s;
+  margin-left: $sideBarWidth;
+  /* 半透明表面：既透出星空，又保证业务内容的对比度 */
+  background: var(--surface-app, rgba(18, 24, 46, 0.72));
+  backdrop-filter: blur(2px);
 }
 
 .drawer-bg {
@@ -70,14 +83,6 @@ export default class extends mixins(ResizeMixin) {
   height: 100%;
   position: absolute;
   z-index: 999;
-}
-
-.main-container {
-  min-height: 100%;
-  transition: margin-left 0.28s;
-  margin-left: $sideBarWidth;
-  background: $gray-5;
-  position: relative;
 }
 
 .sidebar-container {

@@ -1,16 +1,15 @@
 <template>
   <div class="login">
+    <!-- 星空背景铺满全屏；登录卡片浮在其上 -->
     <div class="login-box">
-      <img src="@/assets/login/login-l.png" alt="" />
       <div class="login-form">
         <el-form ref="loginForm" :model="loginForm" :rules="loginRules">
           <div class="login-form-title">
-            <img
-              src="@/assets/login/icon_logo.png"
-              style="width: 149px; height: 38px"
-              alt=""
-            />
-            <!-- <span class="title-label">苍穹外卖</span> -->
+            <!-- 品牌标识：与侧栏一致（MS 渐变方块 + AITakeout-MS） -->
+            <div class="brand">
+              <span class="brand-mark">MS</span>
+              <span class="brand-text">AITakeout<b>-MS</b></span>
+            </div>
           </div>
           <el-form-item prop="username">
             <el-input
@@ -124,19 +123,68 @@ export default class extends Vue {
   justify-content: center;
   align-items: center;
   height: 100%;
-  // background: #476dbe;
-  background-color: #333;
+  /* 星空全景背景：铺满全屏，保持比例裁切 */
+  background-color: #0b1120;
+  background-image: url('~@/assets/login/login-sky.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
+/* 登录卡片：黑色玻璃「水面」效果 —— 低不透明度 + 中等模糊，星空透过卡片 */
 .login-box {
-  width: 1000px;
-  height: 474.38px;
-  border-radius: 8px;
+  position: relative;
+  width: 420px;
+  padding: 38px 40px;
+  border-radius: 20px;
   display: flex;
-  img {
-    width: 60%;
-    height: auto;
-  }
+  justify-content: center;
+  align-items: center;
+  // 黑色打底，不透明度 0.1：只做轻微压暗，星空几乎原样透出
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(16px) saturate(170%);
+  -webkit-backdrop-filter: blur(16px) saturate(170%);
+  // 外投影 + 内高光：内高光制造玻璃厚度感
+  box-shadow: 0 24px 60px rgba(10, 15, 40, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+}
+
+/* 水面光泽：斜向高光带，制造"水波反光"的层次 */
+.login-box::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.28) 0%,
+    rgba(255, 255, 255, 0.06) 28%,
+    rgba(255, 255, 255, 0) 52%,
+    rgba(255, 255, 255, 0.1) 78%,
+    rgba(255, 255, 255, 0.22) 100%
+  );
+  pointer-events: none;
+}
+
+/* 顶部高光弧，强化水面的边缘反光 */
+.login-box::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.95), transparent);
+  pointer-events: none;
+}
+
+/* 内容需要浮在光泽层之上 */
+.login-box > * {
+  position: relative;
+  z-index: 1;
 }
 
 .title {
@@ -145,81 +193,140 @@ export default class extends Vue {
   color: #707070;
 }
 
+/* 品牌标识：MS 方块在上，AITakeout-MS 在下（按草图竖排居中） */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.brand-mark {
+  flex: 0 0 auto;
+  // 登录页作为品牌主视觉，方块比侧栏更大（侧栏 32px）
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 25px;
+  letter-spacing: -1px;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(30, 41, 99, 0.35);
+  background: linear-gradient(140deg, #7cc4ff 0%, #8fb5ff 45%, #f2a8d8 100%);
+  // 光晕随尺寸放大，否则大块配小阴影会"飘"
+  box-shadow: 0 8px 24px rgba(124, 196, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.brand-text {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  // 卡片透明度低 → 底色偏深，用白色主标 + 淡色渐变
+  color: #ffffff;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 18px rgba(2, 8, 26, 0.5);
+
+  b {
+    // 与 MS 方块同一套淡蓝→淡粉渐变
+    background: linear-gradient(120deg, #9fd0ff 0%, #a9c4ff 50%, #f7b6e0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: #b9d4ff; // 回退色
+  }
+}
+
 .login-form {
-  background: #ffffff;
-  width: 40%;
-  border-radius: 0px 8px 8px 0px;
+  // 表单不再自带底色，由 .login-box 的浅灰玻璃层承担
+  background: transparent;
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
   .el-form {
-    width: 214px;
-    height: 307px;
+    width: 100%;
+    height: auto;
   }
   .el-form-item {
-    margin-bottom: 30px;
+    margin-bottom: 24px;
   }
   .el-form-item.is-error .el-input__inner {
-    border: 0 !important;
-    border-bottom: 1px solid #fd7065 !important;
-    background: #fff !important;
+    border: 1px solid #fd7065 !important;
+    background: #ffffff !important;
   }
   .input-icon {
     height: 32px;
     width: 18px;
-    margin-left: -2px;
+    margin-left: 10px;
   }
+  /* 输入框：半透明玻璃（卡片已很透，输入框也要跟着透） */
   .el-input__inner {
-    border: 0;
-    border-bottom: 1px solid #e9e9e8;
-    border-radius: 0;
-    font-size: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    font-size: 13px;
     font-weight: 400;
-    color: #333333;
-    height: 32px;
-    line-height: 32px;
+    color: #ffffff;
+    height: 44px;
+    line-height: 44px;
+    padding-left: 38px;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .el-input__inner:focus {
+    background: rgba(255, 255, 255, 0.26);
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.16);
   }
   .el-input__prefix {
-    left: 0;
+    left: 12px;
+    color: rgba(255, 255, 255, 0.8);
   }
   .el-input--prefix .el-input__inner {
-    padding-left: 26px;
+    padding-left: 38px;
   }
   .el-input__inner::placeholder {
-    color: #aeb5c4;
+    color: rgba(255, 255, 255, 0.62);
   }
   .el-form-item--medium .el-form-item__content {
-    line-height: 32px;
+    line-height: 44px;
   }
   .el-input--medium .el-input__icon {
-    line-height: 32px;
+    line-height: 44px;
   }
 }
 
+/* 登录按钮：淡蓝色（与整体操作色一致） */
 .login-btn {
-  border-radius: 17px;
-  padding: 11px 20px !important;
-  margin-top: 10px;
-  font-weight: 500;
-  font-size: 12px;
+  width: 100%;
+  height: 44px;
+  border-radius: 22px;
+  padding: 0 20px !important;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
   border: 0;
-  font-weight: 500;
-  color: #333333;
-  // background: #09a57a;
-  background-color: #ffc200;
+  color: #ffffff;
+  background: linear-gradient(135deg, #7cc4ff 0%, #4c8dff 100%);
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+
   &:hover,
   &:focus {
-    // background: #09a57a;
-    background-color: #ffc200;
+    background: linear-gradient(135deg, #9fd4ff 0%, #3b82f6 100%);
     color: #ffffff;
+    box-shadow: 0 8px 22px rgba(76, 141, 255, 0.5);
   }
 }
 .login-form-title {
-  height: 36px;
+  // 品牌区改为竖排后高度不固定，交给内容撑开
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 40px;
+  margin-bottom: 34px;
   .title-label {
     font-weight: 500;
     font-size: 20px;

@@ -8,6 +8,7 @@
 </template>
 
 <script lang="ts">
+import { chartPalette, splitLineStyle } from '@/utils/chartTheme'
 import { Component, Vue, Prop, Watch } from 'vue-property-decorator'
 import * as echarts from 'echarts'
 @Component({
@@ -25,14 +26,15 @@ export default class extends Vue {
     type EChartsOption = echarts.EChartsOption
     const chartDom = document.getElementById('top') as any
     const myChart = echarts.init(chartDom)
+    const palette = chartPalette()
     var option: any
     option = {
       tooltip: {
         trigger: 'axis',
-        backgroundColor: '#fff', //背景颜色（此时为默认色）
+        backgroundColor: 'transparent', // 深色主题：透明，露出卡片底色
         borderRadius: 2, //边框圆角
         textStyle: {
-          color: '#333', //字体颜色
+          color: palette.title, // 深色主题：白色字体
           fontSize: 12, //字体大小
           fontWeight: 300,
         },
@@ -61,7 +63,7 @@ export default class extends Vue {
         // interval: 100,
         axisLabel: {
           textStyle: {
-            color: '#666',
+            color: palette.axisLabel,
             fontSize: '12px',
           },
           // formatter: "{value} ml",//单位
@@ -74,7 +76,7 @@ export default class extends Vue {
           type: 'bar',
           showBackground: true,
           backgroundStyle: {
-            color: '#F3F4F7',
+            color: 'rgba(140, 165, 220, 0.45)',
           },
           barWidth: 20,
           barGap: '80%' /*多个并排柱子设置柱子之间的间距*/,

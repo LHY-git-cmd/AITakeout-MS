@@ -371,7 +371,7 @@ export default class extends Vue {
   &-container {
     margin: 30px;
     .container {
-      background: #fff;
+      background: var(--surface-card);
       position: relative;
       z-index: 1;
       padding: 0 30px;

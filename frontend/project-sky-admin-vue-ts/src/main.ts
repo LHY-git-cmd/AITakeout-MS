@@ -14,6 +14,10 @@ import * as echarts from 'echarts'
 // 瑞吉外卖样式表
 import '@/styles/newRJWMsystem.scss'
 import '@/styles/icon/iconfont.css'
+// 平衡型深色星空主题（最后引入，确保覆盖上面的浅色样式）
+import '@/styles/theme-dark.scss'
+// 白天模式（必须在深色主题之后引入，才能覆盖深色变量与覆盖层）
+import '@/styles/theme-light.scss'
 import App from '@/App.vue'
 import store from '@/store'
 import router from '@/router'

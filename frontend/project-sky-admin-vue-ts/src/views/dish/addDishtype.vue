@@ -448,7 +448,7 @@ export default class extends Vue {
     .container {
       position: relative;
       z-index: 1;
-      background: #fff;
+      background: var(--surface-card);
       padding: 30px;
       border-radius: 4px;
       min-height: 500px;
@@ -456,7 +456,7 @@ export default class extends Vue {
       .subBox {
         padding-top: 30px;
         text-align: center;
-        border-top: solid 1px $gray-5;
+        border-top: solid 1px var(--border);
       }
       .upload-item {
         .el-form-item__error {
@@ -471,25 +471,36 @@ export default class extends Vue {
   width: 777px;
 
   .addBut {
-    background: #ffc200;
+    // 操作按钮统一淡蓝，悬停渐变
+    background: var(--action);
     display: inline-block;
     padding: 0px 20px;
-    border-radius: 3px;
+    border-radius: 4px;
     line-height: 40px;
     cursor: pointer;
-    border-radius: 4px;
-    color: #333333;
+    color: var(--text-on-accent);
     font-weight: 500;
+    transition: background 0.25s ease, box-shadow 0.25s ease;
+
+    &:hover {
+      background: linear-gradient(
+        135deg,
+        var(--action-light) 0%,
+        var(--action) 55%,
+        var(--action-deep) 100%
+      );
+      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+    }
   }
 
   .flavor {
-    border: solid 1px #dfe2e8;
+    border: solid 1px var(--border);
     border-radius: 3px;
     padding: 15px;
-    background: #fafafb;
+    background: var(--surface-inset);
 
     .title {
-      color: #606168;
+      color: var(--text-2);
       .des-box {
         padding-left: 44px;
       }
@@ -518,18 +529,18 @@ export default class extends Vue {
           flex-wrap: wrap;
           border-radius: 3px;
           min-height: 39px;
-          border: solid 1px #d8dde3;
-          background: #fff;
+          border: solid 1px var(--border);
+          background: var(--surface-card);
           padding: 0 5px;
 
           span {
             display: inline-block;
-            color: #ffc200;
+            color: var(--action-light);
             margin: 5px;
             line-height: 26px;
             padding: 0 10px;
-            background: #fffbf0;
-            border: 1px solid #fbe396;
+            background: rgba(59, 130, 246, 0.16);
+            border: 1px solid rgba(59, 130, 246, 0.42);
             border-radius: 4px;
             font-size: 12px;
 

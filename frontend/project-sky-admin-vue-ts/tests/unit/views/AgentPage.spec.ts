@@ -203,8 +203,43 @@ describe('AgentPage stream events', () => {
     expect(assistant.confirmation).toEqual(expect.objectContaining({
       id: 'confirm-1',
       summary: '修改店铺营业状态',
+      decision: '已取消执行。',
     }))
     expect(assistant.content).toBe('已停止生成。')
+  })
+
+  it('marks the confirmation as completed when the confirmed task ends', () => {
+    const methods = agentMethods()
+    const assistant: any = {
+      role: 'assistant',
+      content: '已完成操作。',
+      citations: [],
+      confirmation: {
+        id: 'confirm-completed',
+        processing: false,
+        decided: true,
+        decision: '已确认，正在执行…',
+      },
+    }
+    const context = {
+      streamStatus: '正在思考...',
+      normalizeCitation: methods.normalizeCitation,
+      $nextTick: jest.fn(),
+      scrollToBottom: jest.fn(),
+    }
+
+    methods.applyAgentEvent.call(context, {
+      taskId: 'task-completed',
+      seqNo: 3,
+      event: 'task_end',
+      data: { status: 'completed', result: '已完成操作。' },
+    }, assistant)
+
+    expect(assistant.confirmation).toMatchObject({
+      processing: false,
+      decided: true,
+      decision: '已执行完成。',
+    })
   })
 
   it('preserves received tokens when the task ends with an error', () => {
@@ -213,7 +248,12 @@ describe('AgentPage stream events', () => {
       role: 'assistant',
       content: '',
       citations: [],
-      confirmation: null,
+      confirmation: {
+        id: 'confirm-failed',
+        processing: false,
+        decided: true,
+        decision: '已确认，正在执行…',
+      },
     }
     const context = {
       streamStatus: '正在思考...',
@@ -240,6 +280,11 @@ describe('AgentPage stream events', () => {
       kind: 'unknown',
       message: '请求未完成',
       taskId: 'task-1',
+    })
+    expect(assistant.confirmation).toMatchObject({
+      processing: false,
+      decided: true,
+      decision: '执行失败，请查看错误提示。',
     })
   })
 

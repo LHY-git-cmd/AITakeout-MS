@@ -1,0 +1,1050 @@
+/* ============================================================================
+   平衡型深色星空主题 —— 主题变量与组件覆盖
+   ----------------------------------------------------------------------------
+   设计约束（与方案一致）：
+   1. 用一组主题变量统一背景 / 卡片 / 边框 / 文字，不在每个页面单独写颜色；
+   2. 动画只出现在「星空」与「品牌区」两处，并支持 prefers-reduced-motion；
+   3. 表格、表单、弹窗的文字对比度优先，不机械地把白色组件改成透明。
+
+   说明：本文件只做「外观覆盖」，不改动任何接口、路由与退出登录逻辑。
+   所有选择器都带 html / #app 前缀或 !important，以确保压过
+   styles/index.scss 里内置的 Element UI 浅色主题样式。
+   ============================================================================ */
+
+:root {
+  /* 深空底色层次 */
+  --sky-deep: #070b18;
+  --sky-mid: #0d1430;
+
+  /* 表面（内容区 / 卡片 / 弹窗 / 内嵌槽） */
+  --surface-app: rgba(18, 24, 46, 0.72);
+  --surface-card: rgba(27, 34, 60, 0.08);
+  --surface-raised: rgba(35, 43, 74, 0.92);
+  --surface-inset: rgba(12, 17, 34, 0.55);
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-stripe: rgba(255, 255, 255, 0.022);
+
+  /* 边框与分隔 */
+  --border: rgba(140, 165, 220, 0.16);
+  --border-strong: rgba(140, 165, 220, 0.3);
+  /* 输入框 / 卡片描边（信息框与筛选控件统一用它，浅色主题下会换成中性灰） */
+  --field-border: #3b5a8f;
+  /* 信息框底色（工作台等处的指标卡） */
+  --box-bg: #1a2340;
+  /* 强调底上的文字（淡蓝按钮、选中标签） */
+  --text-on-accent: #ffffff;
+
+  /* 文字四级，保证在深色表面上的对比度 */
+  --text-1: #eef3ff;
+  --text-2: #c2cde4;
+  --text-3: #8e9cb8;
+  --text-4: #6c7893;
+
+  /* 品牌与语义色 */
+  /* 品牌主色改为「淡蓝→淡粉」体系（原品牌黄已弃用），
+     用于侧栏选中左色条、分页悬停、loading 等强调位置 */
+  --brand: #8fb5ff;
+  --brand-pink: #f2a8d8;
+  --brand-ink: #1a1600;
+  /* 操作按钮专用淡蓝（悬停走 --action-light 渐变） */
+  --action: #3b82f6;
+  --action-light: #60a5fa;
+  --action-deep: #2563eb;
+  --accent: #4c8dff;
+  --accent-soft: rgba(76, 141, 255, 0.16);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.14);
+  --danger: #ff6b6b;
+  --danger-soft: rgba(255, 107, 107, 0.14);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.14);
+
+  /* 尺寸与圆角 */
+  --sidebar-w: 190px;
+  --sidebar-w-mini: 80px;
+  --navbar-h: 60px;
+  --radius: 10px;
+  --radius-sm: 6px;
+
+  --shadow-card: 0 10px 28px rgba(2, 6, 20, 0.45);
+  --shadow-pop: 0 18px 44px rgba(2, 6, 20, 0.62);
+}
+
+/* ============================================================================
+   1. 整体底色
+   ============================================================================ */
+html,
+body {
+  background-color: var(--sky-deep);
+}
+
+#app:not(:has(.login)) {
+  background-color: transparent;
+  color: var(--text-2);
+}
+
+/* ============================================================================
+   2. Element UI —— 表格
+   ============================================================================ */
+#app:not(:has(.login)) .el-table,
+#app:not(:has(.login)) .el-table__expanded-cell {
+  background-color: transparent !important;
+  color: var(--text-2) !important;
+}
+
+#app:not(:has(.login)) .el-table tr,
+#app:not(:has(.login)) .el-table__body,
+#app:not(:has(.login)) .el-table__header,
+#app:not(:has(.login)) .el-table__footer,
+#app:not(:has(.login)) .el-table__body-wrapper,
+#app:not(:has(.login)) .el-table__header-wrapper,
+#app:not(:has(.login)) .el-table__footer-wrapper,
+#app:not(:has(.login)) .el-table__fixed,
+#app:not(:has(.login)) .el-table__fixed-right {
+  background-color: transparent !important;
+}
+
+#app:not(:has(.login)) .el-table th.el-table__cell,
+#app:not(:has(.login)) .el-table th {
+  background-color: var(--surface-inset) !important;
+  color: var(--text-3) !important;
+  border-bottom-color: var(--border) !important;
+}
+
+#app:not(:has(.login)) .el-table td.el-table__cell,
+#app:not(:has(.login)) .el-table td {
+  background-color: transparent !important;
+  border-bottom-color: var(--border) !important;
+  color: var(--text-2);
+}
+
+#app:not(:has(.login)) .el-table--border,
+#app:not(:has(.login)) .el-table--group,
+#app:not(:has(.login)) .el-table--border td,
+#app:not(:has(.login)) .el-table--border th {
+  border-color: var(--border) !important;
+}
+
+#app:not(:has(.login)) .el-table::before,
+#app:not(:has(.login)) .el-table--border::after,
+#app:not(:has(.login)) .el-table--group::after,
+#app:not(:has(.login)) .el-table__fixed::before,
+#app:not(:has(.login)) .el-table__fixed-right::before {
+  background-color: var(--border) !important;
+}
+
+/* 斑马纹与悬停：只改底色，文字提亮 */
+#app:not(:has(.login)) .el-table--striped .el-table__body tr.el-table__row--striped td {
+  background-color: var(--surface-stripe) !important;
+}
+
+#app:not(:has(.login)) .el-table__body tr.hover-row > td,
+#app:not(:has(.login)) .el-table__body tr:hover > td {
+  background-color: var(--surface-hover) !important;
+}
+
+#app:not(:has(.login)) .el-table__body tr:hover > td .cell {
+  color: var(--text-1);
+}
+
+#app:not(:has(.login)) .el-table__empty-text {
+  color: var(--text-4) !important;
+}
+
+#app:not(:has(.login)) .el-table__empty-block {
+  background-color: transparent !important;
+}
+
+#app:not(:has(.login)) .el-table .sort-caret.ascending {
+  border-bottom-color: var(--text-4);
+}
+
+#app:not(:has(.login)) .el-table .sort-caret.descending {
+  border-top-color: var(--text-4);
+}
+
+#app:not(:has(.login)) .el-table .ascending .sort-caret.ascending {
+  border-bottom-color: var(--brand);
+}
+
+#app:not(:has(.login)) .el-table .descending .sort-caret.descending {
+  border-top-color: var(--brand);
+}
+
+/* ============================================================================
+   3. Element UI —— 表单 / 输入
+   ============================================================================ */
+#app:not(:has(.login)) .el-form-item__label,
+#app:not(:has(.login)) .el-radio__label,
+#app:not(:has(.login)) .el-checkbox__label {
+  color: var(--text-2) !important;
+}
+
+#app:not(:has(.login)) .el-input__inner,
+#app:not(:has(.login)) .el-textarea__inner {
+  background-color: var(--surface-inset) !important;
+  border-color: var(--border) !important;
+  color: var(--text-1) !important;
+}
+
+#app:not(:has(.login)) .el-input__inner::placeholder,
+#app:not(:has(.login)) .el-textarea__inner::placeholder {
+  color: var(--text-4) !important;
+}
+
+#app:not(:has(.login)) .el-input__inner:focus,
+#app:not(:has(.login)) .el-textarea__inner:focus {
+  border-color: rgba(76, 141, 255, 0.65) !important;
+}
+
+#app:not(:has(.login)) .el-input__prefix,
+#app:not(:has(.login)) .el-input__suffix,
+#app:not(:has(.login)) .el-input__icon {
+  color: var(--text-3) !important;
+}
+
+#app:not(:has(.login)) .el-input.is-disabled .el-input__inner,
+#app:not(:has(.login)) .el-textarea.is-disabled .el-textarea__inner {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  border-color: var(--border) !important;
+  color: var(--text-4) !important;
+}
+
+#app:not(:has(.login)) .el-input-group__prepend,
+#app:not(:has(.login)) .el-input-group__append {
+  background-color: var(--surface-inset) !important;
+  border-color: var(--border) !important;
+  color: var(--text-3) !important;
+}
+
+#app:not(:has(.login)) .el-input-number__decrease,
+#app:not(:has(.login)) .el-input-number__increase {
+  background-color: var(--surface-inset) !important;
+  border-color: var(--border) !important;
+  color: var(--text-2) !important;
+}
+
+/* ============================================================================
+   4. Element UI —— 按钮（主色沿用品牌黄，保留原有配色语言）
+   ============================================================================ */
+#app:not(:has(.login)) .el-button {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-strong);
+  color: var(--text-1);
+}
+
+#app:not(:has(.login)) .el-button:hover,
+#app:not(:has(.login)) .el-button:focus {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--border-strong);
+  color: #fff;
+}
+
+#app:not(:has(.login)) .el-button.is-disabled,
+#app:not(:has(.login)) .el-button.is-disabled:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+  border-color: var(--border);
+  color: var(--text-4);
+}
+
+#app:not(:has(.login)) .el-button--primary {
+  background-color: var(--action) !important;
+  border-color: var(--action) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* 悬停：淡蓝渐变 + 轻微上浮 */
+#app:not(:has(.login)) .el-button--primary:hover,
+#app:not(:has(.login)) .el-button--primary:focus {
+  background: linear-gradient(135deg, var(--action-light) 0%, var(--action) 55%, var(--action-deep) 100%) !important;
+  border-color: var(--action-light) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+}
+
+#app:not(:has(.login)) .el-button--danger {
+  background-color: rgba(255, 107, 107, 0.16) !important;
+  border-color: rgba(255, 107, 107, 0.5) !important;
+  color: #ffc0c0 !important;
+}
+
+#app:not(:has(.login)) .el-button--danger:hover,
+#app:not(:has(.login)) .el-button--danger:focus {
+  background-color: rgba(255, 107, 107, 0.26) !important;
+  border-color: rgba(255, 107, 107, 0.7) !important;
+  color: #fff !important;
+}
+
+#app:not(:has(.login)) .el-button--text {
+  background: transparent !important;
+  border-color: transparent !important;
+  color: var(--accent) !important;
+}
+
+/* ============================================================================
+   5. Element UI —— 弹窗 / 提示 / 下拉（表格、表单、弹窗文字对比度优先）
+   ============================================================================ */
+#app:not(:has(.login)) .el-dialog {
+  background-color: var(--surface-raised) !important;
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-pop);
+}
+
+#app:not(:has(.login)) .el-dialog__header {
+  background-color: rgba(255, 255, 255, 0.03) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+#app:not(:has(.login)) .el-dialog__title {
+  color: var(--text-1) !important;
+}
+
+#app:not(:has(.login)) .el-dialog__body {
+  color: var(--text-2) !important;
+}
+
+#app:not(:has(.login)) .el-dialog__footer {
+  border-top: 1px solid var(--border);
+}
+
+#app:not(:has(.login)) .el-dialog__headerbtn .el-dialog__close {
+  color: var(--text-3) !important;
+}
+
+#app:not(:has(.login)) .el-dialog__headerbtn:hover .el-dialog__close {
+  color: var(--brand) !important;
+}
+
+#app:not(:has(.login)) .el-message-box {
+  background-color: var(--surface-raised) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: var(--shadow-pop);
+}
+
+#app:not(:has(.login)) .el-message-box__title,
+#app:not(:has(.login)) .el-message-box__content,
+#app:not(:has(.login)) .el-message-box__message p {
+  color: var(--text-1) !important;
+}
+
+#app:not(:has(.login)) .el-message-box__headerbtn .el-message-box__close {
+  color: var(--text-3) !important;
+}
+
+#app:not(:has(.login)) .el-message {
+  background-color: var(--surface-raised) !important;
+  border-color: var(--border-strong) !important;
+}
+
+#app:not(:has(.login)) .el-message__content {
+  color: var(--text-1) !important;
+}
+
+#app:not(:has(.login)) .el-notification {
+  background-color: var(--surface-raised) !important;
+  border-color: var(--border-strong) !important;
+}
+
+#app:not(:has(.login)) .el-notification__title {
+  color: var(--text-1) !important;
+}
+
+#app:not(:has(.login)) .el-notification__content,
+#app:not(:has(.login)) .el-notification__content p {
+  color: var(--text-2) !important;
+}
+
+/* 下拉 / 弹层挂在 body 下，不能用 #app 前缀 */
+.el-select-dropdown,
+.el-dropdown-menu,
+.el-autocomplete-suggestion,
+.el-picker-panel,
+.el-popover,
+.el-cascader__dropdown {
+  background-color: var(--surface-raised) !important;
+  border: 1px solid var(--border-strong) !important;
+  box-shadow: var(--shadow-pop) !important;
+}
+
+.el-select-dropdown__item,
+.el-dropdown-menu__item {
+  color: var(--text-2) !important;
+}
+
+.el-select-dropdown__item.hover,
+.el-select-dropdown__item:hover,
+.el-dropdown-menu__item:not(.is-disabled):hover,
+.el-dropdown-menu__item:focus {
+  background-color: var(--surface-hover) !important;
+  color: var(--text-1) !important;
+}
+
+.el-select-dropdown__item.selected,
+.el-dropdown-menu__item.is-active {
+  background-color: var(--accent-soft) !important;
+  color: #fff !important;
+}
+
+.el-select-dropdown.is-multiple .el-select-dropdown__item.selected {
+  background-color: var(--accent-soft) !important;
+}
+
+.el-popper[x-placement^='bottom'] .popper__arrow::after {
+  border-bottom-color: var(--surface-raised) !important;
+}
+
+.el-popper[x-placement^='top'] .popper__arrow::after {
+  border-top-color: var(--surface-raised) !important;
+}
+
+.el-popper[x-placement^='right'] .popper__arrow::after {
+  border-right-color: var(--surface-raised) !important;
+}
+
+.el-popper[x-placement^='left'] .popper__arrow::after {
+  border-left-color: var(--surface-raised) !important;
+}
+
+/* ============================================================================
+   6. Element UI —— 分页 / 标签 / 单选复选 / 上传
+   ============================================================================ */
+#app:not(:has(.login)) .el-pagination,
+#app:not(:has(.login)) .el-pagination__total,
+#app:not(:has(.login)) .el-pagination__jump,
+#app:not(:has(.login)) .el-pagination__sizes .el-input__inner {
+  color: var(--text-3) !important;
+  background-color: transparent !important;
+}
+
+#app:not(:has(.login)) .el-pagination button,
+#app:not(:has(.login)) .el-pager li {
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  color: var(--text-2) !important;
+  border-radius: var(--radius-sm);
+}
+
+#app:not(:has(.login)) .el-pagination button:hover,
+#app:not(:has(.login)) .el-pager li:hover {
+  color: var(--brand) !important;
+}
+
+#app:not(:has(.login)) .el-pager li.active {
+  background-color: var(--accent-soft) !important;
+  color: #fff !important;
+}
+
+#app:not(:has(.login)) .el-pagination button:disabled {
+  background-color: rgba(255, 255, 255, 0.02) !important;
+  color: var(--text-4) !important;
+}
+
+#app:not(:has(.login)) .el-tag {
+  background-color: var(--accent-soft);
+  border-color: rgba(76, 141, 255, 0.4);
+  color: #b8d0ff;
+}
+
+#app:not(:has(.login)) .el-radio__inner,
+#app:not(:has(.login)) .el-checkbox__inner {
+  background-color: var(--surface-inset);
+  border-color: var(--border-strong);
+}
+
+#app:not(:has(.login)) .el-radio__input.is-checked .el-radio__inner,
+#app:not(:has(.login)) .el-checkbox__input.is-checked .el-checkbox__inner {
+  background-color: var(--action);
+  border-color: var(--action);
+}
+
+#app:not(:has(.login)) .el-radio__input.is-checked + .el-radio__label,
+#app:not(:has(.login)) .el-checkbox__input.is-checked + .el-checkbox__label {
+  color: var(--brand) !important;
+}
+
+/* 未选中时不要沿用 index.scss 里写死的深色圆点 */
+#app:not(:has(.login)) .el-radio__inner::after,
+#app:not(:has(.login)) .el-checkbox__inner::after {
+  background-color: #fff;
+}
+
+#app:not(:has(.login)) .el-radio__input.is-checked .el-radio__inner::after {
+  background-color: var(--brand-ink);
+}
+
+/* 上传：仅给一个深色底，不隐藏「上传图片」文案 */
+#app:not(:has(.login)) .el-upload--picture-card,
+#app:not(:has(.login)) .el-upload-dragger {
+  background-color: var(--surface-inset) !important;
+  border-color: var(--border) !important;
+  color: var(--text-3) !important;
+}
+
+#app:not(:has(.login)) .avatar-uploader .el-upload,
+#app:not(:has(.login)) .avatar-uploader .avatar-uploader-icon {
+  background-color: var(--surface-inset) !important;
+}
+
+#app:not(:has(.login)) .avatar-uploader .el-icon-plus:before {
+  color: var(--text-3) !important;
+}
+
+/* ============================================================================
+   7. 通用业务容器（不改模板，按现有类名给深色表面）
+   ============================================================================ */
+#app:not(:has(.login)) .dashboard-container {
+  background: transparent !important;
+  color: var(--text-2);
+}
+
+#app:not(:has(.login)) .container {
+  background: var(--surface-card) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+/* 空白分隔（"共 x 条 / 分页"栏） */
+#app:not(:has(.login)) .tableBar,
+#app:not(:has(.login)) .paginationBar {
+  background: transparent !important;
+  color: var(--text-3);
+}
+
+/* ============================================================================
+   8. 亮色工具类兜底：把散落在各页面写死的白底统一收敛
+   ============================================================================ */
+body .whiteBg,
+body .bgWhite {
+  background: var(--surface-card) !important;
+}
+
+/* 列表页的「查询」按钮：Element 默认是浅色，index.scss 里又写死成 #333 黑底，
+   统一改为淡蓝实心（员工页只有全局那条，故必须在全局覆盖） */
+#app:not(:has(.login)) .normal-btn.continue,
+#app:not(:has(.login)) .normal-btn {
+  background: var(--action) !important;
+  border-color: var(--action) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+#app:not(:has(.login)) .normal-btn.continue:hover,
+#app:not(:has(.login)) .normal-btn:hover,
+#app:not(:has(.login)) .normal-btn.continue:focus,
+#app:not(:has(.login)) .normal-btn:focus {
+  background: linear-gradient(135deg, var(--action-light) 0%, var(--action) 55%, var(--action-deep) 100%) !important;
+  border-color: var(--action-light) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+}
+
+/* ============================================================================
+   8.1 遗留浅色状态的统一覆盖
+   ----------------------------------------------------------------------------
+   styles/index.scss 与 home.scss 是内联了 Element UI 主题的旧样式表，
+   其中有大量写死的浅色「悬停 / 选中 / 禁用 / 表头」底色：
+     #fff / #FFFBF0 / #fff4ec / #f3f4f7 / #fbfbfa / #ebeef5 / #e4e7ed …
+   这些在深色背景下会露出白块，这里统一收敛到主题变量，
+   不改动那两个文件本身（避免制造上万个 diff）。
+   ============================================================================ */
+#app:not(:has(.login)) {
+  /* ---- 下拉 / 自动完成 / 下拉菜单 ---- */
+  .el-select-dropdown__item,
+  .el-autocomplete-suggestion li,
+  .el-dropdown-menu__item {
+    background-color: transparent !important;
+    color: var(--text-2) !important;
+  }
+
+  .el-select-dropdown__item.hover,
+  .el-select-dropdown__item:hover,
+  .el-select-dropdown__item:active,
+  .el-select-dropdown__item.selected,
+  .el-select-dropdown.is-multiple .el-select-dropdown__item.selected,
+  .el-select-dropdown.is-multiple .el-select-dropdown__item.selected.hover,
+  .el-autocomplete-suggestion li:hover,
+  .el-dropdown-menu__item:not(.is-disabled):hover,
+  .el-dropdown-menu__item:focus {
+    background-color: var(--surface-hover) !important;
+    color: var(--text-1) !important;
+  }
+
+  .el-select-dropdown__item.selected,
+  .el-select-dropdown.is-multiple .el-select-dropdown__item.selected {
+    background-color: var(--accent-soft) !important;
+    color: #fff !important;
+  }
+
+  .el-select-dropdown__item.is-disabled,
+  .el-select-dropdown__item.is-disabled:hover {
+    background-color: transparent !important;
+    color: var(--text-4) !important;
+  }
+
+  /* ---- 按钮：普通按钮的悬停/按下不再刷白底 ---- */
+  .el-button {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-color: var(--border-strong);
+    color: var(--text-1);
+  }
+
+  .el-button:hover,
+  .el-button:focus {
+    background-color: rgba(255, 255, 255, 0.12) !important;
+    border-color: var(--border-strong) !important;
+    color: #fff !important;
+  }
+
+  .el-button:active {
+    background-color: rgba(255, 255, 255, 0.16) !important;
+    border-color: var(--border-strong) !important;
+    color: #fff !important;
+  }
+
+  .el-button.is-disabled,
+  .el-button.is-disabled:hover,
+  .el-button.is-disabled:focus,
+  .el-button.is-disabled:active {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    border-color: var(--border) !important;
+    color: var(--text-4) !important;
+  }
+
+  .el-button--primary,
+  .el-button--primary:hover,
+  .el-button--primary:focus {
+    background: linear-gradient(135deg, var(--action-light) 0%, var(--action) 55%, var(--action-deep) 100%) !important;
+    border-color: var(--action-light) !important;
+    color: #ffffff !important;
+  }
+
+  .el-button--primary:active {
+    background-color: var(--action-deep) !important;
+    border-color: var(--action-deep) !important;
+    color: #ffffff !important;
+  }
+
+  .el-button--primary.is-disabled,
+  .el-button--primary.is-disabled:hover {
+    background-color: rgba(59, 130, 246, 0.28) !important;
+    border-color: transparent !important;
+    color: rgba(255, 255, 255, 0.55) !important;
+  }
+
+  .el-button--danger,
+  .el-button--danger:hover,
+  .el-button--danger:focus {
+    background-color: rgba(255, 107, 107, 0.16) !important;
+    border-color: rgba(255, 107, 107, 0.5) !important;
+    color: #ffc0c0 !important;
+  }
+
+  .el-button--text,
+  .el-button--text:hover {
+    background-color: transparent !important;
+    border-color: transparent !important;
+    color: var(--accent) !important;
+  }
+
+  .el-button-group > .el-button:not(:last-child) {
+    border-right-color: var(--border);
+  }
+
+  /* ---- 分页 ---- */
+  .el-pagination button,
+  .el-pager li,
+  .el-pagination.is-background .el-pager li {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+    color: var(--text-2) !important;
+  }
+
+  .el-pagination button:hover,
+  .el-pager li:hover,
+  .el-pagination.is-background .el-pager li:not(.disabled):hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    color: var(--action-light) !important;
+  }
+
+  .el-pager li.active,
+  .el-pagination.is-background .el-pager li:not(.disabled).active {
+    background: linear-gradient(135deg, var(--action-light) 0%, var(--action) 100%) !important;
+    color: #ffffff !important;
+    font-weight: 700;
+  }
+
+  .el-pagination button:disabled,
+  .el-pagination.is-background .el-pager li.disabled {
+    background-color: rgba(255, 255, 255, 0.02) !important;
+    color: var(--text-4) !important;
+  }
+
+  .el-pagination.is-background .el-pager li:not(.disabled).active,
+  .el-pagination.is-background .el-pager li:not(.disabled) {
+    border-radius: var(--radius-sm);
+  }
+
+  /* ---- 表格：表头 / 固定列 / 分组表头 / 当前行 / 斑马纹 ---- */
+  .el-table th.el-table__cell,
+  .el-table thead.is-group th,
+  .el-table__header-wrapper tbody td,
+  .el-table__fixed-header-wrapper thead th {
+    background-color: var(--surface-inset) !important;
+    color: var(--text-3) !important;
+  }
+
+  .el-table tr,
+  .el-table__body tr,
+  .el-table__expanded-cell,
+  .el-table__fixed-body-wrapper,
+  .el-table__fixed-right-patch,
+  .el-table__fixed-footer-wrapper tbody td,
+  .el-table__footer-wrapper tbody td {
+    background-color: transparent !important;
+  }
+
+  .el-table--striped .el-table__body tr.el-table__row--striped td {
+    background-color: var(--surface-stripe) !important;
+  }
+
+  .el-table__body tr.hover-row > td,
+  .el-table__body tr.hover-row.el-table__row--striped > td,
+  .el-table__body tr:hover > td {
+    background-color: var(--surface-hover) !important;
+  }
+
+  .el-table__body tr.current-row > td,
+  .el-table--striped .el-table__body tr.el-table__row--striped.current-row td {
+    background-color: var(--accent-soft) !important;
+  }
+
+  .el-table::before,
+  .el-table--border::after,
+  .el-table--group::after,
+  .el-table__fixed::before,
+  .el-table__fixed-right::before {
+    background-color: var(--border) !important;
+  }
+
+  .el-table td.el-table__cell,
+  .el-table th.el-table__cell,
+  .el-table--border,
+  .el-table--group {
+    border-color: var(--border) !important;
+  }
+
+  .el-table__fixed-right-patch {
+    border-bottom-color: var(--border) !important;
+  }
+
+  .el-table-filter {
+    background-color: var(--surface-raised) !important;
+    border-color: var(--border-strong) !important;
+  }
+
+  .el-table-filter__list-item:hover,
+  .el-table-filter__bottom button:hover {
+    background-color: var(--surface-hover) !important;
+    color: var(--text-1) !important;
+  }
+
+  .el-table-filter__bottom {
+    border-top-color: var(--border) !important;
+  }
+
+  .el-table__empty-block {
+    background-color: transparent !important;
+  }
+
+  /* ---- 日期面板 / 时间面板 ---- */
+  .el-date-table.is-week-mode .el-date-table__row:hover div,
+  .el-date-table td.today span,
+  .el-picker-panel {
+    background-color: transparent;
+    border-color: var(--border);
+  }
+
+  .el-picker-panel {
+    background-color: var(--surface-raised) !important;
+  }
+
+  .el-date-table td.available:hover,
+  .el-date-table td.today span {
+    color: var(--brand) !important;
+  }
+
+  .el-date-table td.current:not(.disabled) span,
+  .el-time-panel__content::after,
+  .el-time-panel__content::before {
+    background-color: var(--accent-soft);
+  }
+
+  .el-date-table td.current:not(.disabled) span {
+    color: #fff !important;
+  }
+
+  .el-time-panel {
+    background-color: var(--surface-raised);
+    border-color: var(--border-strong);
+  }
+
+  .el-time-spinner__item.active:not(.disabled) {
+    color: var(--brand);
+  }
+
+  /* ---- 单选按钮组 / 复选按钮组 ---- */
+  .el-radio-button__inner {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border-color: var(--border) !important;
+    color: var(--text-2) !important;
+  }
+
+  .el-radio-button__orig-radio:checked + .el-radio-button__inner {
+    background: linear-gradient(135deg, var(--action-light) 0%, var(--action) 100%) !important;
+    border-color: var(--action) !important;
+    color: #ffffff !important;
+    box-shadow: -1px 0 0 0 var(--action) !important;
+  }
+
+  .el-radio-button__orig-radio:disabled + .el-radio-button__inner {
+    background-color: rgba(255, 255, 255, 0.03) !important;
+    border-color: var(--border) !important;
+    color: var(--text-4) !important;
+  }
+
+  /* ---- 级联 / 穿梭框 / 卡片 / 抽屉 / 折叠面板 ---- */
+  .el-cascader-panel,
+  .el-cascader-menu,
+  .el-transfer-panel,
+  .el-collapse,
+  .el-collapse-item__header,
+  .el-collapse-item__wrap,
+  .el-drawer {
+    background-color: var(--surface-raised) !important;
+    border-color: var(--border) !important;
+    color: var(--text-2) !important;
+  }
+
+  .el-transfer-panel__item:hover,
+  .el-cascader-node:not(.is-disabled):hover,
+  .el-cascader-node:not(.is-disabled):focus {
+    background-color: var(--surface-hover) !important;
+    color: var(--text-1) !important;
+  }
+
+  .el-cascader-node.in-active-path,
+  .el-cascader-node.is-active {
+    color: var(--brand) !important;
+  }
+
+  .el-collapse-item__header {
+    color: var(--text-1) !important;
+  }
+
+  .el-collapse-item__content {
+    color: var(--text-2) !important;
+  }
+
+  .el-card {
+    background-color: var(--surface-card) !important;
+    border-color: var(--border) !important;
+    color: var(--text-2) !important;
+  }
+
+  .el-card__header {
+    border-bottom-color: var(--border) !important;
+  }
+
+  /* ---- 提示条 ---- */
+  .el-alert--info.is-light {
+    background-color: var(--accent-soft) !important;
+    color: #b8d0ff !important;
+  }
+
+  .el-alert--success.is-light {
+    background-color: var(--success-soft) !important;
+    color: #86efc9 !important;
+  }
+
+  .el-alert--warning.is-light {
+    background-color: var(--warn-soft) !important;
+    color: #fde08a !important;
+  }
+
+  .el-alert--error.is-light {
+    background-color: var(--danger-soft) !important;
+    color: #ffbcbc !important;
+  }
+
+  .el-alert__title,
+  .el-alert__description {
+    color: inherit !important;
+  }
+
+  /* ---- 其它零散浅色 ---- */
+  .el-badge__content.is-fixed {
+    color: #fff;
+  }
+
+  .el-loading-mask {
+    background-color: rgba(7, 11, 24, 0.72) !important;
+  }
+
+  .el-loading-spinner .path {
+    stroke: var(--brand);
+  }
+
+  .el-divider {
+    background-color: var(--border) !important;
+  }
+
+  .el-divider__text {
+    background-color: var(--surface-card);
+    color: var(--text-3);
+  }
+}
+
+/* ============================================================================
+   9. 侧栏菜单
+   ----------------------------------------------------------------------------
+   放在本文件是为了保证样式顺序在 styles/sidebar.scss 之后（本文件最后引入）。
+   选中色与悬停色必须明确区分：
+     悬停 = 只提亮底色（白色 6%），无左色条
+     选中 = 强调色渐变底 + 品牌色左色条 + 文字加粗
+   ⚠ 基础 .el-menu-item 规则里不要给 background 加 !important，
+     否则后面的 .is-active 无法覆盖它（!important 会盖过后代选择器的更高优先级）。
+   ============================================================================ */
+#app:not(:has(.login)) .sidebar-container {
+  background: linear-gradient(180deg, rgba(20, 26, 48, 0.82), rgba(9, 13, 28, 0.88)) !important;
+  border-right: 1px solid var(--border);
+  backdrop-filter: blur(14px) saturate(140%);
+
+  .el-menu,
+  .el-scrollbar,
+  .scrollbar-wrapper {
+    background-color: transparent !important;
+  }
+
+  .el-menu-item {
+    height: 44px !important;
+    line-height: 44px !important;
+    margin: 0 0 4px 0 !important;
+    padding: 0 12px 0 14px !important;
+    border-radius: 6px !important;
+    border-left: 3px solid transparent;
+    color: var(--text-2) !important;
+    transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+
+    i,
+    span {
+      color: inherit !important;
+    }
+
+    /* 悬停色：与选中态同一套观感（淡蓝底 + 品牌蓝左条 + 品牌色文字） */
+    &:hover,
+    &:focus,
+    &:active {
+      background: linear-gradient(
+        90deg,
+        rgba(76, 141, 255, 0.2),
+        rgba(76, 141, 255, 0.04)
+      ) !important;
+      color: var(--brand) !important;
+      border-left-color: var(--brand) !important;
+      border-radius: 6px !important;
+
+      i,
+      span {
+        color: var(--brand) !important;
+      }
+    }
+  }
+
+  /* 选中色：与悬停完全一致 —— 点击后视觉不再变化，文字颜色保持不变 */
+  .el-menu-item.is-active,
+  .router-link-active .el-menu-item {
+    background: linear-gradient(
+      90deg,
+      rgba(76, 141, 255, 0.2),
+      rgba(76, 141, 255, 0.04)
+    ) !important;
+    color: var(--brand) !important;
+    font-weight: 600 !important;
+    border-left-color: var(--brand) !important;
+    border-radius: 6px !important;
+
+    i,
+    span {
+      color: var(--brand) !important;
+    }
+  }
+
+  /* 选中项被悬停时保持与选中态一致，不做加深 */
+  .el-menu-item.is-active:hover,
+  .router-link-active .el-menu-item:hover {
+    background: linear-gradient(
+      90deg,
+      rgba(76, 141, 255, 0.2),
+      rgba(76, 141, 255, 0.04)
+    ) !important;
+    color: var(--brand) !important;
+
+    i,
+    span {
+      color: var(--brand) !important;
+    }
+  }
+}
+
+/* 折叠态（80px）：图标居中，保留选中高亮 */
+#app:not(:has(.login)) .hideSidebar .sidebar-container {
+  .el-menu {
+    padding: 20px 8px 0;
+  }
+
+  .el-menu .el-menu-item {
+    padding: 0 !important;
+    text-align: center;
+
+    i {
+      margin-right: 0 !important;
+    }
+  }
+
+  .el-menu-item.is-active,
+  .router-link-active .el-menu-item,
+  .el-menu-item.is-active:hover,
+  .router-link-active .el-menu-item:hover,
+  .el-menu-item:hover {
+    background: rgba(76, 141, 255, 0.2) !important;
+    color: var(--brand) !important;
+
+    i,
+    span {
+      color: var(--brand) !important;
+    }
+  }
+}
+
+/* ============================================================================
+   10. 减少动态效果：只停「星空」与「品牌区」两处动画，静态视觉完整保留
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .star-layer,
+  .star-mist,
+  .meteor,
+  .brand::after {
+    animation: none !important;
+  }
+
+  .meteor {
+    opacity: 0 !important;
+  }
+
+  .brand-mark,
+  .brand-text {
+    transform: none !important;
+  }
+}

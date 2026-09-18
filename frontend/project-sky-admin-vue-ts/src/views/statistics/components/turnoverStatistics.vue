@@ -11,6 +11,7 @@
 </template>
 
 <script lang="ts">
+import { chartPalette, splitLineStyle } from '@/utils/chartTheme'
 import { Component, Vue, Prop, Watch } from 'vue-property-decorator'
 import * as echarts from 'echarts'
 @Component({
@@ -28,6 +29,8 @@ export default class extends Vue {
     type EChartsOption = echarts.EChartsOption
     const chartDom = document.getElementById('main') as any
     const myChart = echarts.init(chartDom)
+
+    const palette = chartPalette()
 
     var option: any
     option = {
@@ -57,14 +60,14 @@ export default class extends Vue {
         axisLabel: {
           //X轴字体颜色
           textStyle: {
-            color: '#666',
+            color: palette.axisLabel,
             fontSize: '12px',
           },
         },
         axisLine: {
           //X轴线颜色
           lineStyle: {
-            color: '#E5E4E4',
+            color: palette.axis,
             width: 1, //x轴线的宽度
           },
         },
@@ -78,11 +81,13 @@ export default class extends Vue {
           //interval: 1000,
           axisLabel: {
             textStyle: {
-              color: '#666',
+              color: palette.axisLabel,
               fontSize: '12px',
             }
             // formatter: "{value} ml",//单位
-          }
+          },
+          // 网格线：随主题读取，保证与背景对比
+          splitLine: splitLineStyle(),
         }
       ],
       series: [
@@ -102,7 +107,7 @@ export default class extends Vue {
               },
             },
             emphasis: {
-              color: '#fff',
+              color: palette.title,
               borderWidth: 5,
               borderColor: '#FFC100',
             },

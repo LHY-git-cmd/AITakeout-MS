@@ -20,14 +20,15 @@ li {
   .month {
     box-sizing: border-box;
     display: inline-block;
-    background-color: #fff;
+    // 与信息框统一：页面背景色为底，不要白色块
+    background-color: var(--box-bg);
 
     ul {
       width: 400px;
       height: 40px;
       line-height: 38px;
-      border: 1px solid #e5e4e4;
-      border-radius: 4px;
+      border: 1px solid var(--field-border);
+      border-radius: 6px;
       padding: 0;
       display: flex;
       text-align: center;
@@ -39,8 +40,8 @@ li {
         cursor: pointer;
         display: inline-block;
         text-align: center;
-        border-right: 1px solid #e5e4e4;
-        color: #333333;
+        border-right: 1px solid var(--field-border);
+        color: var(--text-1);
         letter-spacing: -0.2px;
         flex: 1;
       }
@@ -51,7 +52,21 @@ li {
 
       .active {
         height: 38px;
-        background: #ffc200;
+        // 选中态：淡蓝底 + 白字；悬停走渐变
+        background: var(--action);
+        color: var(--text-1);
+        border-radius: 5px;
+        transition: background 0.25s ease, box-shadow 0.25s ease;
+
+        &:hover {
+          background: linear-gradient(
+            135deg,
+            var(--action-light) 0%,
+            var(--action) 55%,
+            var(--action-deep) 100%
+          );
+          box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+        }
       }
     }
   }
@@ -60,7 +75,7 @@ li {
     display: inline-block;
     padding-left: 15px;
     font-size: 14px;
-    color: #666;
+    color: var(--text-3, #8e9cb8);
   }
 }
 
@@ -70,7 +85,7 @@ li {
   left: 45%;
   bottom: 100px;
   font-size: 14px;
-  color: #fff;
+  color: var(--text-1);
   font-size: 14px;
   align-items: center;
   transform: translate(-50%, -50%);
@@ -155,15 +170,18 @@ li {
 
     li {
       flex: 1;
-      background: #fffbf0;
-      border-radius: 4px;
+      // 以页面背景为底色 + 淡蓝色描边 + 白色文字（信息框不再用浅色底）
+      background: var(--box-bg);
+      border: 1px solid var(--field-border);
+      border-radius: 6px;
       margin-left: 20px;
       padding: 20px;
+      color: var(--text-1);
     }
 
     .tit {
       font-size: 14px;
-
+      color: var(--text-1);
     }
 
     .num {
@@ -171,11 +189,11 @@ li {
       font-size: 28px;
       line-height: 34px;
       padding: 12px 0 10px;
-      color: #333;
+      color: var(--text-1);
     }
 
     .tip {
-      color: #666;
+      color: var(--text-1);
 
       &>span{
         padding-left: 5px;
@@ -183,11 +201,12 @@ li {
           font-weight: 600;
         }
       }
+      // 涨跌 / 状态语义色保留（在深色底上依然清晰）
       .red{
-        color: #fd3333;
+        color: #ff6b6b;
       }
       .green{
-        color: #00B36A;
+        color: #34d399;
       }
     }
 
@@ -217,21 +236,21 @@ li {
 .homeTitle {
   font-weight: 600;
   font-size: 16px;
-  color: #333333;
+  color: var(--text-1);
   letter-spacing: -0.2px;
   // line-height: 16px;
   padding: 5px 0 0;
   margin-bottom: 18px;
   i{
     font-size: 14px;
-    color: #666666;
+    color: #9fb3d9;
     padding-left: 10px;
     font-style: normal;
     font-weight:normal
   }
   span {
     float: right;
-    color: #666;
+    color: #9fb3d9;
     font-size: 14px;
     font-weight: normal;
     background: url(./../../src/assets/icons/icon_more@2x.png) no-repeat 100% 50%;
@@ -273,7 +292,7 @@ li {
 .orderProportion {
   display: flex;
   padding-bottom: 10px;
-  color: #666;
+  color: var(--text-1);
   vertical-align: middle;
   font-size: 12px;
 
@@ -281,10 +300,12 @@ li {
     display: inline-block;
 
     p {
+      color: var(--text-1);
+
       &:last-child {
         font-size: 16px;
         font-weight: 700;
-        color: #000;
+        color: var(--text-1);
         padding-top: 5px;
       }
     }
@@ -293,6 +314,7 @@ li {
   .symbol {
     padding: 10px 20px 0;
     font-size: 16px;
+    color: var(--text-1);
   }
 }
 
@@ -300,12 +322,15 @@ li {
   &-container {
     margin: 30px;
 
-    .container {
+    // 限定在工作台页（根节点带 .home），避免影响其它页面各自的 .container
+    &.home .container {
       position: relative;
       z-index: 1;
-      background: #fff;
+      // 深色玻璃卡：内容区表面色（比信息框略深，形成层次）
+      background: var(--surface-card, rgba(27, 34, 60, 0.86));
+      border: 1px solid var(--border, rgba(140, 165, 220, 0.16));
       padding: 30px;
-      border-radius: 4px;
+      border-radius: 6px;
     }
 
     &.home {
@@ -329,21 +354,37 @@ li {
 
     li {
       flex: 1;
-      background: #fffbf0;
-      border-radius: 4px;
+      // 以页面背景为底色 + 淡蓝色描边 + 白色文字
+      background: var(--box-bg);
+      border: 1px solid var(--field-border);
+      border-radius: 6px;
       margin-left: 20px;
       padding:20px;
       font-size: 14px;
       line-height: 36px;
-      color: #333;
+      color: var(--text-1);
       &.add {
         width: 100px;
         flex: none;
-        background: #FFC100;
-        border-radius: 4px;
+        // 「新增菜品 / 新增套餐」：淡蓝实心，悬停渐变
+        background: var(--action);
+        border-color: var(--action);
+        border-radius: 6px;
         text-align: center;
-        color: #333;
+        color: var(--text-on-accent);
         padding: 18px 20px 10px;
+        transition: background 0.25s ease, box-shadow 0.25s ease;
+
+        &:hover {
+          background: linear-gradient(
+            135deg,
+            var(--action-light) 0%,
+            var(--action) 55%,
+            var(--action-deep) 100%
+          );
+          border-color: var(--action-light);
+          box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+        }
 
         p {
           line-height: 20px;
@@ -433,22 +474,38 @@ li {
   float: right;
   font-weight: 400;
   font-size: 14px;
-  color: #333333;
+  color: var(--text-1);
   display: flex;
   height: 36px;
   line-height: 36px;
-  background: #FFFFFF;
-  border: 1px solid #E5E4E4;
-  border-radius: 4px;
+  // 与信息框统一：页面背景色为底 + 淡蓝描边
+  background: var(--box-bg);
+  border: 1px solid var(--field-border);
+  border-radius: 6px;
   width: 240px;
 
   li {
     flex: 1;
     text-align: center;
     cursor: pointer;
+    color: var(--text-1);
 
     &.active {
-      background: #FFC200;
+      // 选中态：淡蓝底 + 白字；悬停走渐变
+      background: var(--action);
+      color: var(--text-1);
+      border-radius: 5px;
+      transition: background 0.25s ease, box-shadow 0.25s ease;
+
+      &:hover {
+        background: linear-gradient(
+          135deg,
+          var(--action-light) 0%,
+          var(--action) 55%,
+          var(--action-deep) 100%
+        );
+        box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+      }
     }
   }
 
@@ -493,29 +550,30 @@ li {
 }
 
 .right-el-button {
-  color: #333;
+  color: var(--text-1);
   height: 40px;
   line-height: 38px;
   padding-top: 0;
   padding-bottom: 0;
-  border: 1px solid #E5E4E4;
+  border: 1px solid var(--field-border);
   float: right;
   &:focus{
-    background: #fff;
-    border: 1px solid #E5E4E4;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--field-border);
   }
   &.onbutton{
-    border: 1px solid #E5E4E4;
-    color:#E5E4E4;
+    border: 1px solid var(--field-border);
+    color: var(--text-3, #8e9cb8);
 
   }
   &:hover{
-    background:#fff;
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--text-1);
   }
   &.is-disabled{
     &:hover{
-      border: 1px solid #E5E4E4;
-    color:#E5E4E4;
+      border: 1px solid var(--border, rgba(140, 165, 220, 0.16));
+      color: var(--text-4, #6c7893);
     }
   }
 }
@@ -535,9 +593,9 @@ li {
   }
   .item {
     padding: 0 25px 0 28px;
-    color: #333;
+    color: var(--text-1);
     font-size: 14px;
-    border-top:1px solid #f3f4f7;
+    border-top: 1px solid var(--border, rgba(140, 165, 220, 0.16));
 
     .tit {
       height: 58px;
@@ -566,13 +624,13 @@ li {
 
     .time {
       float: right;
-      color: #666;
+      color: var(--text-3, #8e9cb8);
       font-size: 14px;
     }
 
     .orderInfo {
       line-height: 20px;
-      color: #666;
+      color: var(--text-3, #8e9cb8);
       padding: 0 30% 10px 55px;
       margin-top: -5px;
 
@@ -621,7 +679,7 @@ display: -webkit-box;
 
   li{
     font-size: 12px;
-    color: #666666;
+    color: var(--text-1);
     padding: 0 6px;
     align-items: center;
     display: flex;

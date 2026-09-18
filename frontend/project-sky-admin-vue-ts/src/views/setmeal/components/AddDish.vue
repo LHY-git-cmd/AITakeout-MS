@@ -262,7 +262,7 @@ export default class extends Vue {
   }
   span,
   .tit {
-    color: #333;
+    color: var(--text-1);
   }
   .leftCont {
     display: flex;
@@ -345,7 +345,7 @@ export default class extends Vue {
       color: #818693;
       span:first-child {
         text-align: left;
-        color: #20232a;
+        color: var(--text-1);
         flex: 70%;
       }
       .price {

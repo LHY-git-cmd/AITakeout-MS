@@ -305,14 +305,14 @@ export default class extends Vue {
     .container {
       position: relative;
       z-index: 1;
-      background: #fff;
+      background: var(--surface-card);
       padding: 30px;
       border-radius: 4px;
       // min-height: 500px;
       .subBox {
         padding-top: 30px;
         text-align: center;
-        border-top: solid 1px $gray-5;
+        border-top: solid 1px var(--border);
       }
     }
     .idNumber {

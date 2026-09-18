@@ -455,7 +455,7 @@ export default class extends Vue {
   }
 
   .avatar-uploader .el-upload:hover {
-    border-color: #ffc200;
+    border-color: var(--action);
   }
 
   .avatar-uploader-icon {
@@ -497,16 +497,16 @@ export default class extends Vue {
 
     .el-input-number__increase {
       border-left: solid 1px #fbe396;
-      background: #fffbf0;
+      background: rgba(255, 194, 0, 0.12);
     }
 
     .el-input-number__decrease {
       border-right: solid 1px #fbe396;
-      background: #fffbf0;
+      background: rgba(255, 194, 0, 0.12);
     }
 
     input {
-      border: 1px solid #fbe396;
+      border: 1px solid rgba(255, 194, 0, 0.35);
     }
 
     .table {
@@ -555,7 +555,7 @@ export default class extends Vue {
     .container {
       position: relative;
       z-index: 1;
-      background: #fff;
+      background: var(--surface-card);
       padding: 30px;
       border-radius: 4px;
       min-height: 500px;
@@ -563,7 +563,7 @@ export default class extends Vue {
       .subBox {
         padding-top: 30px;
         text-align: center;
-        border-top: solid 1px $gray-5;
+        border-top: solid 1px var(--border);
       }
       .el-input {
         width: 350px;
@@ -572,21 +572,32 @@ export default class extends Vue {
         width: 777px;
 
         .addBut {
-          background: #ffc200;
+          // 操作按钮统一淡蓝，悬停渐变
+          background: var(--action);
           display: inline-block;
           padding: 0px 20px;
-          border-radius: 3px;
+          border-radius: 4px;
           line-height: 40px;
           cursor: pointer;
-          border-radius: 4px;
-          color: #333333;
+          color: var(--text-on-accent);
           font-weight: 500;
+          transition: background 0.25s ease, box-shadow 0.25s ease;
+
+          &:hover {
+            background: linear-gradient(
+              135deg,
+              var(--action-light) 0%,
+              var(--action) 55%,
+              var(--action-deep) 100%
+            );
+            box-shadow: 0 4px 14px rgba(59, 130, 246, 0.38);
+          }
         }
 
         .content {
-          background: #fafafb;
+          background: var(--surface-inset);
           padding: 20px;
-          border: solid 1px #d8dde3;
+          border: solid 1px var(--border);
           border-radius: 3px;
         }
       }
