@@ -24,4 +24,8 @@
         select * from fund_transfer where id = #{id}
     </select>
 
+    <delete id="deleteById">
+        delete from fund_transfer where id = #{id}
+    </delete>
+
 </mapper>

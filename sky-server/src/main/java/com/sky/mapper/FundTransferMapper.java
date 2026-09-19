@@ -11,9 +11,7 @@ public interface FundTransferMapper {
 
     FundTransfer findByBusinessKey(String businessKey);
 
-    default FundTransfer findByBusinessKeyForUpdate(String businessKey) {
-        return findByBusinessKey(businessKey);
-    }
+    FundTransfer findByBusinessKeyForUpdate(String businessKey);
 
     FundTransfer findById(Long id);
 
@@ -21,4 +19,6 @@ public interface FundTransferMapper {
             + "adjusted_account_id = #{adjustedAccountId}, balance_before_cent = #{balanceBeforeCent}, "
             + "balance_after_cent = #{balanceAfterCent}, update_time = CURRENT_TIMESTAMP where id = #{id}")
     int updateAudit(FundTransfer transfer);
+
+    int deleteById(Long id);
 }

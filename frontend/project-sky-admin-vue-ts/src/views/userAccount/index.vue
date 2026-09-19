@@ -45,18 +45,18 @@ export default Vue.extend({
     openAdjust(account: any) { this.form = { userId: account.ownerId, deltaCent: 0, reason: '', idempotencyKey: `admin-${Date.now()}` }; this.dialogVisible = true },
     submit() {
       if (this.submitting) return
+      this.submitting = true
       ;(this.$refs.form as any).validate(async(valid: boolean) => {
-        if (!valid) return
+        if (!valid) { this.submitting = false; return }
         const signed = this.formatCent(this.form.deltaCent)
         try {
           await (this as any).$confirm(`用户 ${this.form.userId} 将调整 ${signed}元，原因：${this.form.reason}`, '确认账户调账', { type: 'warning' })
-          this.submitting = true
           await adjustAccount(this.form)
           this.$message.success('调账成功')
           this.dialogVisible = false
           await this.load()
         } catch (error) {
-          if (error !== 'cancel') this.$message.error('调账失败，请稍后重试')
+          if (error !== 'cancel' && error !== 'close') this.$message.error('调账失败，请稍后重试')
         } finally { this.submitting = false }
       })
     },

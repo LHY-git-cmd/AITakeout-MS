@@ -29,17 +29,28 @@ public class LedgerTransferService {
     @Transactional
     public TransferResult transfer(TransferCommand command) {
         validate(command);
-        FundTransfer existing = transferMapper.findByBusinessKeyForUpdate(command.businessKey());
-        if (existing != null) return toResult(existing, true);
         List<Long> ids = List.of(command.sourceAccountId(), command.targetAccountId()).stream().distinct().sorted().toList();
         List<MockAccount> locked = ids.stream().map(accountMapper::findByIdForUpdate).toList();
         MockAccount source = find(locked, command.sourceAccountId());
         MockAccount target = find(locked, command.targetAccountId());
         if (source == null || target == null) throw new IllegalStateException("账户不存在");
+        FundTransfer existing = transferMapper.findByBusinessKeyForUpdate(command.businessKey());
+        if (existing != null) return toResult(existing, true);
         if (!"PLATFORM_TREASURY".equals(source.getAccountType()) && source.getAvailableCent() < command.amountCent()) throw new IllegalStateException("余额不足");
         LocalDateTime now = LocalDateTime.now();
-        long sourceAfter = source.getAvailableCent() - command.amountCent();
-        long targetAfter = target.getAvailableCent() + command.amountCent();
+        if (command.targetMaxAvailableCent() != null
+                && (target.getAvailableCent() > command.targetMaxAvailableCent()
+                || command.amountCent() > command.targetMaxAvailableCent() - target.getAvailableCent())) {
+            throw new IllegalStateException("账户余额超过上限");
+        }
+        long sourceAfter;
+        long targetAfter;
+        try {
+            sourceAfter = Math.subtractExact(source.getAvailableCent(), command.amountCent());
+            targetAfter = Math.addExact(target.getAvailableCent(), command.amountCent());
+        } catch (ArithmeticException exception) {
+            throw new IllegalStateException("金额溢出", exception);
+        }
         FundTransfer transfer = FundTransfer.builder().transferNo("TR-" + UUID.randomUUID())
                 .businessKey(command.businessKey()).transferType(command.transferType())
                 .sourceAccountId(source.getId()).targetAccountId(target.getId()).amountCent(command.amountCent())
@@ -47,6 +58,7 @@ public class LedgerTransferService {
         transferMapper.insert(transfer);
         if (accountMapper.updateBalances(source.getId(), sourceAfter, source.getFrozenCent(), source.getVersion(), now) != 1
                 || accountMapper.updateBalances(target.getId(), targetAfter, target.getFrozenCent(), target.getVersion(), now) != 1) {
+            transferMapper.deleteById(transfer.getId());
             throw new IllegalStateException("账户并发冲突");
         }
         ledgerMapper.insert(AccountLedgerEntry.builder().transferId(transfer.getId()).accountId(source.getId())
@@ -92,10 +104,13 @@ public class LedgerTransferService {
     }
 
     private TransferResult toResult(FundTransfer transfer, boolean replayed) {
-        MockAccount source = accountMapper.findById(transfer.getSourceAccountId());
-        MockAccount target = accountMapper.findById(transfer.getTargetAccountId());
+        var entries = ledgerMapper.findByTransferId(transfer.getId());
+        long sourceAfter = entries.stream().filter(entry -> entry.getAccountId().equals(transfer.getSourceAccountId())
+                && "DEBIT".equals(entry.getDirection())).mapToLong(AccountLedgerEntry::getBalanceAfterCent).findFirst().orElse(0L);
+        long targetAfter = entries.stream().filter(entry -> entry.getAccountId().equals(transfer.getTargetAccountId())
+                && "CREDIT".equals(entry.getDirection())).mapToLong(AccountLedgerEntry::getBalanceAfterCent).findFirst().orElse(0L);
         return new TransferResult(transfer.getId(), transfer.getTransferNo(), transfer.getBusinessKey(),
                 transfer.getSourceAccountId(), transfer.getTargetAccountId(), transfer.getAmountCent(),
-                source == null ? 0L : source.getAvailableCent(), target == null ? 0L : target.getAvailableCent(), replayed);
+                sourceAfter, targetAfter, replayed);
     }
 }

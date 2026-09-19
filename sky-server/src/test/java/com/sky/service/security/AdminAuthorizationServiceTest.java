@@ -29,11 +29,14 @@ class AdminAuthorizationServiceTest {
     void ordinaryAdminCanReadButCannotWriteEmployeesOrKnowledge() {
         service.require(AdminRole.ADMIN, AdminPermission.EMPLOYEE_READ);
         service.require(AdminRole.ADMIN, AdminPermission.KNOWLEDGE_READ);
+        service.require(AdminRole.ADMIN, AdminPermission.ACCOUNT_READ);
 
         assertThrows(PermissionDeniedException.class,
                 () -> service.require(AdminRole.ADMIN, AdminPermission.EMPLOYEE_WRITE));
         assertThrows(PermissionDeniedException.class,
                 () -> service.require(AdminRole.ADMIN, AdminPermission.KNOWLEDGE_WRITE));
+        assertThrows(PermissionDeniedException.class,
+                () -> service.require(AdminRole.ADMIN, AdminPermission.ACCOUNT_ADJUST));
     }
 
     @Test

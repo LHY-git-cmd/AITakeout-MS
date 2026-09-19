@@ -22,6 +22,7 @@ import java.util.List;
 public class AccountService {
     public static final long GRANT_CENT = 50_000L;
     public static final long MAX_BALANCE_CENT = 1_000_000L;
+    private static final int MAX_IDEMPOTENCY_KEY_LENGTH = 80;
     private final MockAccountMapper accountMapper;
     private final FundTransferMapper transferMapper;
     private final AccountLedgerEntryMapper ledgerMapper;
@@ -34,45 +35,49 @@ public class AccountService {
         MockAccount treasury = ensureTreasury();
         LocalDateTime now = LocalDateTime.now();
         accountMapper.insert(MockAccount.builder().accountNo("USER-" + userId).accountType("USER").ownerId(userId)
-                .availableCent(initialCent).frozenCent(0L).version(0).createTime(now).updateTime(now).build());
+                .availableCent(0L).frozenCent(0L).version(0).createTime(now).updateTime(now).build());
         if (initialCent > 0) {
-            if (accountMapper.updateBalances(treasury.getId(), treasury.getAvailableCent() - initialCent,
-                    treasury.getFrozenCent(), treasury.getVersion(), now) != 1) throw new IllegalStateException("账户并发冲突");
+            MockAccount user = accountMapper.findByTypeAndOwner("USER", userId);
+            transferService.transfer(new TransferCommand("ACCOUNT_OPEN:" + userId, treasury.getId(), user.getId(),
+                    initialCent, "ACCOUNT_OPEN", MAX_BALANCE_CENT));
         }
     }
 
     @Transactional
     public GrantResult grant(long userId, String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
         MockAccount user = requireUser(userId);
         MockAccount treasury = ensureTreasury();
-        String businessKey = "GRANT:" + idempotencyKey;
-        FundTransfer existing = transferMapper.findByBusinessKeyForUpdate(businessKey);
-        if (existing != null) return new GrantResult(existing.getId(), existing.getTransferNo(), user.getId(), existing.getAmountCent(), user.getAvailableCent(), true);
-        if (user.getAvailableCent() + GRANT_CENT > MAX_BALANCE_CENT) throw new IllegalStateException("账户余额超过领取上限");
-        TransferResult result = transferService.transfer(new TransferCommand(businessKey, treasury.getId(), user.getId(), GRANT_CENT, "MOCK_GRANT"));
-        return new GrantResult(result.transferId(), result.transferNo(), user.getId(), GRANT_CENT, accountMapper.findById(user.getId()).getAvailableCent(), result.replayed());
+        String businessKey = "GRANT:" + userId + ":" + idempotencyKey.trim();
+        TransferResult result = transferService.transfer(new TransferCommand(businessKey, treasury.getId(), user.getId(),
+                GRANT_CENT, "MOCK_GRANT", MAX_BALANCE_CENT));
+        return new GrantResult(result.transferId(), result.transferNo(), user.getId(), GRANT_CENT,
+                result.targetBalanceAfterCent(), result.replayed());
     }
 
     @Transactional
     public AdjustmentResult adjust(long operatorId, long userId, long deltaCent, String reason, String idempotencyKey) {
+        validateIdempotencyKey(idempotencyKey);
         if (operatorId <= 0) throw new IllegalArgumentException("操作人不能为空");
         if (deltaCent == 0) throw new IllegalArgumentException("调整金额不能为0");
+        if (deltaCent == Long.MIN_VALUE) throw new IllegalArgumentException("调整金额超出范围");
         if (reason == null || reason.isBlank()) throw new IllegalArgumentException("调账原因不能为空");
         MockAccount user = requireUser(userId);
-        String businessKey = "ADMIN_ADJUSTMENT:" + idempotencyKey;
-        FundTransfer existing = transferMapper.findByBusinessKeyForUpdate(businessKey);
-        if (existing != null) return new AdjustmentResult(existing.getId(), existing.getTransferNo(), existing.getOperatorId(), userId, existing.getAdjustedAccountId(), deltaCent, existing.getReason(), existing.getBalanceBeforeCent(), existing.getBalanceAfterCent(), true);
-        if (deltaCent > 0 && user.getAvailableCent() + deltaCent > MAX_BALANCE_CENT) throw new IllegalStateException("账户余额超过上限");
+        String businessKey = "ADMIN_ADJUSTMENT:" + userId + ":" + idempotencyKey.trim();
         MockAccount treasury = ensureTreasury();
-        long before = user.getAvailableCent();
         long amount = Math.abs(deltaCent);
-        TransferCommand command = deltaCent > 0 ? new TransferCommand(businessKey, treasury.getId(), user.getId(), amount, "ADMIN_ADJUSTMENT") : new TransferCommand(businessKey, user.getId(), treasury.getId(), amount, "ADMIN_ADJUSTMENT");
+        TransferCommand command = deltaCent > 0
+                ? new TransferCommand(businessKey, treasury.getId(), user.getId(), amount, "ADMIN_ADJUSTMENT", MAX_BALANCE_CENT)
+                : new TransferCommand(businessKey, user.getId(), treasury.getId(), amount, "ADMIN_ADJUSTMENT");
         TransferResult result = transferService.transfer(command);
         FundTransfer transfer = transferMapper.findById(result.transferId());
+        if (result.replayed()) return originalAdjustment(transfer);
+        long after = deltaCent > 0 ? result.targetBalanceAfterCent() : result.sourceBalanceAfterCent();
+        long before = deltaCent > 0 ? after - amount : after + amount;
         transfer.setOperatorId(operatorId); transfer.setReason(reason.trim()); transfer.setAdjustedAccountId(user.getId());
-        transfer.setBalanceBeforeCent(before); transfer.setBalanceAfterCent(before + deltaCent);
-        transferMapper.updateAudit(transfer);
-        return new AdjustmentResult(result.transferId(), result.transferNo(), operatorId, userId, user.getId(), deltaCent, reason.trim(), before, before + deltaCent, false);
+        transfer.setBalanceBeforeCent(before); transfer.setBalanceAfterCent(after);
+        if (transferMapper.updateAudit(transfer) != 1) throw new IllegalStateException("调账审计并发冲突");
+        return new AdjustmentResult(result.transferId(), result.transferNo(), operatorId, userId, user.getId(), deltaCent, reason.trim(), before, after, false);
     }
 
     public MockAccount getUserAccount(long userId) { return requireUser(userId); }
@@ -94,6 +99,20 @@ public class AccountService {
         LocalDateTime now = LocalDateTime.now();
         accountMapper.insert(MockAccount.builder().accountNo("PLATFORM_TREASURY").accountType("PLATFORM_TREASURY").ownerId(0L).availableCent(0L).frozenCent(0L).version(0).createTime(now).updateTime(now).build());
         return accountMapper.findByTypeAndOwner("PLATFORM_TREASURY", 0L);
+    }
+
+    private AdjustmentResult originalAdjustment(FundTransfer transfer) {
+        MockAccount adjusted = accountMapper.findById(transfer.getAdjustedAccountId());
+        if (adjusted == null || transfer.getOperatorId() == null || transfer.getBalanceBeforeCent() == null
+                || transfer.getBalanceAfterCent() == null) throw new IllegalStateException("调账审计记录不完整");
+        return new AdjustmentResult(transfer.getId(), transfer.getTransferNo(), transfer.getOperatorId(),
+                adjusted.getOwnerId(), adjusted.getId(), transfer.getBalanceAfterCent() - transfer.getBalanceBeforeCent(),
+                transfer.getReason(), transfer.getBalanceBeforeCent(), transfer.getBalanceAfterCent(), true);
+    }
+
+    private static void validateIdempotencyKey(String key) {
+        if (key == null || key.isBlank()) throw new IllegalArgumentException("幂等键不能为空");
+        if (key.trim().length() > MAX_IDEMPOTENCY_KEY_LENGTH) throw new IllegalArgumentException("幂等键过长");
     }
 
 }

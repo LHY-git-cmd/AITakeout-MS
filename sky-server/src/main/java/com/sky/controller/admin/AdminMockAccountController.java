@@ -1,8 +1,10 @@
 package com.sky.controller.admin;
 
+import com.sky.annotation.RequireAdminPermission;
 import com.sky.context.BaseContext;
 import com.sky.dto.AdminAccountAdjustmentDTO;
 import com.sky.result.Result;
+import com.sky.enumeration.AdminPermission;
 import com.sky.service.account.AccountService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,16 +23,19 @@ public class AdminMockAccountController {
     private final AccountService accountService;
 
     @GetMapping
+    @RequireAdminPermission(AdminPermission.ACCOUNT_READ)
     public Result<?> accounts() {
         return Result.success(accountService.listUserAccounts());
     }
 
     @GetMapping("/{userId}")
+    @RequireAdminPermission(AdminPermission.ACCOUNT_READ)
     public Result<?> account(@PathVariable long userId) {
         return Result.success(accountService.getUserAccount(userId));
     }
 
     @PostMapping("/adjustments")
+    @RequireAdminPermission(AdminPermission.ACCOUNT_ADJUST)
     public Result<?> adjust(@Valid @RequestBody AdminAccountAdjustmentDTO dto) {
         return Result.success(accountService.adjust(BaseContext.getCurrentId(), dto.getUserId(), dto.getDeltaCent(), dto.getReason(), dto.getIdempotencyKey()));
     }

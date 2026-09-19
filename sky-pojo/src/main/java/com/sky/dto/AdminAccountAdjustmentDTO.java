@@ -18,6 +18,6 @@ public class AdminAccountAdjustmentDTO implements Serializable {
     @Size(max = 255, message = "调账原因长度不能超过255个字符")
     private String reason;
     @NotBlank(message = "幂等键不能为空")
-    @Size(max = 128, message = "幂等键长度不能超过128个字符")
+    @Size(max = 80, message = "幂等键长度不能超过80个字符")
     private String idempotencyKey;
 }

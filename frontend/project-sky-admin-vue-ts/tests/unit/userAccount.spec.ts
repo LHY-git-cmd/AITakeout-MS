@@ -3,6 +3,8 @@ import ElementUI from 'element-ui'
 import { mount, Wrapper } from '@vue/test-utils'
 import UserAccountView from '@/views/userAccount/index.vue'
 import { adjustAccount, listUserAccounts } from '@/api/mockAccount'
+import router from '@/router'
+import { canAccessRoute } from '@/utils/routePermission'
 
 Vue.use(ElementUI)
 
@@ -92,5 +94,55 @@ describe('UserAccountView', () => {
     await flushPromises()
     expect((wrapper.vm as any).submitting).toBe(false)
     wrapper.destroy()
+  })
+
+  it('blocks duplicate confirmation dialogs while confirmation is pending', async() => {
+    const wrapper = await mountView()
+    let resolveConfirm: (value: unknown) => void = () => undefined
+    const confirm = jest.fn().mockReturnValue(new Promise(resolve => { resolveConfirm = resolve }))
+    ;(wrapper.vm as any).$confirm = confirm
+    ;(adjustAccount as jest.Mock).mockResolvedValue({ data: { code: 1, data: {} } })
+    await wrapper.find('[data-test=adjust-open]').trigger('click')
+    ;(wrapper.vm as any).form.deltaCent = 5000
+    ;(wrapper.vm as any).form.reason = '并发确认测试'
+    await Vue.nextTick()
+    const submit = wrapper.find('[data-test=adjust]')
+
+    await submit.trigger('click')
+    await flushPromises()
+    await submit.trigger('click')
+
+    expect((wrapper.vm as any).submitting).toBe(true)
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(adjustAccount).not.toHaveBeenCalled()
+    resolveConfirm('confirm')
+    await flushPromises()
+    expect(adjustAccount).toHaveBeenCalledTimes(1)
+    wrapper.destroy()
+  })
+
+  it('does not report an error when the user cancels confirmation', async() => {
+    const wrapper = await mountView()
+    const error = jest.fn()
+    ;(wrapper.vm as any).$message = { error, success: jest.fn() }
+    ;(wrapper.vm as any).$confirm = jest.fn().mockRejectedValue('close')
+    await wrapper.find('[data-test=adjust-open]').trigger('click')
+    ;(wrapper.vm as any).form.deltaCent = 100
+    ;(wrapper.vm as any).form.reason = '取消测试'
+    await Vue.nextTick()
+    await wrapper.find('[data-test=adjust]').trigger('click')
+    await flushPromises()
+
+    expect(error).not.toHaveBeenCalled()
+    expect(adjustAccount).not.toHaveBeenCalled()
+    wrapper.destroy()
+  })
+
+  it('restricts the account route to super administrators', () => {
+    const root: any = (router as any).options.routes.find((route: any) => route.path === '/')
+    const route = root.children.find((child: any) => child.name === 'UserAccount')
+    expect(route.meta.roles).toEqual(['SUPER_ADMIN'])
+    expect(canAccessRoute(route, ['ADMIN'])).toBe(false)
+    expect(canAccessRoute(route, ['SUPER_ADMIN'])).toBe(true)
   })
 })
