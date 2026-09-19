@@ -67,6 +67,7 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                         "/user/user/login",
                         "/user/user/login/web",
                         "/user/user/register/web",
+                        "/user/auth/**",
                         "/user/shop/status",
                         "/user/category/list",
                         "/user/dish/list",
