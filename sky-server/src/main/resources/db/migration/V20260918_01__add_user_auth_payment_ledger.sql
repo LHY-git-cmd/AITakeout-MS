@@ -99,6 +99,8 @@ CREATE TABLE `order_timeline_event` (
     `event_no` VARCHAR(64) NOT NULL,
     `order_id` BIGINT NOT NULL,
     `event_type` VARCHAR(32) NOT NULL,
+    `business_no` VARCHAR(64) NOT NULL,
+    `display_message` VARCHAR(255) NOT NULL,
     `operator_type` VARCHAR(32) NOT NULL,
     `operator_id` BIGINT DEFAULT NULL,
     `payload_json` TEXT DEFAULT NULL,
@@ -106,7 +108,8 @@ CREATE TABLE `order_timeline_event` (
     `create_time` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_order_timeline_event_no` (`event_no`),
-    KEY `idx_order_timeline_order_time` (`order_id`, `event_time`)
+    KEY `idx_order_timeline_order_time` (`order_id`, `event_time`),
+    KEY `idx_order_timeline_business_no` (`business_no`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='订单时间轴事件';
 
 CREATE TABLE `user_security_audit` (
