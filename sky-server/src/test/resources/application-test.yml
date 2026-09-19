@@ -43,7 +43,15 @@ sky:
   baidu:
     ak:
   delivery:
-    max-distance: 5000
+    map-provider: mock
+    shop-address: 测试门店
+    near-distance-meters: 3000
+    max-distance-meters: 5000
+    near-fee-cent: 500
+    far-fee-cent: 800
+    preview-ttl-seconds: 300
+    pricing-rule-version: delivery-v1
+    preview-secret: test-checkout-preview-secret-at-least-32-chars
   ai:
     enabled: false
     daily-limit: 10

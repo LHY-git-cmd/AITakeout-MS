@@ -4,6 +4,7 @@ import com.sky.context.BaseContext;
 import com.sky.entity.AddressBook;
 import com.sky.exception.AddressBookBusinessException;
 import com.sky.mapper.AddressBookMapper;
+import com.sky.service.order.DeliveryRangeService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,8 @@ class AddressBookServiceImplTest {
 
     @Mock
     private AddressBookMapper addressBookMapper;
+    @Mock
+    private DeliveryRangeService deliveryRangeService;
 
     @InjectMocks
     private AddressBookServiceImpl addressBookService;
@@ -52,6 +55,8 @@ class AddressBookServiceImplTest {
         AddressBook existing = AddressBook.builder().id(10L).userId(7L).build();
         AddressBook update = AddressBook.builder().id(10L).detail("新地址").build();
         when(addressBookMapper.getByIdAndUserId(10L, 7L)).thenReturn(existing);
+        when(deliveryRangeService.validate(update)).thenReturn(new DeliveryRangeService.ValidationResult(
+                false, null, "mock", 0, false, 0, null, "GEOCODE_FAILED", "地址解析失败"));
 
         addressBookService.update(update);
 

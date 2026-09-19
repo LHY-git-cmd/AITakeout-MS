@@ -9,6 +9,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 /**
  * 地址簿
@@ -68,4 +70,15 @@ public class AddressBook implements Serializable {
 
     //是否默认 0否 1是
     private Integer isDefault;
+
+    // 地图解析与配送预检结果
+    private BigDecimal latitude;
+    private BigDecimal longitude;
+    private String geocodeStatus;
+    private String mapProvider;
+    private Integer distanceMeters;
+    private Boolean deliverable;
+    private String validationMessage;
+    private LocalDateTime validatedAt;
+    private String deliveryRuleVersion;
 }

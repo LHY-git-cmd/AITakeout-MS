@@ -120,7 +120,17 @@ sky:
   baidu:
     ak: ${BAIDU_MAP_AK:}
   delivery:
-    max-distance: 5000
+    # 非开发环境默认使用百度地图；缺少 AK 时 BaiduMapGateway 会阻止启动。
+    map-provider: ${DELIVERY_MAP_PROVIDER:baidu}
+    shop-address: ${SHOP_ADDRESS:北京市海淀区上地十街10号}
+    baidu-ak: ${BAIDU_MAP_AK:}
+    near-distance-meters: 3000
+    max-distance-meters: 5000
+    near-fee-cent: 500
+    far-fee-cent: 800
+    preview-ttl-seconds: 300
+    pricing-rule-version: delivery-v1
+    preview-secret: ${CHECKOUT_PREVIEW_SECRET}
   order-task:
     batch-size: ${ORDER_TASK_BATCH_SIZE:200}
   ai:

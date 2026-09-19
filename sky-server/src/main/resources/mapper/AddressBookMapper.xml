@@ -56,6 +56,15 @@
             <if test="isDefault != null">
                 is_default = #{isDefault},
             </if>
+            <if test="geocodeStatus != null">geocode_status = #{geocodeStatus},</if>
+            <if test="mapProvider != null">map_provider = #{mapProvider},</if>
+            <if test="latitude != null">latitude = #{latitude},</if>
+            <if test="longitude != null">longitude = #{longitude},</if>
+            <if test="distanceMeters != null">distance_meters = #{distanceMeters},</if>
+            <if test="deliverable != null">deliverable = #{deliverable},</if>
+            <if test="validationMessage != null">validation_message = #{validationMessage},</if>
+            <if test="validatedAt != null">validated_at = #{validatedAt},</if>
+            <if test="deliveryRuleVersion != null">delivery_rule_version = #{deliveryRuleVersion},</if>
         </set>
         where id = #{id}
         <if test="userId != null">

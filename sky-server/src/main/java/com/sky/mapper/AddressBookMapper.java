@@ -26,9 +26,13 @@ public interface AddressBookMapper {
      */
     @Insert("insert into address_book" +
             "        (user_id, consignee, phone, sex, province_code, province_name, city_code, city_name, district_code," +
-            "         district_name, detail, label, is_default)" +
+            "         district_name, detail, label, is_default, latitude, longitude, geocode_status, map_provider," +
+            "         distance_meters, deliverable, validation_message, validated_at, delivery_rule_version)" +
             "        values (#{userId}, #{consignee}, #{phone}, #{sex}, #{provinceCode}, #{provinceName}, #{cityCode}, #{cityName}," +
-            "                #{districtCode}, #{districtName}, #{detail}, #{label}, #{isDefault})")
+            "                #{districtCode}, #{districtName}, #{detail}, #{label}, #{isDefault}, #{latitude}, #{longitude}," +
+            "                #{geocodeStatus}, #{mapProvider}, #{distanceMeters}, #{deliverable}, #{validationMessage}," +
+            "                #{validatedAt}, #{deliveryRuleVersion})")
+    @Options(useGeneratedKeys = true, keyProperty = "id")
     void insert(AddressBook addressBook);
 
     /**
@@ -70,7 +74,7 @@ public interface AddressBookMapper {
      *
      * @param id 地址簿ID
      */
-    @Delete("delete from address_book where id = #{id}")
-    void deleteById(Long id);
+    @Delete("delete from address_book where id = #{id} and user_id = #{userId}")
+    void deleteByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
 
 }

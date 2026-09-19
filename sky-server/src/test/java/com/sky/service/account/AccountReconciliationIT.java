@@ -226,6 +226,8 @@ class AccountReconciliationIT {
             DriverManagerDataSource dataSource = new DriverManagerDataSource(URL, "sa", "");
             try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
                 statement.execute("create table if not exists migration_test_anchor (id bigint primary key)");
+                statement.execute("create table if not exists orders (id bigint auto_increment primary key, amount decimal(10,2) not null, pack_amount int)");
+                statement.execute("create table if not exists address_book (id bigint auto_increment primary key)");
             }
             Flyway flyway = Flyway.configure().dataSource(dataSource).locations("classpath:db/migration")
                     .baselineVersion("20260913.3").load();

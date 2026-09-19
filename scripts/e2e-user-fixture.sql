@@ -30,6 +30,15 @@ CREATE TABLE address_book (
   detail VARCHAR(200) DEFAULT NULL,
   label VARCHAR(100) DEFAULT NULL,
   is_default TINYINT(1) NOT NULL DEFAULT 0,
+  latitude DECIMAL(10,7) DEFAULT NULL,
+  longitude DECIMAL(10,7) DEFAULT NULL,
+  geocode_status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+  map_provider VARCHAR(16) DEFAULT NULL,
+  distance_meters INT DEFAULT NULL,
+  deliverable TINYINT(1) DEFAULT NULL,
+  validation_message VARCHAR(255) DEFAULT NULL,
+  validated_at DATETIME DEFAULT NULL,
+  delivery_rule_version VARCHAR(32) DEFAULT NULL,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -110,8 +119,35 @@ CREATE TABLE orders (
   pack_amount INT DEFAULT NULL,
   tableware_number INT DEFAULT NULL,
   tableware_status TINYINT(1) NOT NULL DEFAULT 1,
+  goods_amount_cent BIGINT NOT NULL DEFAULT 0,
+  pack_amount_cent BIGINT NOT NULL DEFAULT 0,
+  delivery_fee_cent BIGINT NOT NULL DEFAULT 0,
+  discount_amount_cent BIGINT NOT NULL DEFAULT 0,
+  amount_cent BIGINT NOT NULL DEFAULT 0,
+  delivery_distance_meters INT DEFAULT NULL,
+  map_provider VARCHAR(16) DEFAULT NULL,
+  delivery_mode VARCHAR(16) NOT NULL DEFAULT 'IMMEDIATE',
+  delivery_slot_start DATETIME DEFAULT NULL,
+  delivery_slot_end DATETIME DEFAULT NULL,
+  address_latitude DECIMAL(10,7) DEFAULT NULL,
+  address_longitude DECIMAL(10,7) DEFAULT NULL,
+  expires_at DATETIME DEFAULT NULL,
+  pricing_rule_version VARCHAR(32) NOT NULL DEFAULT 'delivery-v1',
+  version INT NOT NULL DEFAULT 0,
   PRIMARY KEY (id),
   KEY idx_orders_status_order_time (status, order_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE order_submission (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  idempotency_key VARCHAR(80) NOT NULL,
+  order_id BIGINT DEFAULT NULL,
+  request_hash VARCHAR(64) NOT NULL,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_order_submit_user_key (user_id, idempotency_key),
+  KEY idx_order_submission_order (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE order_detail (
