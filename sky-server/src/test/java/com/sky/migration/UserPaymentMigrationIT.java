@@ -59,6 +59,7 @@ class UserPaymentMigrationIT {
                 .isInstanceOf(SQLException.class);
 
         assertThat(columns("order_timeline_event")).contains("display_message", "business_no");
+        assertThat(columns("auth_sms_cooldown")).contains("reservation_id", "next_allowed_at");
         assertThat(Arrays.stream(OrderTimelineEvent.class.getDeclaredFields()).map(Field::getName))
                 .contains("displayMessage", "businessNo");
     }

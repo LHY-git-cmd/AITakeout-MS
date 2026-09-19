@@ -25,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 
@@ -168,6 +169,34 @@ class UserAuthServiceTest {
         service().logout("raw", false);
 
         verify(sessionMapper).revokeUserDevice(eq(1L), eq("device-1"), any());
+    }
+
+    @Test
+    void gatewayFailureReleasesOnlyItsExactCooldownReservation() {
+        when(smsMapper.insertCooldown(eq("13800138000"), eq("register"), any(), any())).thenReturn(1);
+        doThrow(new IllegalStateException("gateway unavailable"))
+                .when(smsGateway).sendCode("13800138000", "register");
+
+        assertThatThrownBy(() -> service().sendSms("13800138000", "register"))
+                .isInstanceOf(IllegalStateException.class);
+
+        org.mockito.ArgumentCaptor<String> reservation = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(smsMapper).insertCooldown(eq("13800138000"), eq("register"), reservation.capture(), any());
+        verify(smsMapper).releaseCooldown("13800138000", "register", reservation.getValue());
+    }
+
+    @Test
+    void verificationPersistenceFailureReleasesExactCooldownReservation() {
+        when(smsMapper.insertCooldown(eq("13800138000"), eq("register"), any(), any())).thenReturn(1);
+        when(smsGateway.sendCode("13800138000", "register")).thenReturn("246810");
+        doThrow(new IllegalStateException("database unavailable")).when(smsMapper).insert(any());
+
+        assertThatThrownBy(() -> service().sendSms("13800138000", "register"))
+                .isInstanceOf(IllegalStateException.class);
+
+        org.mockito.ArgumentCaptor<String> reservation = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(smsMapper).insertCooldown(eq("13800138000"), eq("register"), reservation.capture(), any());
+        verify(smsMapper).releaseCooldown("13800138000", "register", reservation.getValue());
     }
 
     private UserAuthService service() {

@@ -42,6 +42,7 @@ class UserAuthPersistenceTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired MockSmsGateway smsGateway;
+    @Autowired SmsCooldownService cooldownService;
 
     @BeforeEach
     void prepareSchema() {
@@ -62,7 +63,7 @@ class UserAuthPersistenceTest {
                 + "code_hash varchar(128) not null, purpose varchar(32) not null, expires_at datetime not null, "
                 + "used_at datetime, attempt_count int not null, create_time datetime not null)");
         jdbc.execute("create table auth_sms_cooldown (phone varchar(32) not null, purpose varchar(32) not null, "
-                + "next_allowed_at datetime not null, primary key(phone, purpose))");
+                + "reservation_id varchar(64) not null, next_allowed_at datetime not null, primary key(phone, purpose))");
     }
 
     @Test
@@ -106,6 +107,7 @@ class UserAuthPersistenceTest {
 
     @Test
     void concurrentSmsRequestsReserveCooldownBeforeOnlyOneGatewayDispatch() throws Exception {
+        int sendsBefore = smsGateway.sendCountFor("13800138000", "register");
         var pool = Executors.newFixedThreadPool(6);
         CountDownLatch start = new CountDownLatch(1);
         List<Future<?>> calls = new ArrayList<>();
@@ -121,7 +123,7 @@ class UserAuthPersistenceTest {
 
         assertThat(jdbc.queryForObject("select count(*) from sms_verification", Integer.class)).isEqualTo(1);
         assertThat(smsGateway.codeFor("13800138000", "register")).isEqualTo("246810");
-        assertThat(smsGateway.sendCountFor("13800138000", "register")).isEqualTo(1);
+        assertThat(smsGateway.sendCountFor("13800138000", "register") - sendsBefore).isEqualTo(1);
     }
 
     @Test
@@ -144,6 +146,62 @@ class UserAuthPersistenceTest {
                 .isZero();
     }
 
+    @Test
+    void failedVerificationPersistenceReleasesCooldownForImmediateRetry() {
+        jdbc.execute("drop table sms_verification");
+        assertThatThrownBy(() -> service.sendSms("13800138000", "register"))
+                .isInstanceOf(RuntimeException.class);
+        createSmsVerificationTable();
+
+        service.sendSms("13800138000", "register");
+
+        assertThat(jdbc.queryForObject("select count(*) from sms_verification", Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void staleFailureCannotReleaseANewerCooldownReservation() {
+        LocalDateTime now = LocalDateTime.now();
+        SmsCooldownService.Reservation old = cooldownService.reserve(
+                "13800138000", "register", now, now.plusSeconds(60));
+        jdbc.update("update auth_sms_cooldown set next_allowed_at=? where phone=? and purpose=?",
+                now.minusSeconds(1), "13800138000", "register");
+        SmsCooldownService.Reservation newer = cooldownService.reserve(
+                "13800138000", "register", now, now.plusSeconds(60));
+
+        cooldownService.release(old);
+
+        assertThat(newer).isNotNull();
+        assertThat(jdbc.queryForObject("select reservation_id from auth_sms_cooldown where phone=? and purpose=?",
+                String.class, "13800138000", "register")).isEqualTo(newer.reservationId());
+    }
+
+    @Test
+    void legacyNullDeviceSessionCanBeLoggedOut() throws Exception {
+        insertUser();
+        String raw = "legacy-null-device";
+        sessionMapper.insert(UserSession.builder().userId(1L).refreshTokenHash(sha256(raw)).deviceId(null)
+                .expiresAt(LocalDateTime.now().plusDays(1)).createTime(LocalDateTime.now()).build());
+
+        service.logout(raw, false);
+
+        assertThat(jdbc.queryForObject("select count(*) from user_session where revoked_at is null", Integer.class)).isZero();
+    }
+
+    @Test
+    void missingDeviceIdsCreateDistinctLineagesAndLogoutOnlyOne() {
+        insertUser();
+        AuthClientContext firstClient = new AuthClientContext("127.0.0.1", "test", null);
+        AuthClientContext secondClient = new AuthClientContext("127.0.0.1", "test", null);
+        var first = service.login(new UserPasswordLoginDTO("13800138000", "StrongPass8"), firstClient);
+        var second = service.login(new UserPasswordLoginDTO("13800138000", "StrongPass8"), secondClient);
+
+        assertThat(firstClient.deviceId()).isNotEqualTo(secondClient.deviceId());
+        service.logout(first.refreshToken(), false);
+
+        assertThat(jdbc.queryForObject("select count(*) from user_session where revoked_at is null", Integer.class)).isEqualTo(1);
+        assertThat(sessionMapper.findByRefreshTokenHash(sha256Unchecked(second.refreshToken())).getRevokedAt()).isNull();
+    }
+
     private boolean run(ThrowingCall call, CountDownLatch start) throws Exception {
         start.await();
         try { call.run(); return true; } catch (LoginFailedException ex) { return false; }
@@ -154,11 +212,21 @@ class UserAuthPersistenceTest {
                 "13800138000", passwordEncoder.encode("StrongPass8"));
     }
 
+    private void createSmsVerificationTable() {
+        jdbc.execute("create table sms_verification (id bigint auto_increment primary key, phone varchar(32) not null, "
+                + "code_hash varchar(128) not null, purpose varchar(32) not null, expires_at datetime not null, "
+                + "used_at datetime, attempt_count int not null, create_time datetime not null)");
+    }
+
     private AuthClientContext client() { return new AuthClientContext("127.0.0.1", "test", "device-1"); }
 
     private static String sha256(String input) throws Exception {
         return java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                 .digest(input.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static String sha256Unchecked(String input) {
+        try { return sha256(input); } catch (Exception ex) { throw new AssertionError(ex); }
     }
 
     @FunctionalInterface interface ThrowingCall { void run() throws Exception; }

@@ -14,11 +14,15 @@
         where id = #{id} and used_at is null
     </update>
     <insert id="insertCooldown">
-        insert ignore into auth_sms_cooldown (phone, purpose, next_allowed_at)
-        values (#{phone}, #{purpose}, #{nextAllowedAt})
+        insert ignore into auth_sms_cooldown (phone, purpose, reservation_id, next_allowed_at)
+        values (#{phone}, #{purpose}, #{reservationId}, #{nextAllowedAt})
     </insert>
     <update id="advanceCooldown">
-        update auth_sms_cooldown set next_allowed_at = #{nextAllowedAt}
+        update auth_sms_cooldown set reservation_id = #{reservationId}, next_allowed_at = #{nextAllowedAt}
         where phone = #{phone} and purpose = #{purpose} and next_allowed_at &lt;= #{now}
     </update>
+    <delete id="releaseCooldown">
+        delete from auth_sms_cooldown
+        where phone = #{phone} and purpose = #{purpose} and reservation_id = #{reservationId}
+    </delete>
 </mapper>
