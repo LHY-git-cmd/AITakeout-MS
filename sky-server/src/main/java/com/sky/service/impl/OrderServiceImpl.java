@@ -187,11 +187,18 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public void userCancelById(Long id) throws Exception {
-        Orders order = orderQueryService.getExisting(id);
+        // 与支付创建共用订单行锁，消除“检查完成后才进入支付处理中”的并发窗口。
+        Orders order = id == null ? null : orderMapper.getByIdForUpdate(id);
+        if (order == null) {
+            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        }
         checkOrderOwner(order);
         if (!Orders.PENDING_PAYMENT.equals(order.getStatus())
                 && !Orders.TO_BE_CONFIRMED.equals(order.getStatus())) {
             throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
+        }
+        if (Orders.PENDING_PAYMENT.equals(order.getStatus())) {
+            orderPaymentService.assertCancelable(order.getId());
         }
         Orders update = Orders.builder().id(order.getId()).status(Orders.CANCELLED)
                 .cancelReason("用户取消").cancelTime(LocalDateTime.now()).build();

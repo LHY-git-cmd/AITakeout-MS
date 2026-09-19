@@ -40,10 +40,12 @@ class UserPaymentMigrationIT {
         assertThat(columnTypes("account_ledger_entry"))
                 .containsEntry("amount_cent", Types.BIGINT)
                 .containsEntry("balance_after_cent", Types.BIGINT);
-        assertThat(columnTypes("payment_transaction")).containsEntry("amount_cent", Types.BIGINT);
+        assertThat(columnTypes("payment_transaction")).containsEntry("amount_cent", Types.BIGINT)
+                .containsKeys("gateway_trade_no", "callback_event_id");
 
         assertThat(uniqueIndexes("payment_transaction"))
-                .contains("uk_payment_no", "uk_payment_idempotency", "uk_payment_order_success_guard");
+                .contains("uk_payment_no", "uk_payment_idempotency", "uk_payment_order_success_guard",
+                        "uk_payment_gateway_trade_no", "uk_payment_callback_event_id");
         assertThat(uniqueIndexes("fund_transfer"))
                 .contains("uk_transfer_no", "uk_transfer_business_key");
         assertThat(uniqueIndexes("account_ledger_entry"))

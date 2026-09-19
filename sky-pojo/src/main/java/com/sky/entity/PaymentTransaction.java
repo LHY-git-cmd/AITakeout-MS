@@ -21,6 +21,8 @@ public class PaymentTransaction {
     private String idempotencyKey;
     private Long amountCent;
     private String status;
+    private String gatewayTradeNo;
+    private String callbackEventId;
     private LocalDateTime expiresAt;
     private LocalDateTime succeededAt;
     private String failureCode;
