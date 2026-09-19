@@ -5,7 +5,8 @@ import { useRouter } from 'vue-router'
 import PageScaffold from '@/components/PageScaffold.vue'
 import ProductImage from '@/components/ProductImage.vue'
 import { fullAddress, getAddresses, type Address } from '@/api/address'
-import { payOrder, submitOrder, type SubmittedOrder } from '@/api/order'
+import { submitOrder, type SubmittedOrder } from '@/api/order'
+import { beginOrderPayment } from '@/api/payment'
 import { ApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
@@ -69,12 +70,11 @@ async function submit() {
     sessionStorage.setItem('sky-last-order', JSON.stringify(order))
     cartStore.markSubmitted()
     await new Promise((resolve) => window.setTimeout(resolve, 800))
-    const payment = await payOrder(order.orderNumber)
-    if (!payment.mockPay) throw new Error('当前演示环境未返回模拟支付结果')
-    await router.replace({ name: 'payment-result', query: { success: '1', id: String(order.id) } })
+    const payment = await beginOrderPayment(order.id)
+    await router.replace({ name: 'payment-result', query: { paymentNo: payment.paymentNo, id: String(order.id) } })
   } catch (cause) {
     if (order) {
-      await router.replace({ name: 'payment-result', query: { success: '0', id: String(order.id) } })
+      await router.replace({ name: 'payment-result', query: { id: String(order.id) } })
     } else {
       error.value = cause instanceof ApiError ? cause.message : '提交订单失败，请稍后重试'
     }

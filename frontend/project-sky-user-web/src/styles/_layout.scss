@@ -414,10 +414,10 @@
 .login-dialog__close {
   display: grid;
   position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 36px;
-  height: 36px;
+  top: 10px;
+  right: 10px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   place-items: center;
   border: 0;
@@ -480,6 +480,46 @@
 .login-dialog input:focus {
   border-color: var(--color-brand);
   box-shadow: 0 0 0 3px rgb(176 58 46 / 12%);
+}
+
+.verification-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.verification-field button {
+  display: inline-flex;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 13px;
+  border: 1px solid var(--color-brand);
+  border-radius: 6px;
+  color: var(--color-brand-dark);
+  background: var(--color-brand-soft);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.verification-field button:disabled {
+  border-color: var(--color-line);
+  color: var(--color-muted);
+  background: var(--color-canvas);
+  cursor: not-allowed;
+}
+
+.verification-field button:focus-visible {
+  outline: 3px solid rgb(176 58 46 / 25%);
+  outline-offset: 2px;
+}
+
+.verification-hint {
+  margin: -9px 0 14px;
+  color: var(--color-muted);
+  font-size: 12px;
 }
 
 .login-dialog__error {
@@ -647,6 +687,19 @@
 
   .register-field--full {
     grid-column: auto;
+  }
+
+  .verification-field {
+    grid-template-columns: 1fr;
+  }
+
+  .verification-field button {
+    margin-top: -8px;
+    margin-bottom: 16px;
+  }
+
+  .verification-hint {
+    margin-top: -9px;
   }
 }
 

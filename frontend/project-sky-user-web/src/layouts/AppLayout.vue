@@ -8,16 +8,18 @@ import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 import { useUiStore } from '@/stores/ui'
 import { orderSocket } from '@/services/orderSocket'
+import { useAccountStore } from '@/stores/account'
 
 const route = useRoute()
 const uiStore = useUiStore()
 const authStore = useAuthStore()
+const accountStore = useAccountStore()
 const cartStore = useCartStore()
 
 const navigation = [
   { label: '点餐', to: '/', icon: House, match: ['menu', 'checkout', 'payment-result'] },
   { label: '订单', to: '/orders', icon: History, match: ['orders', 'order-detail'] },
-  { label: '我的', to: '/profile', icon: CircleUserRound, match: ['profile', 'addresses'] },
+  { label: '我的', to: '/profile', icon: CircleUserRound, match: ['profile', 'addresses', 'wallet'] },
 ]
 
 const pageTitle = computed(() => String(route.meta.title ?? '在线点餐'))
@@ -25,18 +27,24 @@ const showFloatingCart = computed(() => String(route.name) === 'menu')
 const isActive = (names: string[]) => names.includes(String(route.name))
 
 function handleUnauthorized() {
-  authStore.logout()
+  authStore.clearSession()
   uiStore.openLogin()
+}
+
+function handleRefreshedSession(event: Event) {
+  authStore.setSession((event as CustomEvent<Parameters<typeof authStore.setSession>[0]>).detail)
 }
 
 onMounted(() => {
   window.addEventListener('sky:unauthorized', handleUnauthorized)
+  window.addEventListener('sky:session-refreshed', handleRefreshedSession)
   void authStore.restoreSession()
   if (authStore.token) orderSocket.connect(authStore.token)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('sky:unauthorized', handleUnauthorized)
+  window.removeEventListener('sky:session-refreshed', handleRefreshedSession)
   orderSocket.disconnect()
 })
 
@@ -46,6 +54,7 @@ watch(() => authStore.token, (token, previousToken) => {
     orderSocket.connect(token)
   } else {
     orderSocket.disconnect()
+    accountStore.reset()
     if (previousToken || !cartStore.items.length) cartStore.switchToGuest()
   }
 }, { immediate: true })
