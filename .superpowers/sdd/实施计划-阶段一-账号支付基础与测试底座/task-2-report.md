@@ -104,3 +104,12 @@ mvn -pl sky-server -am test
 ```
 
 结果：97 个测试通过，0 失败，0 错误。另显式运行 `UserPaymentMigrationIT`：1 个迁移测试通过，0 失败，0 错误。
+
+## 第二轮评审修复补充（2026-09-19）
+
+- 新增前向迁移 `V20260919_03__add_sms_cooldown_reservation.sql`，为冷却记录增加唯一 `reservation_id`。短信网关调用或验证码持久化失败时，通过 `REQUIRES_NEW` 按手机号、用途和精确预留 ID 补偿删除；旧请求的迟到补偿无法删除更新的预留。
+- `revokeUserDevice` 改为 NULL-safe 匹配，历史 `device_id IS NULL` 会话可以由其 Refresh Token 正常退出。
+- 当 `X-Device-Id` 缺失或为空时，`AuthClientContext` 为每次登录/注册生成 `server-{UUID}` 设备身份。客户端明确提供的稳定 ID 保持不变；Refresh 从持久化会话复制原设备 ID，因此同一令牌谱系保持稳定。
+- 数据库测试新增：网关异常和验证码持久化异常的精确补偿、旧补偿不影响新预留、历史 NULL 设备退出、两个缺省设备身份互相隔离，以及单谱系退出不影响另一谱系。上一轮 Refresh/Logout 并发测试继续执行。
+
+最终全量验证 `mvn -pl sky-server -am test`：103 个测试通过，0 失败，0 错误。包含 Flyway 的聚焦验证共 21 个测试通过，0 失败，0 错误。

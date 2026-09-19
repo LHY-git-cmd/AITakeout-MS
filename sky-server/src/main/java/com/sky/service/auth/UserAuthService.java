@@ -91,12 +91,20 @@ public class UserAuthService {
     public void sendSms(String phone, String purpose) {
         String normalizedPurpose = normalizePurpose(purpose);
         LocalDateTime now = LocalDateTime.now();
-        if (!cooldownService.reserve(phone, normalizedPurpose, now, now.plusSeconds(60))) {
+        SmsCooldownService.Reservation reservation = cooldownService.reserve(
+                phone, normalizedPurpose, now, now.plusSeconds(60));
+        if (reservation == null) {
             throw new LoginFailedException("验证码发送过于频繁");
         }
-        String rawCode = smsGateway.sendCode(phone, normalizedPurpose);
-        smsMapper.insert(SmsVerification.builder().phone(phone).purpose(normalizedPurpose)
-                .codeHash(sha256(rawCode)).expiresAt(now.plusMinutes(5)).attemptCount(0).createTime(now).build());
+        try {
+            String rawCode = smsGateway.sendCode(phone, normalizedPurpose);
+            int inserted = smsMapper.insert(SmsVerification.builder().phone(phone).purpose(normalizedPurpose)
+                    .codeHash(sha256(rawCode)).expiresAt(now.plusMinutes(5)).attemptCount(0).createTime(now).build());
+            if (inserted != 1) throw new IllegalStateException("验证码记录保存失败");
+        } catch (RuntimeException | Error ex) {
+            cooldownService.release(reservation);
+            throw ex;
+        }
     }
 
     @Transactional

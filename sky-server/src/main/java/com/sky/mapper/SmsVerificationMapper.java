@@ -11,7 +11,11 @@ public interface SmsVerificationMapper {
     SmsVerification findLatest(@Param("phone") String phone, @Param("purpose") String purpose);
     int markUsed(@Param("id") Long id, @Param("usedAt") LocalDateTime usedAt);
     int insertCooldown(@Param("phone") String phone, @Param("purpose") String purpose,
+                       @Param("reservationId") String reservationId,
                        @Param("nextAllowedAt") LocalDateTime nextAllowedAt);
     int advanceCooldown(@Param("phone") String phone, @Param("purpose") String purpose,
-                        @Param("now") LocalDateTime now, @Param("nextAllowedAt") LocalDateTime nextAllowedAt);
+                        @Param("reservationId") String reservationId, @Param("now") LocalDateTime now,
+                        @Param("nextAllowedAt") LocalDateTime nextAllowedAt);
+    int releaseCooldown(@Param("phone") String phone, @Param("purpose") String purpose,
+                        @Param("reservationId") String reservationId);
 }
