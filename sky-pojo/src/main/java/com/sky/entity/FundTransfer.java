@@ -21,6 +21,11 @@ public class FundTransfer {
     private Long targetAccountId;
     private Long amountCent;
     private String status;
+    private Long operatorId;
+    private String reason;
+    private Long adjustedAccountId;
+    private Long balanceBeforeCent;
+    private Long balanceAfterCent;
     private LocalDateTime completedAt;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

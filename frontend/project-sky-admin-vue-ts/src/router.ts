@@ -121,6 +121,12 @@ const router = new Router({
           meta: { title: '知识库', icon: 'icon-category' },
         },
         {
+          path: 'user-account',
+          component: () => import(/* webpackChunkName: "user-account" */ '@/views/userAccount/index.vue'),
+          name: 'UserAccount',
+          meta: { title: '用户账户', icon: 'icon-wallet' },
+        },
+        {
           path: '/employee/add',
           component: () => import(/* webpackChunkName: "dashboard" */ '@/views/employee/addEmployee.vue'),
           meta: {
