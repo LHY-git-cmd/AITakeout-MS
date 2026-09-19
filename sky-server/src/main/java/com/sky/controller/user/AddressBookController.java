@@ -7,6 +7,7 @@ import com.sky.service.AddressBookService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.List;
  * 地址簿控制器（用户端）
  * 提供用户地址的增删改查、设置默认地址等功能
  */
+@Slf4j
 @RestController
 @RequestMapping("/user/addressBook")
 @Tag(name = "C端地址簿接口")
@@ -46,6 +48,7 @@ public class AddressBookController {
     @PostMapping
     @Operation(summary = "新增地址")
     public Result save(@Valid @RequestBody AddressBook addressBook) {
+        log.info("新添加地址:{}",addressBook);
         addressBookService.save(addressBook);
         return Result.success();
     }
