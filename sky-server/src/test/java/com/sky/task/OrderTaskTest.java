@@ -3,6 +3,7 @@ package com.sky.task;
 import com.sky.entity.Orders;
 import com.sky.mapper.OrderMapper;
 import com.sky.properties.OrderTaskProperties;
+import com.sky.service.payment.PaymentApplicationService;
 import com.sky.websocket.WebSocketServer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,7 @@ class OrderTaskTest {
     @Mock private OrderMapper orderMapper;
     @Mock private WebSocketServer webSocketServer;
     @Mock private OrderTaskProperties orderTaskProperties;
+    @Mock private PaymentApplicationService paymentApplicationService;
     @InjectMocks private OrderTask orderTask;
 
     @Test
@@ -41,6 +43,7 @@ class OrderTaskTest {
 
         orderTask.processTimeoutOrder();
 
+        verify(paymentApplicationService).expireBatch(200);
         verify(orderMapper, times(1)).updateBatchByExpectedStatus(
                 any(Orders.class), eq(List.of(1L, 2L)), eq(Orders.PENDING_PAYMENT));
         verify(webSocketServer).sendOrderStatusToUser(2L, 1L, Orders.CANCELLED, "订单超时，已自动取消");

@@ -141,4 +141,18 @@ class OrderServiceImplTest {
 
         verify(notificationService, never()).sendStatusAfterCommit(any(), any(), any());
     }
+
+    @Test
+    void shouldRejectCancellationWhilePaymentIsProcessing() throws Exception {
+        Orders order = Orders.builder().id(20L).userId(7L).status(Orders.PENDING_PAYMENT)
+                .payStatus(Orders.UN_PAID).build();
+        when(orderMapper.getByIdForUpdate(20L)).thenReturn(order);
+        org.mockito.Mockito.doThrow(new com.sky.exception.OrderBusinessException("支付处理中，暂不能取消订单"))
+                .when(orderPaymentService).assertCancelable(20L);
+
+        assertThrows(com.sky.exception.OrderBusinessException.class, () -> orderService.userCancelById(20L));
+
+        verify(orderMapper, never()).updateByExpectedStatus(any(), any());
+        verify(orderMapper).getByIdForUpdate(20L);
+    }
 }
