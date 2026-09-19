@@ -38,6 +38,7 @@ import { Component, Vue } from 'vue-property-decorator'
 import { AppModule } from '@/store/modules/app'
 import { UserModule } from '@/store/modules/user'
 import AccountPanel from './AccountPanel.vue'
+import { canAccessRoute } from '@/utils/routePermission'
 @Component({
   name: 'SideBar',
   components: { AccountPanel },
@@ -76,7 +77,9 @@ export default class extends Vue {
     let menu = routes.find(item => item.path === '/')
     if (menu && menu.children) {
       // Only visible first-level routes are rendered in the sidebar.
-      menuList = menu.children.filter((item: any) => !item.meta || !item.meta.hidden)
+      menuList = menu.children.filter((item: any) =>
+        (!item.meta || !item.meta.hidden) && canAccessRoute(item, this.roles)
+      )
     }
     return menuList
   }

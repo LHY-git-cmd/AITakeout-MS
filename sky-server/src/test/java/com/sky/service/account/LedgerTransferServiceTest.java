@@ -88,6 +88,21 @@ class LedgerTransferServiceTest {
         assertThat(accounts.findById(1L).getAvailableCent()).isEqualTo(50_000L);
         assertThat(accounts.findById(2L).getAvailableCent()).isZero();
         assertThat(ledger.entries).isEmpty();
+        assertThat(transfers.values()).isEmpty();
+    }
+
+    @Test
+    void transferRejectsTargetBalanceOverflowWithoutPosting() {
+        accounts.add(account(3L, "TREASURY", "PLATFORM_TREASURY", 0L, 0L));
+        accounts.add(account(4L, "USER-OVERFLOW", "USER", 8L, Long.MAX_VALUE));
+
+        assertThatThrownBy(() -> transferService.transfer(
+                new TransferCommand("OVERFLOW", 3L, 4L, 1L, "ADMIN_ADJUSTMENT")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("金额溢出");
+
+        assertThat(transfers.values()).isEmpty();
+        assertThat(ledger.entries).isEmpty();
     }
 
     @Test
@@ -188,6 +203,11 @@ class LedgerTransferServiceTest {
         }
 
         @Override
+        public FundTransfer findByBusinessKeyForUpdate(String businessKey) {
+            return findByBusinessKey(businessKey);
+        }
+
+        @Override
         public FundTransfer findById(Long id) {
             return data.get(id);
         }
@@ -196,6 +216,11 @@ class LedgerTransferServiceTest {
         public int updateAudit(FundTransfer transfer) {
             data.put(transfer.getId(), transfer);
             return 1;
+        }
+
+        @Override
+        public int deleteById(Long id) {
+            return data.remove(id) == null ? 0 : 1;
         }
 
         List<FundTransfer> values() {

@@ -124,7 +124,7 @@ const router = new Router({
           path: 'user-account',
           component: () => import(/* webpackChunkName: "user-account" */ '@/views/userAccount/index.vue'),
           name: 'UserAccount',
-          meta: { title: '用户账户', icon: 'icon-wallet' },
+          meta: { title: '用户账户', icon: 'icon-wallet', roles: ['SUPER_ADMIN'] },
         },
         {
           path: '/employee/add',

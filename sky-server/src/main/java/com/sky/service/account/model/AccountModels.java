@@ -16,7 +16,11 @@ public final class AccountModels {
     }
 
     public record TransferCommand(String businessKey, long sourceAccountId, long targetAccountId,
-                                  long amountCent, String transferType) {
+                                  long amountCent, String transferType, Long targetMaxAvailableCent) {
+        public TransferCommand(String businessKey, long sourceAccountId, long targetAccountId,
+                               long amountCent, String transferType) {
+            this(businessKey, sourceAccountId, targetAccountId, amountCent, transferType, null);
+        }
     }
 
     public record TransferResult(long transferId, String transferNo, String businessKey,
