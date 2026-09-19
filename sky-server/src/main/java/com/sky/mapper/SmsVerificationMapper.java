@@ -10,4 +10,8 @@ public interface SmsVerificationMapper {
     int insert(SmsVerification verification);
     SmsVerification findLatest(@Param("phone") String phone, @Param("purpose") String purpose);
     int markUsed(@Param("id") Long id, @Param("usedAt") LocalDateTime usedAt);
+    int insertCooldown(@Param("phone") String phone, @Param("purpose") String purpose,
+                       @Param("nextAllowedAt") LocalDateTime nextAllowedAt);
+    int advanceCooldown(@Param("phone") String phone, @Param("purpose") String purpose,
+                        @Param("now") LocalDateTime now, @Param("nextAllowedAt") LocalDateTime nextAllowedAt);
 }

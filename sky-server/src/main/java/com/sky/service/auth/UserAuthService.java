@@ -43,6 +43,8 @@ public class UserAuthService {
     private final UserSessionMapper sessionMapper;
     private final SmsVerificationMapper smsMapper;
     private final UserSecurityAuditMapper auditMapper;
+    private final UserSecurityAuditService auditService;
+    private final SmsCooldownService cooldownService;
     private final PasswordEncoder passwordEncoder;
     private final AccountService accountService;
     private final SmsGateway smsGateway;
@@ -53,22 +55,25 @@ public class UserAuthService {
     public UserAuthService(UserMapper userMapper, UserSessionMapper sessionMapper,
                            SmsVerificationMapper smsMapper, UserSecurityAuditMapper auditMapper,
                            PasswordEncoder passwordEncoder, AccountService accountService,
-                           SmsGateway smsGateway, JwtProperties jwtProperties) {
+                           SmsGateway smsGateway, JwtProperties jwtProperties,
+                           UserSecurityAuditService auditService, SmsCooldownService cooldownService) {
         this(userMapper, sessionMapper, smsMapper, auditMapper, passwordEncoder, accountService,
-                smsGateway, jwtProperties.getUserSecretKey());
+                smsGateway, jwtProperties.getUserSecretKey(), auditService, cooldownService);
     }
 
     UserAuthService(UserMapper userMapper, UserSessionMapper sessionMapper,
                     SmsVerificationMapper smsMapper, UserSecurityAuditMapper auditMapper,
                     PasswordEncoder passwordEncoder, AccountService accountService, SmsGateway smsGateway) {
         this(userMapper, sessionMapper, smsMapper, auditMapper, passwordEncoder, accountService,
-                smsGateway, DEFAULT_TEST_SECRET);
+                smsGateway, DEFAULT_TEST_SECRET, new UserSecurityAuditService(auditMapper),
+                new SmsCooldownService(smsMapper));
     }
 
     private UserAuthService(UserMapper userMapper, UserSessionMapper sessionMapper,
                             SmsVerificationMapper smsMapper, UserSecurityAuditMapper auditMapper,
                             PasswordEncoder passwordEncoder, AccountService accountService,
-                            SmsGateway smsGateway, String jwtSecret) {
+                            SmsGateway smsGateway, String jwtSecret, UserSecurityAuditService auditService,
+                            SmsCooldownService cooldownService) {
         this.userMapper = userMapper;
         this.sessionMapper = sessionMapper;
         this.smsMapper = smsMapper;
@@ -77,6 +82,8 @@ public class UserAuthService {
         this.accountService = accountService;
         this.smsGateway = smsGateway;
         this.jwtSecret = jwtSecret;
+        this.auditService = auditService;
+        this.cooldownService = cooldownService;
     }
 
     /** Sends a five-minute one-time registration code with a sixty-second cooldown. */
@@ -84,8 +91,7 @@ public class UserAuthService {
     public void sendSms(String phone, String purpose) {
         String normalizedPurpose = normalizePurpose(purpose);
         LocalDateTime now = LocalDateTime.now();
-        SmsVerification latest = smsMapper.findLatest(phone, normalizedPurpose);
-        if (latest != null && latest.getCreateTime() != null && latest.getCreateTime().plusSeconds(60).isAfter(now)) {
+        if (!cooldownService.reserve(phone, normalizedPurpose, now, now.plusSeconds(60))) {
             throw new LoginFailedException("验证码发送过于频繁");
         }
         String rawCode = smsGateway.sendCode(phone, normalizedPurpose);
@@ -111,17 +117,17 @@ public class UserAuthService {
 
     @Transactional
     public UserSessionVO login(UserPasswordLoginDTO dto, AuthClientContext client) {
-        User user = userMapper.getByPhone(dto.getPhone());
+        User user = userMapper.getByPhoneForUpdate(dto.getPhone());
         if (user == null) throw new LoginFailedException("手机号或密码错误");
         LocalDateTime now = LocalDateTime.now();
-        UserSecurityAudit lock = auditMapper.findLatest(user.getId(), "LOGIN_LOCKED");
+        UserSecurityAudit lock = auditService.latest(user.getId(), "LOGIN_LOCKED");
         if (lock != null && lock.getCreateTime() != null && lock.getCreateTime().plusMinutes(15).isAfter(now)) {
             throw new LoginFailedException("登录失败次数过多，请15分钟后重试");
         }
         if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
-            audit(user.getId(), "LOGIN_FAILURE", client, null);
-            if (auditMapper.countLoginFailures(user.getId(), now.minusMinutes(15)) >= 5) {
-                audit(user.getId(), "LOGIN_LOCKED", client, "{\"minutes\":15}");
+            auditService.record(user.getId(), "LOGIN_FAILURE", client, null);
+            if (auditService.countFailures(user.getId(), now.minusMinutes(15)) >= 5) {
+                auditService.record(user.getId(), "LOGIN_LOCKED", client, "{\"minutes\":15}");
             }
             throw new LoginFailedException("手机号或密码错误");
         }
@@ -132,7 +138,9 @@ public class UserAuthService {
     /** Rotates an active refresh token. The old token becomes unusable immediately. */
     @Transactional
     public UserSessionVO refresh(String rawRefreshToken) {
-        UserSession current = requireActiveSession(rawRefreshToken);
+        UserSession current = requireSessionOwner(rawRefreshToken);
+        userMapper.getByIdForUpdate(current.getUserId());
+        current = requireActiveSessionForUpdate(rawRefreshToken);
         if (sessionMapper.revoke(current.getId(), LocalDateTime.now()) != 1) {
             throw new LoginFailedException("刷新令牌已失效");
         }
@@ -143,10 +151,13 @@ public class UserAuthService {
 
     @Transactional
     public void logout(String rawRefreshToken, boolean allDevices) {
-        UserSession current = requireActiveSession(rawRefreshToken);
+        UserSession current = requireSessionOwner(rawRefreshToken);
+        userMapper.getByIdForUpdate(current.getUserId());
         LocalDateTime now = LocalDateTime.now();
         if (allDevices) sessionMapper.revokeAll(current.getUserId(), now);
-        else sessionMapper.revoke(current.getId(), now);
+        else if (sessionMapper.revokeUserDevice(current.getUserId(), current.getDeviceId(), now) == 0) {
+            throw new LoginFailedException("刷新令牌已失效");
+        }
     }
 
     private void consumeCode(String phone, String rawCode, String purpose) {
@@ -173,12 +184,19 @@ public class UserAuthService {
         return new UserSessionVO(safeUser, access, rawRefresh);
     }
 
-    private UserSession requireActiveSession(String rawToken) {
+    private UserSession requireActiveSessionForUpdate(String rawToken) {
         if (rawToken == null || rawToken.isBlank()) throw new LoginFailedException("刷新令牌不能为空");
-        UserSession session = sessionMapper.findByRefreshTokenHash(sha256(rawToken));
+        UserSession session = sessionMapper.findByRefreshTokenHashForUpdate(sha256(rawToken));
         LocalDateTime now = LocalDateTime.now();
         if (session == null || session.getRevokedAt() != null || session.getExpiresAt() == null
                 || !session.getExpiresAt().isAfter(now)) throw new LoginFailedException("刷新令牌已失效");
+        return session;
+    }
+
+    private UserSession requireSessionOwner(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) throw new LoginFailedException("刷新令牌不能为空");
+        UserSession session = sessionMapper.findByRefreshTokenHash(sha256(rawToken));
+        if (session == null) throw new LoginFailedException("刷新令牌已失效");
         return session;
     }
 
