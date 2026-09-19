@@ -5,7 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import PageScaffold from '@/components/PageScaffold.vue'
 import OrderActions from '@/components/OrderActions.vue'
 import ProductImage from '@/components/ProductImage.vue'
-import { cancelOrder, getOrderDetail, payOrder, remindOrder, repeatOrder, type OrderRecord } from '@/api/order'
+import { cancelOrder, getOrderDetail, remindOrder, repeatOrder, type OrderRecord } from '@/api/order'
+import { beginOrderPayment } from '@/api/payment'
 import { ApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
@@ -68,12 +69,11 @@ async function run(action: 'cancel' | 'remind' | 'repeat' | 'pay') {
       await router.push('/')
       uiStore.openCart()
     } else {
-      const payment = await payOrder(order.value.number)
-      if (!payment.mockPay) throw new Error('未返回模拟支付结果')
+      const payment = await beginOrderPayment(order.value.id)
       sessionStorage.setItem('sky-last-order', JSON.stringify({
         id: order.value.id, orderNumber: order.value.number, orderAmount: order.value.amount, orderTime: order.value.orderTime,
       }))
-      await router.push({ name: 'payment-result', query: { success: '1', id: String(order.value.id) } })
+      await router.push({ name: 'payment-result', query: { paymentNo: payment.paymentNo, id: String(order.value.id) } })
     }
   } catch (cause) {
     error.value = cause instanceof ApiError ? cause.message : '操作失败，请稍后重试'

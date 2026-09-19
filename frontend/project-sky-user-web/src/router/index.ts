@@ -51,6 +51,12 @@ const router = createRouter({
           component: () => import('@/views/ProfileView.vue'),
           meta: { title: '我的' },
         },
+        {
+          path: 'wallet',
+          name: 'wallet',
+          component: () => import('@/views/WalletView.vue'),
+          meta: { title: '模拟钱包' },
+        },
       ],
     },
     {

@@ -1,42 +1,45 @@
 import { defineStore } from 'pinia'
-import { getUserProfile, loginWithPassword, registerUser, type RegisterPayload, type UserProfile } from '@/api/auth'
-import { ApiError } from '@/api/http'
+import {
+  loginWithPassword,
+  logoutAllDevices,
+  logoutCurrentDevice,
+  refreshSession,
+  registerUser,
+  type AuthSession,
+  type RegisterPayload,
+  type UserProfile,
+} from '@/api/auth'
+import { setAccessToken } from '@/api/http'
 
-const TOKEN_KEY = 'sky-user-token'
-const PROFILE_KEY = 'sky-user-profile'
-
-function readStoredProfile(): UserProfile | null {
-  const value = localStorage.getItem(PROFILE_KEY)
-  if (!value) return null
-  try {
-    return JSON.parse(value) as UserProfile
-  } catch {
-    localStorage.removeItem(PROFILE_KEY)
-    return null
+function clearSessionArtifacts() {
+  sessionStorage.removeItem('sky-last-order')
+  for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+    const key = sessionStorage.key(index)
+    if (key?.startsWith('sky-payment-recovery:')) sessionStorage.removeItem(key)
   }
 }
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
-    token: localStorage.getItem(TOKEN_KEY),
-    user: readStoredProfile(),
+    token: null as string | null,
+    user: null as UserProfile | null,
     restoring: false,
   }),
   getters: {
-    isAuthenticated: (state) => Boolean(state.token),
+    isAuthenticated: (state) => Boolean(state.token && state.user),
     displayName: (state) => state.user?.name || state.user?.phone || '用户',
   },
   actions: {
-    setSession(result: UserProfile & { token: string }) {
-      this.token = result.token
-      this.user = {
-        id: result.id,
-        name: result.name,
-        phone: result.phone,
-        avatar: result.avatar,
-      }
-      localStorage.setItem(TOKEN_KEY, result.token)
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(this.user))
+    setSession(session: AuthSession) {
+      this.token = session.accessToken
+      this.user = session.user
+      setAccessToken(session.accessToken)
+    },
+    clearSession() {
+      this.token = null
+      this.user = null
+      setAccessToken(null)
+      clearSessionArtifacts()
     },
     async login(phone: string, password: string) {
       this.setSession(await loginWithPassword(phone, password))
@@ -45,26 +48,24 @@ export const useAuthStore = defineStore('auth', {
       this.setSession(await registerUser(payload))
     },
     async restoreSession() {
-      if (!this.token || this.restoring) return
+      if (this.restoring || this.isAuthenticated) return
       this.restoring = true
       try {
-        const profile = await getUserProfile()
-        this.user = profile
-        localStorage.setItem(PROFILE_KEY, JSON.stringify(profile))
-      } catch (error) {
-        // Network failures keep the cached demo session; rejected server responses do not.
-        if (error instanceof ApiError && error.status === 200) {
-          this.logout()
-        }
+        this.setSession(await refreshSession())
+      } catch {
+        // 首次打开页面且没有 Refresh Cookie 时保持游客状态，不主动打断用户。
+        this.clearSession()
       } finally {
         this.restoring = false
       }
     },
-    logout() {
-      this.token = null
-      this.user = null
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem(PROFILE_KEY)
+    async logout(allDevices = false) {
+      try {
+        if (allDevices) await logoutAllDevices()
+        else await logoutCurrentDevice()
+      } finally {
+        this.clearSession()
+      }
     },
   },
 })
