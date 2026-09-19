@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.AccountLedgerEntryMapper">
+    <insert id="insert" parameterType="com.sky.entity.AccountLedgerEntry" useGeneratedKeys="true" keyProperty="id">
+        insert into account_ledger_entry
+            (transfer_id, account_id, direction, amount_cent, balance_after_cent, create_time)
+        values
+            (#{transferId}, #{accountId}, #{direction}, #{amountCent}, #{balanceAfterCent}, #{createTime})
+    </insert>
+
+    <select id="findByTransferId" resultType="com.sky.entity.AccountLedgerEntry">
+        select * from account_ledger_entry where transfer_id = #{transferId} order by id
+    </select>
+
+    <select id="findByAccountId" resultType="com.sky.entity.AccountLedgerEntry">
+        select * from account_ledger_entry where account_id = #{accountId} order by id desc
+    </select>
+</mapper>
