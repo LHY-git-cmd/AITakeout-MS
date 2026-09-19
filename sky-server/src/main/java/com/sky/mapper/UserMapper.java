@@ -31,6 +31,9 @@ public interface UserMapper {
     @Select("select * from user where id = #{id}")
     User getById(Long id);
 
+    @Select("select * from user where id = #{id} for update")
+    User getByIdForUpdate(Long id);
+
     /**
      * 根据手机号查询用户
      *
@@ -39,6 +42,9 @@ public interface UserMapper {
      */
     @Select("select * from user where phone = #{phone} limit 1")
     User getByPhone(String phone);
+
+    @Select("select * from user where phone = #{phone} limit 1 for update")
+    User getByPhoneForUpdate(String phone);
 
     /**
      * 新增用户

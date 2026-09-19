@@ -77,3 +77,30 @@ mvn -pl sky-server -am test
 
 - 生产环境没有在本任务范围内指定具体短信供应商，因此不提供生产 `SmsGateway` Bean；生产部署必须接入真实供应商实现，避免固定开发验证码进入生产。
 - 当前锁定维度为已存在的用户账号；未知手机号统一返回“手机号或密码错误”，不会创建无主体的安全审计记录，避免违反现有 `user_security_audit.user_id NOT NULL` 约束。
+
+## 评审修复补充（2026-09-19）
+
+针对事务回滚和多实例并发评审，追加以下加固；本节覆盖上文中关于锁定与冷却实现的早期描述：
+
+- 新增 `UserSecurityAuditService`，失败、锁定及其统计查询使用 `REQUIRES_NEW` 独立事务。即使外层 `login` 按预期抛出 `LoginFailedException` 并回滚，失败与锁定事件仍会提交。
+- 正式登录通过 `select ... for update` 锁定用户行，将同一账号的密码校验、失败计数和锁定创建串行化。连续失败的边界改为按审计自增 `id` 相对最近成功事件计算，不依赖 `DATETIME` 的秒/微秒精度。
+- 新增前向迁移 `V20260919_02__harden_auth_concurrency.sql` 和 `auth_sms_cooldown` 表。`SmsCooldownService` 在调用外部短信网关之前以独立事务执行“首次插入或到期条件更新”，多实例并发时只有一个请求能取得发送资格。
+- Refresh 与 Logout 先按 Token 找到稳定用户主体，再锁定用户行。Refresh 在锁内轮换；当前设备 Logout 在同一锁内撤销该用户/设备的所有会话。因此即使 Refresh 先完成，随后成功的 Logout 仍会撤销刚轮换的会话；Logout 先完成时 Refresh 会发现旧 Token 已撤销。
+- `/user/user/login/web` 是仅在 `dev` Profile 启用、默认关闭的演示入口。为满足保留旧接口的明确要求，它不接入正式账号锁定状态；生产环境必须保持 `sky.web-login.enabled=false`，正式账号只能使用 `/user/auth/login`。
+
+新增数据库支持测试 `UserAuthPersistenceTest`，在真实 Spring 事务代理、MyBatis Mapper 和 H2 数据库上验证：
+
+1. 五次抛异常的登录请求仍持久化五条失败和一条锁定，第六次正确密码也被拒绝。
+2. 五个同秒并发失败被用户行锁串行化，精确形成五条失败和一条锁定。
+3. 六个并发短信请求只产生一条验证码记录，并且网关只调用一次。
+4. Refresh/Logout 并发后，只要 Logout 成功，该设备不存在任何未撤销会话。
+
+前向迁移另由 `UserPaymentMigrationIT` 验证，确认 `auth_sms_cooldown` 可随完整 Flyway 链创建。
+
+评审修复后的最终验证：
+
+```powershell
+mvn -pl sky-server -am test
+```
+
+结果：97 个测试通过，0 失败，0 错误。另显式运行 `UserPaymentMigrationIT`：1 个迁移测试通过，0 失败，0 错误。

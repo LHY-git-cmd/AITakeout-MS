@@ -8,8 +8,8 @@
     <select id="countLoginFailures" resultType="int">
         select count(*) from user_security_audit
         where user_id = #{userId} and event_type = 'LOGIN_FAILURE' and create_time &gt;= #{since}
-          and create_time &gt; coalesce((select max(success.create_time) from user_security_audit success
-            where success.user_id = #{userId} and success.event_type = 'LOGIN_SUCCESS'), #{since})
+          and id &gt; coalesce((select max(success.id) from user_security_audit success
+            where success.user_id = #{userId} and success.event_type = 'LOGIN_SUCCESS'), 0)
     </select>
     <select id="findLatest" resultType="com.sky.entity.UserSecurityAudit">
         select * from user_security_audit where user_id = #{userId} and event_type = #{eventType}

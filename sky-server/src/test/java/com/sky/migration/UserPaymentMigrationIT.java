@@ -31,7 +31,8 @@ class UserPaymentMigrationIT {
 
         assertThat(tables()).contains(
                 "user_session", "sms_verification", "mock_account", "fund_transfer",
-                "account_ledger_entry", "payment_transaction", "order_timeline_event", "user_security_audit");
+                "account_ledger_entry", "payment_transaction", "order_timeline_event", "user_security_audit",
+                "auth_sms_cooldown");
         assertThat(columnTypes("mock_account"))
                 .containsEntry("available_cent", Types.BIGINT)
                 .containsEntry("frozen_cent", Types.BIGINT);

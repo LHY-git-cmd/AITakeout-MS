@@ -13,4 +13,12 @@
         update sms_verification set used_at = #{usedAt}
         where id = #{id} and used_at is null
     </update>
+    <insert id="insertCooldown">
+        insert ignore into auth_sms_cooldown (phone, purpose, next_allowed_at)
+        values (#{phone}, #{purpose}, #{nextAllowedAt})
+    </insert>
+    <update id="advanceCooldown">
+        update auth_sms_cooldown set next_allowed_at = #{nextAllowedAt}
+        where phone = #{phone} and purpose = #{purpose} and next_allowed_at &lt;= #{now}
+    </update>
 </mapper>

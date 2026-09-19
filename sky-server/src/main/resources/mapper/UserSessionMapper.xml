@@ -8,11 +8,18 @@
     <select id="findByRefreshTokenHash" resultType="com.sky.entity.UserSession">
         select * from user_session where refresh_token_hash = #{hash} limit 1
     </select>
+    <select id="findByRefreshTokenHashForUpdate" resultType="com.sky.entity.UserSession">
+        select * from user_session where refresh_token_hash = #{hash} limit 1 for update
+    </select>
     <update id="revoke">
         update user_session set revoked_at = #{revokedAt} where id = #{id} and revoked_at is null
     </update>
     <update id="revokeAll">
         update user_session set revoked_at = #{revokedAt} where user_id = #{userId} and revoked_at is null
+    </update>
+    <update id="revokeUserDevice">
+        update user_session set revoked_at = #{revokedAt}
+        where user_id = #{userId} and device_id = #{deviceId} and revoked_at is null
     </update>
     <select id="findActiveByUserId" resultType="com.sky.entity.UserSession">
         select * from user_session where user_id = #{userId} and revoked_at is null and expires_at &gt; now()

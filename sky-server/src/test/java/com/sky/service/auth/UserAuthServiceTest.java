@@ -63,7 +63,7 @@ class UserAuthServiceTest {
     @Test
     void accessTokenAndRefreshTokenAreIssuedAsSeparateValues() {
         User user = User.builder().id(1L).phone("13800138000").password("encoded").build();
-        when(userMapper.getByPhone(user.getPhone())).thenReturn(user);
+        when(userMapper.getByPhoneForUpdate(user.getPhone())).thenReturn(user);
         when(passwordEncoder.matches("StrongPass8", "encoded")).thenReturn(true);
         UserAuthService service = new UserAuthService(userMapper, sessionMapper, smsMapper, auditMapper,
                 passwordEncoder, accountService, smsGateway);
@@ -104,7 +104,7 @@ class UserAuthServiceTest {
     @Test
     void fifthPasswordFailurePersistsFifteenMinuteLock() {
         User user = User.builder().id(1L).phone("13800138000").password("encoded").build();
-        when(userMapper.getByPhone(user.getPhone())).thenReturn(user);
+        when(userMapper.getByPhoneForUpdate(user.getPhone())).thenReturn(user);
         when(passwordEncoder.matches("wrong-pass", "encoded")).thenReturn(false);
         when(auditMapper.countLoginFailures(eq(1L), any())).thenReturn(5);
 
@@ -119,7 +119,7 @@ class UserAuthServiceTest {
     @Test
     void activeLockRejectsLoginWithoutCheckingPassword() {
         User user = User.builder().id(1L).phone("13800138000").password("encoded").build();
-        when(userMapper.getByPhone(user.getPhone())).thenReturn(user);
+        when(userMapper.getByPhoneForUpdate(user.getPhone())).thenReturn(user);
         when(auditMapper.findLatest(1L, "LOGIN_LOCKED")).thenReturn(UserSecurityAudit.builder()
                 .createTime(java.time.LocalDateTime.now().minusMinutes(14)).build());
         assertThatThrownBy(() -> service().login(new UserPasswordLoginDTO(user.getPhone(), "StrongPass8"), client()))
@@ -131,7 +131,9 @@ class UserAuthServiceTest {
     void refreshRotatesTokenAndStoresOnlyDigests() {
         UserSession old = UserSession.builder().id(4L).userId(1L).deviceId("device-1")
                 .expiresAt(java.time.LocalDateTime.now().plusDays(1)).build();
+        when(sessionMapper.findByRefreshTokenHashForUpdate(sha256("old-raw"))).thenReturn(old);
         when(sessionMapper.findByRefreshTokenHash(sha256("old-raw"))).thenReturn(old);
+        when(userMapper.getByIdForUpdate(1L)).thenReturn(User.builder().id(1L).build());
         when(sessionMapper.revoke(eq(4L), any())).thenReturn(1);
         when(userMapper.getById(1L)).thenReturn(User.builder().id(1L).phone("13800138000").build());
 
@@ -148,9 +150,24 @@ class UserAuthServiceTest {
         UserSession current = UserSession.builder().id(4L).userId(1L)
                 .expiresAt(java.time.LocalDateTime.now().plusDays(1)).build();
         when(sessionMapper.findByRefreshTokenHash(sha256("raw"))).thenReturn(current);
+        when(userMapper.getByIdForUpdate(1L)).thenReturn(User.builder().id(1L).build());
+        when(sessionMapper.revokeAll(eq(1L), any())).thenReturn(1);
         service().logout("raw", true);
         verify(sessionMapper).revokeAll(eq(1L), any());
         verify(sessionMapper, never()).revoke(eq(4L), any());
+    }
+
+    @Test
+    void currentDeviceLogoutRevokesEveryRotatedSessionForThatDevice() {
+        UserSession current = UserSession.builder().id(4L).userId(1L).deviceId("device-1")
+                .expiresAt(java.time.LocalDateTime.now().plusDays(1)).build();
+        when(sessionMapper.findByRefreshTokenHash(sha256("raw"))).thenReturn(current);
+        when(userMapper.getByIdForUpdate(1L)).thenReturn(User.builder().id(1L).build());
+        when(sessionMapper.revokeUserDevice(eq(1L), eq("device-1"), any())).thenReturn(2);
+
+        service().logout("raw", false);
+
+        verify(sessionMapper).revokeUserDevice(eq(1L), eq("device-1"), any());
     }
 
     private UserAuthService service() {
