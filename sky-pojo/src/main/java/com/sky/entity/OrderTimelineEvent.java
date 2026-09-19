@@ -17,6 +17,8 @@ public class OrderTimelineEvent {
     private String eventNo;
     private Long orderId;
     private String eventType;
+    private String businessNo;
+    private String displayMessage;
     private String operatorType;
     private Long operatorId;
     private String payloadJson;
