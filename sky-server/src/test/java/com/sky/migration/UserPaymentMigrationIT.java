@@ -81,6 +81,8 @@ class UserPaymentMigrationIT {
         try (Connection connection = DriverManager.getConnection(JDBC_URL, "sa", "");
              var statement = connection.createStatement()) {
             statement.execute("CREATE TABLE migration_test_anchor (id BIGINT PRIMARY KEY)");
+            statement.execute("CREATE TABLE orders (id BIGINT AUTO_INCREMENT PRIMARY KEY, amount DECIMAL(10,2) NOT NULL, pack_amount INT)");
+            statement.execute("CREATE TABLE address_book (id BIGINT AUTO_INCREMENT PRIMARY KEY)");
         } catch (SQLException exception) {
             throw new IllegalStateException(exception);
         }

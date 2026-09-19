@@ -2,12 +2,16 @@ package com.sky.controller.user;
 
 import com.sky.dto.OrdersPaymentDTO;
 import com.sky.dto.OrdersSubmitDTO;
+import com.sky.dto.OrderPreviewDTO;
+import com.sky.context.BaseContext;
 import com.sky.result.PageResult;
 import com.sky.result.Result;
 import com.sky.service.OrderService;
+import com.sky.service.checkout.CheckoutQuoteService;
 import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderSubmitVO;
 import com.sky.vo.OrderVO;
+import com.sky.vo.OrderPreviewVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +32,15 @@ public class OrderController {
     @Autowired
     private OrderService orderService;
 
+    @Autowired
+    private CheckoutQuoteService checkoutQuoteService;
+
+    @PostMapping("/preview")
+    @Operation(summary = "订单权威试算")
+    public Result<OrderPreviewVO> preview(@Valid @RequestBody OrderPreviewDTO request) {
+        return Result.success(checkoutQuoteService.preview(BaseContext.getCurrentId(), request));
+    }
+
     /**
      * 用户下单
      *
@@ -36,9 +49,10 @@ public class OrderController {
      */
     @PostMapping("/submit")
     @Operation(summary = "用户下单")
-    public Result<OrderSubmitVO> submit(@Valid @RequestBody OrdersSubmitDTO ordersSubmitDTO) {
+    public Result<OrderSubmitVO> submit(@Valid @RequestBody OrdersSubmitDTO ordersSubmitDTO,
+                                        @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         log.info("用户下单：{}", ordersSubmitDTO);
-        OrderSubmitVO orderSubmitVO = orderService.submitOrder(ordersSubmitDTO);
+        OrderSubmitVO orderSubmitVO = orderService.submitOrder(ordersSubmitDTO, idempotencyKey);
         return Result.success(orderSubmitVO);
     }
 

@@ -63,7 +63,7 @@ test('手机用户注册、领取模拟金、下单支付且重复请求只扣�
 
   await page.getByRole('link', { name: '我的' }).click()
   await page.getByRole('link', { name: /模拟钱包/ }).click()
-  await expect(page.locator('.wallet-balance strong')).toContainText('981.00')
+  await expect(page.locator('.wallet-balance strong')).toContainText('982.00')
   await expect(page.getByText('订单支付支出')).toHaveCount(1)
-  await expect(page.locator('.ledger-list__amount b').filter({ hasText: '-¥19.00' })).toHaveCount(1)
+  await expect(page.locator('.ledger-list__amount b').filter({ hasText: '-¥18.00' })).toHaveCount(1)
 })

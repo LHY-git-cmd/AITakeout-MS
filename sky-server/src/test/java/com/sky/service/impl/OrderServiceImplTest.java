@@ -61,37 +61,16 @@ class OrderServiceImplTest {
     }
 
     @Test
-    void shouldCalculateOrderAmountFromServerCart() {
-        AddressBook address = AddressBook.builder().id(3L).userId(7L).consignee("张三")
-                .phone("13800138000").build();
-        List<ShoppingCart> carts = List.of(
-                ShoppingCart.builder().dishId(1L).number(2).amount(new BigDecimal("10.50")).build(),
-                ShoppingCart.builder().setmealId(2L).number(1).amount(new BigDecimal("20.00")).build());
-        when(addressBookMapper.getById(3L)).thenReturn(address);
-        when(deliveryRangeService.fullAddress(address)).thenReturn("北京市海淀区测试地址");
-        when(shoppingCartMapper.list(any(ShoppingCart.class))).thenReturn(carts);
-        doAnswer(invocation -> {
-            ((Orders) invocation.getArgument(0)).setId(88L);
-            return null;
-        }).when(orderMapper).insert(any(Orders.class));
-
+    void shouldRequireAuthoritativePreviewBeforeSubmit() {
         OrdersSubmitDTO request = new OrdersSubmitDTO();
         request.setAddressBookId(3L);
-        request.setAmount(new BigDecimal("0.01"));
-        request.setPackAmount(0);
         request.setDeliveryStatus(1);
         request.setTablewareStatus(1);
         request.setTablewareNumber(3);
-        OrderSubmitVO result = orderService.submitOrder(request);
 
-        ArgumentCaptor<Orders> captor = ArgumentCaptor.forClass(Orders.class);
-        verify(orderMapper).insert(captor.capture());
-        verify(deliveryRangeService).check(address);
-        assertEquals(new BigDecimal("50.00"), captor.getValue().getAmount());
-        assertEquals(3, captor.getValue().getPackAmount());
-        assertEquals("北京市海淀区测试地址", captor.getValue().getAddress());
-        assertEquals(new BigDecimal("50.00"), result.getOrderAmount());
-        verify(shoppingCartMapper).deleteByUserId(7L);
+        assertThrows(com.sky.exception.OrderBusinessException.class,
+                () -> orderService.submitOrder(request, "SUBMIT-1"));
+        verify(orderMapper, never()).insert(any());
     }
 
     @Test

@@ -7,10 +7,7 @@ import com.sky.entity.AddressBook;
 import com.sky.entity.OrderDetail;
 import com.sky.entity.Orders;
 import com.sky.entity.ShoppingCart;
-import com.sky.exception.AddressBookBusinessException;
 import com.sky.exception.OrderBusinessException;
-import com.sky.exception.ShoppingCartBusinessException;
-import com.sky.mapper.AddressBookMapper;
 import com.sky.mapper.OrderDetailMapper;
 import com.sky.mapper.OrderMapper;
 import com.sky.mapper.ShoppingCartMapper;
@@ -20,6 +17,10 @@ import com.sky.service.order.DeliveryRangeService;
 import com.sky.service.order.OrderNotificationService;
 import com.sky.service.order.OrderPaymentService;
 import com.sky.service.order.OrderQueryService;
+import com.sky.service.checkout.CheckoutQuoteService;
+import com.sky.service.checkout.CheckoutModels.QuoteSnapshot;
+import com.sky.service.checkout.OrderSubmissionService;
+import com.sky.service.checkout.PreviewTokenService;
 import com.sky.vo.OrderPaymentVO;
 import com.sky.vo.OrderStatisticsVO;
 import com.sky.vo.OrderSubmitVO;
@@ -35,6 +36,10 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
+import java.util.UUID;
 
 /**
  * 订单服务实现类
@@ -49,70 +54,104 @@ public class OrderServiceImpl implements OrderService {
     private final OrderMapper orderMapper;
     private final OrderDetailMapper orderDetailMapper;
     private final ShoppingCartMapper shoppingCartMapper;
-    private final AddressBookMapper addressBookMapper;
     private final OrderQueryService orderQueryService;
     private final OrderPaymentService orderPaymentService;
     private final DeliveryRangeService deliveryRangeService;
     private final OrderNotificationService notificationService;
+    private final CheckoutQuoteService checkoutQuoteService;
+    private final PreviewTokenService previewTokenService;
+    private final OrderSubmissionService orderSubmissionService;
 
-    /**
-     * 用户下单
-     * 校验地址、配送范围、购物车，计算费用后创建订单及明细，清空购物车
-     *
-     * @param request 下单请求
-     * @return 下单结果
-     */
     @Override
     @Transactional
-    public OrderSubmitVO submitOrder(OrdersSubmitDTO request) {
+    public OrderSubmitVO submitOrder(OrdersSubmitDTO request, String idempotencyKey) {
+        if (request == null || request.getPreviewToken() == null || request.getPreviewToken().isBlank()) {
+            throw new OrderBusinessException("请先完成订单试算");
+        }
         Long userId = BaseContext.getCurrentId();
-        if (request == null || request.getAddressBookId() == null) {
-            throw new AddressBookBusinessException(MessageConstant.ADDRESS_BOOK_IS_NULL);
-        }
-        AddressBook addressBook = addressBookMapper.getById(request.getAddressBookId());
-        if (addressBook == null || !userId.equals(addressBook.getUserId())) {
-            throw new AddressBookBusinessException(MessageConstant.ADDRESS_BOOK_IS_NULL);
-        }
-        deliveryRangeService.check(addressBook);
-
-        ShoppingCart query = new ShoppingCart();
-        query.setUserId(userId);
-        List<ShoppingCart> carts = shoppingCartMapper.list(query);
-        if (CollectionUtils.isEmpty(carts)) {
-            throw new ShoppingCartBusinessException(MessageConstant.SHOPPING_CART_IS_NULL);
+        String requestHash = submissionHash(request);
+        OrderSubmissionService.Reservation reservation = orderSubmissionService.reserve(userId, idempotencyKey, requestHash);
+        if (!reservation.created()) {
+            Long existingOrderId = reservation.submission().getOrderId();
+            if (existingOrderId == null) throw new OrderBusinessException("订单正在提交，请稍后重试");
+            Orders existing = orderMapper.getById(existingOrderId);
+            if (existing == null) throw new OrderBusinessException("幂等订单不存在");
+            return toSubmitView(existing);
         }
 
-        int packAmount = carts.stream().mapToInt(cart -> cart.getNumber() == null ? 0 : cart.getNumber()).sum();
-        BigDecimal goodsAmount = carts.stream()
-                .map(cart -> cart.getAmount().multiply(BigDecimal.valueOf(cart.getNumber())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        OrderPreviewDTO previewRequest = new OrderPreviewDTO();
+        previewRequest.setAddressBookId(request.getAddressBookId());
+        previewRequest.setDeliveryMode(request.getDeliveryMode());
+        previewRequest.setDeliverySlotStart(request.getDeliverySlotStart());
+        QuoteSnapshot quote = checkoutQuoteService.quote(userId, previewRequest, false);
+        String mode = "SCHEDULED".equalsIgnoreCase(request.getDeliveryMode()) ? "SCHEDULED" : "IMMEDIATE";
+        previewTokenService.verify(request.getPreviewToken(), userId, quote.cartDigest(), request.getAddressBookId(),
+                mode, quote.slotStart());
 
+        AddressBook address = quote.address();
+        var amount = BigDecimal.valueOf(quote.preview().getAmountCent(), 2);
         Orders order = new Orders();
-        BeanUtils.copyProperties(request, order);
-        order.setPackAmount(packAmount);
-        order.setAmount(goodsAmount.add(BigDecimal.valueOf(packAmount)).add(BigDecimal.valueOf(6)));
-        order.setPhone(addressBook.getPhone());
-        order.setAddress(deliveryRangeService.fullAddress(addressBook));
-        order.setConsignee(addressBook.getConsignee());
-        order.setNumber(String.valueOf(System.currentTimeMillis()));
+        // 权威提交仅复制非金额表单字段，避免旧客户端金额字段污染订单快照。
+        order.setAddressBookId(request.getAddressBookId());
+        order.setPayMethod(request.getPayMethod());
+        order.setRemark(request.getRemark());
+        order.setTablewareNumber(request.getTablewareNumber() == null ? 0 : request.getTablewareNumber());
+        order.setTablewareStatus(request.getTablewareStatus());
+        order.setNumber(UUID.randomUUID().toString().replace("-", ""));
         order.setUserId(userId);
         order.setStatus(Orders.PENDING_PAYMENT);
         order.setPayStatus(Orders.UN_PAID);
         order.setOrderTime(LocalDateTime.now());
+        order.setExpiresAt(order.getOrderTime().plusMinutes(15));
+        order.setPhone(address.getPhone());
+        order.setAddress(deliveryRangeService.fullAddress(address));
+        order.setConsignee(address.getConsignee());
+        order.setAmount(amount);
+        order.setGoodsAmountCent(quote.preview().getGoodsAmountCent());
+        order.setPackAmountCent(quote.preview().getPackAmountCent());
+        order.setDeliveryFeeCent(quote.preview().getDeliveryFeeCent());
+        order.setDiscountAmountCent(quote.preview().getDiscountAmountCent());
+        order.setAmountCent(quote.preview().getAmountCent());
+        order.setPackAmount(Math.toIntExact(quote.preview().getPackAmountCent() / 100));
+        order.setDeliveryDistanceMeters(quote.preview().getDistanceMeters());
+        order.setMapProvider(address.getMapProvider());
+        order.setDeliveryMode(mode);
+        order.setDeliverySlotStart(quote.slotStart());
+        order.setDeliverySlotEnd(quote.slotEnd());
+        order.setEstimatedDeliveryTime(quote.preview().getEstimatedDeliveryTime());
+        order.setDeliveryStatus("IMMEDIATE".equals(mode) ? 1 : 0);
+        order.setAddressLatitude(address.getLatitude());
+        order.setAddressLongitude(address.getLongitude());
+        order.setPricingRuleVersion(quote.preview().getPricingRuleVersion());
+        order.setVersion(0);
         orderMapper.insert(order);
 
         List<OrderDetail> details = new ArrayList<>();
-        for (ShoppingCart cart : carts) {
+        for (ShoppingCart cart : quote.cartSnapshot()) {
             OrderDetail detail = new OrderDetail();
-            BeanUtils.copyProperties(cart, detail);
+            BeanUtils.copyProperties(cart, detail, "id");
             detail.setOrderId(order.getId());
             details.add(detail);
         }
         orderDetailMapper.insertBatch(details);
+        orderSubmissionService.attachOrder(reservation.submission().getId(), order.getId());
         shoppingCartMapper.deleteByUserId(userId);
+        return toSubmitView(order);
+    }
 
+    private OrderSubmitVO toSubmitView(Orders order) {
         return OrderSubmitVO.builder().id(order.getId()).orderNumber(order.getNumber())
                 .orderAmount(order.getAmount()).orderTime(order.getOrderTime()).build();
+    }
+
+    private String submissionHash(OrdersSubmitDTO request) {
+        try {
+            String value = request.getPreviewToken() + "|" + request.getAddressBookId() + "|" + request.getDeliveryMode() + "|"
+                    + request.getDeliverySlotStart() + "|" + request.getRemark() + "|" + request.getTablewareStatus()
+                    + "|" + request.getTablewareNumber();
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (Exception exception) { throw new IllegalStateException(exception); }
     }
 
     /**
