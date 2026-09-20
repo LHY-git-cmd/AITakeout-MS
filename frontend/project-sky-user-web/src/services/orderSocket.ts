@@ -6,16 +6,17 @@ export interface OrderStatusEvent {
   timestamp?: number
 }
 
-const TOKEN_KEY = 'sky-user-token'
-
 class OrderSocket {
   private socket: WebSocket | null = null
   private heartbeatTimer: number | undefined
   private reconnectTimer: number | undefined
   private reconnectAttempt = 0
   private shouldReconnect = false
+  private accessToken: string | null = null
 
-  connect(token = localStorage.getItem(TOKEN_KEY)) {
+  connect(token?: string | null) {
+    if (token !== undefined) this.accessToken = token
+    token = this.accessToken
     if (!token || typeof WebSocket === 'undefined') return
     this.shouldReconnect = true
     this.clearReconnect()
@@ -33,12 +34,15 @@ class OrderSocket {
       this.reconnectAttempt = 0
       this.startHeartbeat()
       this.send({ event: 'orders.subscribe' })
+      window.dispatchEvent(new CustomEvent('sky:socket-connected'))
     }
     socket.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data) as OrderStatusEvent
         if (event.event === 'order.status.changed') {
           window.dispatchEvent(new CustomEvent<OrderStatusEvent>('sky:order-status', { detail: event }))
+        } else if ((event as OrderStatusEvent & { notificationId?: number }).notificationId) {
+          window.dispatchEvent(new CustomEvent('sky:notification', { detail: event }))
         }
       } catch {
         // Ignore malformed server messages; the HTTP refresh remains authoritative.
@@ -52,7 +56,7 @@ class OrderSocket {
       if (this.socket === socket) this.socket = null
       if (event.code === 1008) {
         this.shouldReconnect = false
-        localStorage.removeItem(TOKEN_KEY)
+        this.accessToken = null
         window.dispatchEvent(new CustomEvent('sky:unauthorized'))
         return
       }
@@ -66,6 +70,7 @@ class OrderSocket {
     this.stopHeartbeat()
     this.socket?.close()
     this.socket = null
+    this.accessToken = null
   }
 
   private send(payload: Record<string, unknown>) {

@@ -1,6 +1,7 @@
 package com.sky.service;
 
 import com.sky.entity.AddressBook;
+import com.sky.vo.AddressValidationVO;
 import java.util.List;
 
 /**
@@ -22,7 +23,7 @@ public interface AddressBookService {
      *
      * @param addressBook 地址簿实体
      */
-    void save(AddressBook addressBook);
+    AddressBook save(AddressBook addressBook);
 
     /**
      * 根据id查询地址簿
@@ -37,7 +38,7 @@ public interface AddressBookService {
      *
      * @param addressBook 地址簿实体
      */
-    void update(AddressBook addressBook);
+    AddressBook update(AddressBook addressBook);
 
     /**
      * 设置默认地址
@@ -52,5 +53,8 @@ public interface AddressBookService {
      * @param id 地址簿ID
      */
     void deleteById(Long id);
+
+    /** 重新解析地址并校验配送范围。 */
+    AddressValidationVO validate(Long id);
 
 }

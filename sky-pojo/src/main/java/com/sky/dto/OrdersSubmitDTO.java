@@ -13,6 +13,12 @@ import java.time.LocalDateTime;
 
 @Data
 public class OrdersSubmitDTO implements Serializable {
+    // 服务端试算签名凭证
+    private String previewToken;
+    // IMMEDIATE 或 SCHEDULED
+    private String deliveryMode = "IMMEDIATE";
+    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
+    private LocalDateTime deliverySlotStart;
     //地址簿id
     @NotNull(message = "收货地址不能为空")
     private Long addressBookId;

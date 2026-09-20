@@ -19,15 +19,6 @@ export interface SubmittedOrder {
   orderTime: string
 }
 
-export interface PaymentResult {
-  mockPay: boolean
-  timeStamp: string
-  nonceStr: string
-  signType: string
-  packageStr: string
-  paySign: string
-}
-
 export interface OrderDetailItem {
   id: number
   name: string
@@ -72,14 +63,6 @@ export interface OrderPage {
 
 export function submitOrder(payload: SubmitOrderPayload) {
   return request<SubmittedOrder>({ url: '/user/order/submit', method: 'POST', data: payload })
-}
-
-export function payOrder(orderNumber: string) {
-  return request<PaymentResult>({
-    url: '/user/order/payment',
-    method: 'PUT',
-    data: { orderNumber, payMethod: 1 },
-  })
 }
 
 export function getOrderPage(page: number, pageSize: number, status?: number) {

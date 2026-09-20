@@ -3,6 +3,7 @@ package com.sky.task;
 import com.sky.entity.Orders;
 import com.sky.mapper.OrderMapper;
 import com.sky.properties.OrderTaskProperties;
+import com.sky.service.payment.PaymentApplicationService;
 import com.sky.websocket.WebSocketServer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class OrderTask {
     private final OrderMapper orderMapper;
     private final WebSocketServer webSocketServer;
     private final OrderTaskProperties orderTaskProperties;
+    private final PaymentApplicationService paymentApplicationService;
 
     /**
      * 处理超时未支付订单
@@ -39,6 +41,9 @@ public class OrderTask {
         // 获取当前时间，计算超时阈值（当前时间减去15分钟）
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime timeoutThreshold = now.minusMinutes(15);
+
+        // 先关闭支付单；没有支付尝试的旧订单再由兼容逻辑取消。
+        paymentApplicationService.expireBatch(orderTaskProperties.getBatchSize());
 
         // 查询所有状态为"待付款"且下单时间早于超时阈值的订单
         List<Orders> transitionedOrders = orderMapper.getBatchForUpdate(

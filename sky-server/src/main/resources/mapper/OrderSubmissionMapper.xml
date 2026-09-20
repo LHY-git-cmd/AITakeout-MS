@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.OrderSubmissionMapper">
+    <insert id="insertIgnore" parameterType="OrderSubmission" useGeneratedKeys="true" keyProperty="id">
+        insert ignore into order_submission(user_id, idempotency_key, request_hash, create_time)
+        values (#{userId}, #{idempotencyKey}, #{requestHash}, #{createTime})
+    </insert>
+    <select id="find" resultType="OrderSubmission">
+        select * from order_submission where user_id = #{userId} and idempotency_key = #{key}
+    </select>
+    <update id="attachOrder">
+        update order_submission set order_id = #{orderId} where id = #{id} and order_id is null
+    </update>
+</mapper>

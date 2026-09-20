@@ -7,8 +7,10 @@ import com.sky.entity.Orders;
 import com.sky.entity.User;
 import com.sky.exception.OrderBusinessException;
 import com.sky.mapper.OrderMapper;
+import com.sky.mapper.PaymentTransactionMapper;
 import com.sky.mapper.UserMapper;
 import com.sky.properties.WeChatProperties;
+import com.sky.service.payment.PaymentApplicationService;
 import com.sky.utils.WeChatPayUtil;
 import com.sky.vo.OrderPaymentVO;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,16 @@ public class OrderPaymentService {
     private final WeChatPayUtil weChatPayUtil;
     private final WeChatProperties weChatProperties;
     private final OrderNotificationService notificationService;
+    private final PaymentTransactionMapper paymentTransactionMapper;
+    private final PaymentApplicationService paymentApplicationService;
+    private final com.sky.service.payment.RefundApplicationService refundApplicationService;
+
+    /** 支付处理中禁止取消，避免取消与渠道成功结果竞争。 */
+    public void assertCancelable(Long orderId) {
+        if (paymentTransactionMapper.findLatestByOrderAndStatus(orderId, "PROCESSING") != null) {
+            throw new OrderBusinessException("支付处理中，暂不能取消订单");
+        }
+    }
 
     /**
      * 订单支付
@@ -49,16 +61,12 @@ public class OrderPaymentService {
         Orders order = getPayableOrder(request, userId);
         // 开发环境模拟支付
         if (Boolean.TRUE.equals(weChatProperties.getMockPay())) {
-            Orders update = Orders.builder().id(order.getId()).status(Orders.TO_BE_CONFIRMED)
-                    .payStatus(Orders.PAID).payMethod(request.getPayMethod())
-                    .checkoutTime(LocalDateTime.now()).build();
-            updatePaymentOrThrow(update);
-            notificationService.sendNewOrderAfterCommit(order);
-            notificationService.sendStatusAfterCommit(order, Orders.TO_BE_CONFIRMED, "支付成功，等待商家接单");
-            log.info("模拟支付成功：userId={}, orderNumber={}", userId, order.getNumber());
+            var payment = paymentApplicationService.create(userId, order.getId(), "LEGACY:" + order.getNumber());
+            log.info("模拟支付已受理：userId={}, orderNumber={}, paymentNo={}",
+                    userId, order.getNumber(), payment.paymentNo());
             return OrderPaymentVO.builder().mockPay(true)
                     .timeStamp(String.valueOf(System.currentTimeMillis() / 1000)).nonceStr("mock")
-                    .signType("MOCK").packageStr("mock_pay_success").paySign("mock").build();
+                    .signType("MOCK").packageStr(payment.paymentNo()).paySign("processing").build();
         }
         // 真实微信支付
         User user = userMapper.getById(userId);
@@ -109,7 +117,7 @@ public class OrderPaymentService {
      * @param update 待更新的订单实体
      */
     public void prepareRefund(Orders order, Orders update) {
-        if (Orders.PAID.equals(order.getPayStatus())) update.setPayStatus(Orders.REFUND);
+        // 退款成功前不提前修改支付状态，避免用户误看到“已退款”。
     }
 
     /**
@@ -119,9 +127,8 @@ public class OrderPaymentService {
      * @throws Exception 退款异常
      */
     public void refundIfNecessary(Orders order) throws Exception {
-        if (Orders.PAID.equals(order.getPayStatus()) && !Boolean.TRUE.equals(weChatProperties.getMockPay())) {
-            weChatPayUtil.refund(order.getNumber(), order.getNumber(),
-                    new BigDecimal("0.01"), new BigDecimal("0.01"));
+        if (Orders.PAID.equals(order.getPayStatus())) {
+            refundApplicationService.createFullRefund(order.getId(), "LEGACY_CANCEL:" + order.getId());
         }
     }
 
@@ -147,15 +154,4 @@ public class OrderPaymentService {
         return order;
     }
 
-    /**
-     * 更新支付状态，失败则抛出异常
-     *
-     * @param update 待更新的订单实体
-     */
-    private void updatePaymentOrThrow(Orders update) {
-        if (orderMapper.updatePaymentByExpectedStatus(
-                update, Orders.PENDING_PAYMENT, Orders.UN_PAID) != 1) {
-            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
-        }
-    }
 }

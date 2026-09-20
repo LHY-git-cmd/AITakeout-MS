@@ -66,6 +66,23 @@ public class Orders implements Serializable {
     //实收金额
     private BigDecimal amount;
 
+    // 权威结算金额，统一以分存储
+    private Long goodsAmountCent;
+    private Long packAmountCent;
+    private Long deliveryFeeCent;
+    private Long discountAmountCent;
+    private Long amountCent;
+    private Integer deliveryDistanceMeters;
+    private String mapProvider;
+    private String deliveryMode;
+    private LocalDateTime deliverySlotStart;
+    private LocalDateTime deliverySlotEnd;
+    private BigDecimal addressLatitude;
+    private BigDecimal addressLongitude;
+    private LocalDateTime expiresAt;
+    private String pricingRuleVersion;
+    private Integer version;
+
     //备注
     private String remark;
 

@@ -163,6 +163,14 @@ public class WebSocketServer {
                 .forEach(connection -> send(connection.session(), payload));
     }
 
+    /** 向指定用户推送精简通知事件；离线用户通过通知列表补拉。 */
+    public void sendNotificationToUser(Long userId, String payload) {
+        if (userId == null || payload == null) return;
+        connections.values().stream()
+                .filter(connection -> USER.equals(connection.role()) && userId.equals(connection.principalId()))
+                .forEach(connection -> send(connection.session(), payload));
+    }
+
     /**
      * 广播消息给所有客户端（仅发送给管理端）
      * 避免向用户泄露其他订单信息

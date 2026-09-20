@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.UserSessionMapper">
+    <insert id="insert" parameterType="com.sky.entity.UserSession" useGeneratedKeys="true" keyProperty="id">
+        insert into user_session (user_id, refresh_token_hash, device_id, expires_at, revoked_at, create_time)
+        values (#{userId}, #{refreshTokenHash}, #{deviceId}, #{expiresAt}, #{revokedAt}, #{createTime})
+    </insert>
+    <select id="findByRefreshTokenHash" resultType="com.sky.entity.UserSession">
+        select * from user_session where refresh_token_hash = #{hash} limit 1
+    </select>
+    <select id="findByRefreshTokenHashForUpdate" resultType="com.sky.entity.UserSession">
+        select * from user_session where refresh_token_hash = #{hash} limit 1 for update
+    </select>
+    <update id="revoke">
+        update user_session set revoked_at = #{revokedAt} where id = #{id} and revoked_at is null
+    </update>
+    <update id="revokeAll">
+        update user_session set revoked_at = #{revokedAt} where user_id = #{userId} and revoked_at is null
+    </update>
+    <update id="revokeUserDevice">
+        update user_session set revoked_at = #{revokedAt}
+        where user_id = #{userId} and revoked_at is null
+          and (device_id = #{deviceId} or (device_id is null and #{deviceId} is null))
+    </update>
+    <select id="findActiveByUserId" resultType="com.sky.entity.UserSession">
+        select * from user_session where user_id = #{userId} and revoked_at is null and expires_at &gt; now()
+    </select>
+</mapper>

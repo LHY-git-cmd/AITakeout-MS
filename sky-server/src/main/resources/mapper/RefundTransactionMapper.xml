@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.RefundTransactionMapper">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into refund_transaction(refund_no,business_key,order_id,payment_id,user_id,source_account_id,
+          target_account_id,amount_cent,status,attempt_count,freeze_transfer_id,release_transfer_id,gateway_refund_no,
+          failure_code,failure_message,succeeded_at,next_retry_at,version,create_time,update_time)
+        values(#{refundNo},#{businessKey},#{orderId},#{paymentId},#{userId},#{sourceAccountId},#{targetAccountId},
+          #{amountCent},#{status},#{attemptCount},#{freezeTransferId},#{releaseTransferId},#{gatewayRefundNo},
+          #{failureCode},#{failureMessage},#{succeededAt},#{nextRetryAt},#{version},#{createTime},#{updateTime})
+    </insert>
+    <select id="findByRefundNo" resultType="com.sky.entity.RefundTransaction">select * from refund_transaction where refund_no=#{refundNo}</select>
+    <select id="findByRefundNoForUpdate" resultType="com.sky.entity.RefundTransaction">select * from refund_transaction where refund_no=#{refundNo} for update</select>
+    <select id="findByBusinessKey" resultType="com.sky.entity.RefundTransaction">select * from refund_transaction where business_key=#{businessKey}</select>
+    <select id="findLatestByOrder" resultType="com.sky.entity.RefundTransaction">select * from refund_transaction where order_id=#{orderId} order by id desc limit 1</select>
+    <select id="findRetryable" resultType="com.sky.entity.RefundTransaction">
+        select * from refund_transaction where status='FAILED' and next_retry_at&lt;=#{now} order by next_retry_at,id limit #{limit}
+    </select>
+    <update id="updateState">
+        update refund_transaction set status=#{status}, attempt_count=#{attemptCount},
+          freeze_transfer_id=coalesce(#{freezeTransferId},freeze_transfer_id),
+          release_transfer_id=coalesce(#{releaseTransferId},release_transfer_id),
+          gateway_refund_no=coalesce(#{gatewayRefundNo},gateway_refund_no), failure_code=#{failureCode},
+          failure_message=#{failureMessage}, succeeded_at=#{succeededAt}, next_retry_at=#{nextRetryAt},
+          version=version+1, update_time=#{updateTime} where id=#{id} and status=#{expectedStatus}
+    </update>
+</mapper>

@@ -4,8 +4,12 @@ import { ArrowLeft, Clock3, MapPin, PackageOpen, ReceiptText, RefreshCw, UserRou
 import { useRoute, useRouter } from 'vue-router'
 import PageScaffold from '@/components/PageScaffold.vue'
 import OrderActions from '@/components/OrderActions.vue'
+import OrderTimeline from '@/components/OrderTimeline.vue'
+import AfterSaleDialog from '@/components/AfterSaleDialog.vue'
 import ProductImage from '@/components/ProductImage.vue'
-import { cancelOrder, getOrderDetail, payOrder, remindOrder, repeatOrder, type OrderRecord } from '@/api/order'
+import { getOrderDetail, remindOrder, repeatOrder, type OrderRecord } from '@/api/order'
+import { applyAfterSale, getLatestAfterSale, getOrderTimeline, type AfterSaleRecord, type TimelineItem } from '@/api/aftersale'
+import { beginOrderPayment } from '@/api/payment'
 import { ApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
@@ -23,6 +27,10 @@ const loading = ref(true)
 const busyAction = ref('')
 const error = ref('')
 const notice = ref('')
+const timeline = ref<TimelineItem[]>([])
+const afterSale = ref<AfterSaleRecord | null>(null)
+const dialogOpen = ref(false)
+const afterSaleError = ref('')
 
 function handleOrderStatus(event: Event) {
   const detail = (event as CustomEvent<OrderStatusEvent>).detail
@@ -40,7 +48,10 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    order.value = await getOrderDetail(orderId.value)
+    const [detail, events] = await Promise.all([getOrderDetail(orderId.value), getOrderTimeline(orderId.value)])
+    order.value = detail
+    timeline.value = events
+    try { afterSale.value = await getLatestAfterSale(orderId.value) } catch { afterSale.value = null }
   } catch (cause) {
     error.value = cause instanceof ApiError ? cause.message : '订单详情加载失败'
   } finally {
@@ -48,18 +59,13 @@ async function load() {
   }
 }
 
-async function run(action: 'cancel' | 'remind' | 'repeat' | 'pay') {
+async function run(action: 'remind' | 'repeat' | 'pay') {
   if (!order.value) return
-  if (action === 'cancel' && !window.confirm('确定取消该订单吗？')) return
   busyAction.value = action
   error.value = ''
   notice.value = ''
   try {
-    if (action === 'cancel') {
-      await cancelOrder(order.value.id)
-      notice.value = '订单已取消'
-      await load()
-    } else if (action === 'remind') {
+    if (action === 'remind') {
       await remindOrder(order.value.id)
       notice.value = '已提醒商家处理订单'
     } else if (action === 'repeat') {
@@ -68,12 +74,11 @@ async function run(action: 'cancel' | 'remind' | 'repeat' | 'pay') {
       await router.push('/')
       uiStore.openCart()
     } else {
-      const payment = await payOrder(order.value.number)
-      if (!payment.mockPay) throw new Error('未返回模拟支付结果')
+      const payment = await beginOrderPayment(order.value.id)
       sessionStorage.setItem('sky-last-order', JSON.stringify({
         id: order.value.id, orderNumber: order.value.number, orderAmount: order.value.amount, orderTime: order.value.orderTime,
       }))
-      await router.push({ name: 'payment-result', query: { success: '1', id: String(order.value.id) } })
+      await router.push({ name: 'payment-result', query: { paymentNo: payment.paymentNo, id: String(order.value.id) } })
     }
   } catch (cause) {
     error.value = cause instanceof ApiError ? cause.message : '操作失败，请稍后重试'
@@ -81,6 +86,28 @@ async function run(action: 'cancel' | 'remind' | 'repeat' | 'pay') {
     busyAction.value = ''
   }
 }
+
+async function submitAfterSale(reason: string) {
+  if (!order.value) return
+  busyAction.value = 'after-sale'
+  afterSaleError.value = ''
+  try {
+    afterSale.value = await applyAfterSale(order.value.id, reason)
+    notice.value = afterSale.value.status === 'COMPLETED' ? '申请已处理完成' : '申请已提交'
+    dialogOpen.value = false
+    await load()
+  } catch (cause) {
+    afterSaleError.value = cause instanceof ApiError ? cause.message : '申请提交失败，请稍后重试'
+  } finally { busyAction.value = '' }
+}
+
+const afterSaleStatus = computed(() => {
+  const labels: Record<string, string> = {
+    PENDING: '待商家审核', APPROVED: '审核已通过', REJECTED: '申请未通过',
+    REFUND_PROCESSING: '退款处理中', COMPLETED: '退款成功', REFUND_FAILED: '退款失败',
+  }
+  return afterSale.value ? labels[afterSale.value.status] ?? afterSale.value.status : ''
+})
 
 onMounted(() => {
   window.addEventListener('sky:order-status', handleOrderStatus)
@@ -102,8 +129,15 @@ watch(() => authStore.isAuthenticated, (authenticated) => { if (authenticated) v
       <div class="order-detail-main">
         <section class="order-status-band">
           <div><small>当前状态</small><h2>{{ statusInfo(order.status).label }}</h2><p>订单号 {{ order.number }}</p></div>
-          <OrderActions :order="order" :busy="busyAction" @cancel="run('cancel')" @remind="run('remind')" @repeat="run('repeat')" @pay="run('pay')" />
+          <OrderActions :order="order" :busy="busyAction" @after-sale="dialogOpen = true" @remind="run('remind')" @repeat="run('repeat')" @pay="run('pay')" />
         </section>
+
+        <section v-if="afterSale" class="refund-status-card" :class="{ 'is-danger': afterSale.status === 'REFUND_FAILED' }" aria-live="polite">
+          <div><small>退款与售后</small><h2>{{ afterSaleStatus }}</h2><p>{{ afterSale.status === 'REFUND_FAILED' ? '退款暂未到账，系统会自动重试，请勿重复申请。' : afterSale.reviewReason || afterSale.reason }}</p></div>
+          <strong v-if="afterSale.refundAmountCent">¥{{ (afterSale.refundAmountCent / 100).toFixed(2) }}</strong>
+        </section>
+
+        <OrderTimeline :items="timeline" :loading="loading" />
 
         <section class="detail-section">
           <header><ReceiptText :size="19" /><h2>商品明细</h2></header>
@@ -126,5 +160,6 @@ watch(() => authStore.isAuthenticated, (authenticated) => { if (authenticated) v
         <section><h2>其他信息</h2><dl><dt>支付方式</dt><dd>{{ order.payMethod === 1 ? '微信模拟支付' : '其他' }}</dd><dt>餐具数量</dt><dd>{{ order.tablewareStatus === 1 ? '按餐量提供' : `${order.tablewareNumber} 份` }}</dd><dt>订单备注</dt><dd>{{ order.remark || '无' }}</dd><template v-if="order.cancelReason || order.rejectionReason"><dt>取消原因</dt><dd>{{ order.cancelReason || order.rejectionReason }}</dd></template></dl></section>
       </aside>
     </div>
+    <AfterSaleDialog :open="dialogOpen" :order-status="order?.status ?? 1" :submitting="busyAction === 'after-sale'" :error="afterSaleError" @close="dialogOpen = false" @submit="submitAfterSale" />
   </PageScaffold>
 </template>

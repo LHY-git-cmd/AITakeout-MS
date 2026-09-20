@@ -4,10 +4,10 @@ import com.sky.context.BaseContext;
 import com.sky.entity.AddressBook;
 import com.sky.result.Result;
 import com.sky.service.AddressBookService;
+import com.sky.vo.AddressValidationVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -16,9 +16,8 @@ import java.util.List;
  * 地址簿控制器（用户端）
  * 提供用户地址的增删改查、设置默认地址等功能
  */
-@Slf4j
 @RestController
-@RequestMapping("/user/addressBook")
+@RequestMapping({"/user/addressBook", "/user/addresses"})
 @Tag(name = "C端地址簿接口")
 public class AddressBookController {
 
@@ -47,10 +46,8 @@ public class AddressBookController {
      */
     @PostMapping
     @Operation(summary = "新增地址")
-    public Result save(@Valid @RequestBody AddressBook addressBook) {
-        log.info("新添加地址:{}",addressBook);
-        addressBookService.save(addressBook);
-        return Result.success();
+    public Result<AddressBook> save(@Valid @RequestBody AddressBook addressBook) {
+        return Result.success(addressBookService.save(addressBook));
     }
 
     /**
@@ -74,9 +71,8 @@ public class AddressBookController {
      */
     @PutMapping
     @Operation(summary = "根据id修改地址")
-    public Result update(@Valid @RequestBody AddressBook addressBook) {
-        addressBookService.update(addressBook);
-        return Result.success();
+    public Result<AddressBook> update(@Valid @RequestBody AddressBook addressBook) {
+        return Result.success(addressBookService.update(addressBook));
     }
 
     /**
@@ -124,6 +120,12 @@ public class AddressBookController {
         }
 
         return Result.error("没有查询到默认地址");
+    }
+
+    @PostMapping("/{id}/validate")
+    @Operation(summary = "重新校验地址配送范围")
+    public Result<AddressValidationVO> validate(@PathVariable Long id) {
+        return Result.success(addressBookService.validate(id));
     }
 
 }

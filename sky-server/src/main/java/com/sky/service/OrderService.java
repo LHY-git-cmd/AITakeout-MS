@@ -10,13 +10,8 @@ import com.sky.vo.*;
  */
 public interface OrderService {
 
-    /**
-     * 用户下单
-     *
-     * @param ordersSubmitDTO 订单提交信息
-     * @return 订单提交视图对象
-     */
-    OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO);
+    /** 使用用户级幂等键提交权威试算订单。 */
+    OrderSubmitVO submitOrder(OrdersSubmitDTO ordersSubmitDTO, String idempotencyKey);
 
     /**
      * 订单支付

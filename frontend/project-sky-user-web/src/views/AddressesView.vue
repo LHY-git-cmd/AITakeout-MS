@@ -112,6 +112,12 @@ watch(() => authStore.isAuthenticated, (authenticated) => {
             <b v-if="address.isDefault" class="is-default"><Check :size="13" /> 默认</b>
           </div>
           <p>{{ fullAddress(address) }}</p>
+          <p v-if="address.geocodeStatus && address.geocodeStatus !== 'PENDING'" class="address-card__delivery"
+            :class="{ 'is-success': address.deliverable, 'is-danger': address.deliverable === false }">
+            <Check v-if="address.deliverable" :size="15" aria-hidden="true" />
+            <MapPin v-else :size="15" aria-hidden="true" />
+            {{ address.deliverable ? `可配送${address.distanceMeters ? ` · 约 ${(address.distanceMeters / 1000).toFixed(1)} 公里` : ''}` : address.validationMessage || '当前地址暂不可配送' }}
+          </p>
         </div>
         <div class="address-card__actions">
           <button v-if="!address.isDefault" type="button" @click="setDefault(address)">设为默认</button>

@@ -82,8 +82,10 @@ class User extends VuexModule implements IUserState {
       //   ...data
       // }
       this.SET_TOKEN(data.data.token)
+      this.SET_ROLES(data.data.role ? [data.data.role] : [])
       setToken(data.data.token)
       this.SET_USERINFO(data.data)
+      setUserInfo({ ...data.data, roles: data.data.role ? [data.data.role] : [] })
       Cookies.set('user_info', data.data)
       return data
     } else {
