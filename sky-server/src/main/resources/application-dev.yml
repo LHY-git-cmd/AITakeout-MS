@@ -27,8 +27,6 @@ sky:
       - "http://10.*:[*]"
       - "http://172.*:[*]"
       - "http://192.168.*:[*]"
-  web-login:
-    enabled: true
   datasource:
     driver-class-name: ${DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
     host: ${DB_HOST:localhost}

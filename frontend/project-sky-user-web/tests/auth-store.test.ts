@@ -60,4 +60,19 @@ describe('正式账号状态', () => {
     expect(store.isAuthenticated).toBe(true)
     expect(store.user?.phone).toBe('13800138000')
   })
+
+  it('启动恢复失败不会覆盖期间完成的注册会话', async () => {
+    let rejectRefresh: ((error: Error) => void) | undefined
+    authApi.refreshSession.mockReturnValue(new Promise((_, reject) => { rejectRefresh = reject }))
+    authApi.registerUser.mockResolvedValue(session)
+    const store = useAuthStore()
+
+    const restoring = store.restoreSession()
+    await store.register({ name: '测试用户', phone: '13800138000', code: '246810', password: 'StrongPass8' })
+    rejectRefresh?.(new Error('no refresh cookie'))
+    await restoring
+
+    expect(store.isAuthenticated).toBe(true)
+    expect(store.token).toBe(session.accessToken)
+  })
 })

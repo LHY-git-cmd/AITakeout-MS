@@ -1,3 +1,4 @@
+/** 手机浏览器正式账号、模拟余额与支付幂等验收。 */
 import { expect, test } from '@playwright/test'
 
 test('手机用户注册、领取模拟金、下单支付且重复请求只扣款一次', async ({ page }) => {
@@ -14,6 +15,7 @@ test('手机用户注册、领取模拟金、下单支付且重复请求只扣�
   await page.getByLabel('确认密码').fill(password)
   await page.getByRole('button', { name: '注册并登录' }).click()
 
+  await expect(page.getByRole('dialog', { name: '注册正式账号' })).toBeHidden()
   await expect(page.getByText('可用模拟余额')).toBeVisible()
   await expect(page.locator('.wallet-balance strong')).toContainText('500.00')
   await page.getByRole('button', { name: '领取 ¥500.00 模拟金' }).click()
@@ -24,9 +26,9 @@ test('手机用户注册、领取模拟金、下单支付且重复请求只扣�
   await page.getByRole('button', { name: '新增地址' }).first().click()
   await page.getByLabel('收货人').fill('验收用户')
   await page.getByLabel('手机号').fill(phone)
-  await page.getByLabel('省份').fill('北京市')
-  await page.getByLabel('城市').fill('北京市')
-  await page.getByLabel('区县').fill('海淀区')
+  await page.getByLabel('省份').selectOption('110000')
+  await page.getByLabel('城市').selectOption('110100')
+  await page.getByLabel('区县').selectOption('110108')
   await page.getByLabel('详细地址').fill('上地十街 10 号')
   await page.getByRole('button', { name: '保存地址' }).click()
   await expect(page.getByText('北京市北京市海淀区上地十街 10 号')).toBeVisible()

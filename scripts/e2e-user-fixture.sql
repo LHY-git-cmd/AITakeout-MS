@@ -307,6 +307,34 @@ CREATE TABLE user_security_audit (
   KEY idx_user_security_audit_user_time (user_id, create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE setmeal (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  category_id BIGINT NOT NULL,
+  name VARCHAR(32) NOT NULL,
+  price DECIMAL(10,2) DEFAULT NULL,
+  status INT DEFAULT 1,
+  description VARCHAR(255) DEFAULT NULL,
+  image VARCHAR(255) DEFAULT NULL,
+  create_time DATETIME DEFAULT NULL,
+  update_time DATETIME DEFAULT NULL,
+  create_user BIGINT DEFAULT NULL,
+  update_user BIGINT DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY idx_setmeal_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE user_search_history (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  user_id BIGINT NOT NULL,
+  keyword VARCHAR(64) NOT NULL,
+  normalized_keyword VARCHAR(64) NOT NULL,
+  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_search_history_user_keyword (user_id, normalized_keyword),
+  KEY idx_search_history_user_time (user_id, update_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE after_sale_request (
   id BIGINT NOT NULL AUTO_INCREMENT,
   request_no VARCHAR(64) NOT NULL,

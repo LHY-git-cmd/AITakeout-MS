@@ -58,7 +58,7 @@ public class UserAuthController {
     }
 
     @PostMapping("/refresh")
-    public Result<UserSessionVO> refresh(@CookieValue(REFRESH_COOKIE) String refreshToken,
+    public Result<UserSessionVO> refresh(@CookieValue(value = REFRESH_COOKIE, required = false) String refreshToken,
                                          HttpServletResponse response) {
         UserSessionVO session = authService.refresh(refreshToken);
         setRefreshCookie(response, session.refreshToken(), Duration.ofDays(30));
