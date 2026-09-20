@@ -992,8 +992,8 @@
 
 .address-card__actions button {
   display: grid;
-  min-width: 36px;
-  height: 36px;
+  min-width: 44px;
+  height: 44px;
   padding: 0 9px;
   place-items: center;
   border: 1px solid var(--color-line);
@@ -1071,6 +1071,7 @@
 
 .address-dialog input,
 .address-dialog textarea,
+.address-dialog select,
 .checkout-options input,
 .checkout-options textarea {
   width: 100%;
@@ -1086,6 +1087,7 @@
 
 .address-dialog input:focus,
 .address-dialog textarea:focus,
+.address-dialog select:focus,
 .checkout-options input:focus,
 .checkout-options textarea:focus {
   border-color: var(--color-brand);
@@ -1104,6 +1106,57 @@
 .form-grid--region {
   grid-template-columns: repeat(3, 1fr);
 }
+
+.region-select {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.region-select legend {
+  grid-column: 1 / -1;
+  margin-bottom: -5px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.region-select label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.region-select select {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #d7d7d3;
+  border-radius: 5px;
+  color: var(--color-ink);
+  background: var(--color-surface);
+}
+
+.region-select select:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
+.address-card__delivery {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-muted);
+  font-size: 12px !important;
+}
+
+.address-card__delivery.is-success { color: var(--color-success); }
+.address-card__delivery.is-danger { color: var(--color-danger); }
 
 .segment-field {
   display: flex;
@@ -2214,7 +2267,8 @@
   }
 
   .form-grid--contact,
-  .form-grid--region {
+  .form-grid--region,
+  .region-select {
     grid-template-columns: 1fr;
   }
 
