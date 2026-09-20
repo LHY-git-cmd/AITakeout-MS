@@ -93,6 +93,39 @@ public class LedgerTransferService {
         return new FreezeResult(transfer.getId(), transfer.getTransferNo(), account.getId(), command.amountCent(), availableAfter, frozenAfter, false);
     }
 
+    /** 将已冻结资金转入目标账户；退款重试通过业务键保证只释放一次。 */
+    @Transactional
+    public TransferResult transferFrozen(TransferCommand command) {
+        validate(command);
+        List<Long> ids = List.of(command.sourceAccountId(), command.targetAccountId()).stream().distinct().sorted().toList();
+        List<MockAccount> locked = ids.stream().map(accountMapper::findByIdForUpdate).toList();
+        MockAccount source = find(locked, command.sourceAccountId());
+        MockAccount target = find(locked, command.targetAccountId());
+        if (source == null || target == null) throw new IllegalStateException("账户不存在");
+        FundTransfer existing = transferMapper.findByBusinessKeyForUpdate(command.businessKey());
+        if (existing != null) return toResult(existing, true);
+        if (source.getFrozenCent() < command.amountCent()) throw new IllegalStateException("冻结余额不足");
+        LocalDateTime now = LocalDateTime.now();
+        long frozenAfter = Math.subtractExact(source.getFrozenCent(), command.amountCent());
+        long targetAfter = Math.addExact(target.getAvailableCent(), command.amountCent());
+        FundTransfer transfer = FundTransfer.builder().transferNo("TR-" + UUID.randomUUID())
+                .businessKey(command.businessKey()).transferType(command.transferType())
+                .sourceAccountId(source.getId()).targetAccountId(target.getId()).amountCent(command.amountCent())
+                .status("COMPLETED").completedAt(now).createTime(now).updateTime(now).build();
+        transferMapper.insert(transfer);
+        if (accountMapper.updateBalances(source.getId(), source.getAvailableCent(), frozenAfter, source.getVersion(), now) != 1
+                || accountMapper.updateBalances(target.getId(), targetAfter, target.getFrozenCent(), target.getVersion(), now) != 1) {
+            transferMapper.deleteById(transfer.getId());
+            throw new IllegalStateException("账户并发冲突");
+        }
+        ledgerMapper.insert(AccountLedgerEntry.builder().transferId(transfer.getId()).accountId(source.getId())
+                .direction("DEBIT").amountCent(command.amountCent()).balanceAfterCent(frozenAfter).createTime(now).build());
+        ledgerMapper.insert(AccountLedgerEntry.builder().transferId(transfer.getId()).accountId(target.getId())
+                .direction("CREDIT").amountCent(command.amountCent()).balanceAfterCent(targetAfter).createTime(now).build());
+        return new TransferResult(transfer.getId(), transfer.getTransferNo(), transfer.getBusinessKey(), source.getId(),
+                target.getId(), transfer.getAmountCent(), frozenAfter, targetAfter, false);
+    }
+
     private static MockAccount find(List<MockAccount> accounts, long id) {
         return accounts.stream().filter(account -> account != null && account.getId().equals(id)).findFirst().orElse(null);
     }

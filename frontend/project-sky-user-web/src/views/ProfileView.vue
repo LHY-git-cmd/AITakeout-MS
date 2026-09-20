@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { LogIn, LogOut, MapPin, Phone, ShieldOff, UserRound, WalletCards } from '@lucide/vue'
+import { Bell, LogIn, LogOut, MapPin, Phone, RotateCcw, ShieldOff, UserRound, WalletCards } from '@lucide/vue'
 import { RouterLink } from 'vue-router'
 import PageScaffold from '@/components/PageScaffold.vue'
 import { useAccountStore } from '@/stores/account'
@@ -75,6 +75,14 @@ watch(() => authStore.isAuthenticated, (authenticated) => {
     <RouterLink class="profile-menu-link" to="/addresses">
       <MapPin :size="20" aria-hidden="true" />
       <span><strong>收货地址</strong><small>管理配送联系人和地址</small></span>
+    </RouterLink>
+    <RouterLink v-if="authStore.isAuthenticated" class="profile-menu-link" to="/notifications">
+      <Bell :size="20" aria-hidden="true" />
+      <span><strong>通知中心</strong><small>查看订单、退款和售后消息</small></span>
+    </RouterLink>
+    <RouterLink v-if="authStore.isAuthenticated" class="profile-menu-link" to="/after-sales">
+      <RotateCcw :size="20" aria-hidden="true" />
+      <span><strong>退款与售后</strong><small>跟踪审核及退款到账进度</small></span>
     </RouterLink>
   </PageScaffold>
 </template>

@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { BellRing, CreditCard, RefreshCw, RotateCcw, XCircle } from '@lucide/vue'
 import type { OrderRecord } from '@/api/order'
-import { canCancel, canRemind } from '@/utils/order'
+import { canRemind } from '@/utils/order'
 
 defineProps<{ order: OrderRecord; busy?: string }>()
-defineEmits<{ cancel: []; remind: []; repeat: []; pay: [] }>()
+defineEmits<{ afterSale: []; remind: []; repeat: []; pay: [] }>()
 </script>
 
 <template>
   <div class="order-actions">
-    <button v-if="canCancel(order.status)" type="button" :disabled="Boolean(busy)" @click="$emit('cancel')">
-      <XCircle :size="16" />取消订单
+    <button v-if="order.status >= 1 && order.status <= 5" type="button" :disabled="Boolean(busy)" @click="$emit('afterSale')">
+      <XCircle :size="16" />{{ order.status <= 2 ? '取消订单' : order.status === 3 ? '申请取消' : '申请售后' }}
     </button>
     <button v-if="canRemind(order.status)" type="button" :disabled="Boolean(busy)" @click="$emit('remind')">
       <BellRing :size="16" />催单

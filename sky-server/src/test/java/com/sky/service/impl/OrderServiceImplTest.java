@@ -15,6 +15,9 @@ import com.sky.service.order.DeliveryRangeService;
 import com.sky.service.order.OrderNotificationService;
 import com.sky.service.order.OrderPaymentService;
 import com.sky.service.order.OrderQueryService;
+import com.sky.service.order.OrderStateMachine;
+import com.sky.service.order.model.OrderTransition;
+import com.sky.service.aftersale.AfterSaleService;
 import com.sky.vo.OrderSubmitVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +51,8 @@ class OrderServiceImplTest {
     @Mock private OrderPaymentService orderPaymentService;
     @Mock private DeliveryRangeService deliveryRangeService;
     @Mock private OrderNotificationService notificationService;
+    @Mock private OrderStateMachine orderStateMachine;
+    @Mock private AfterSaleService afterSaleService;
     @InjectMocks private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -97,22 +102,18 @@ class OrderServiceImplTest {
 
     @Test
     void shouldPushConfirmedStatusThroughNotificationService() {
-        Orders order = Orders.builder().id(20L).userId(7L).status(Orders.TO_BE_CONFIRMED).build();
-        when(orderQueryService.getExisting(20L)).thenReturn(order);
-        when(orderMapper.updateByExpectedStatus(any(Orders.class), eq(Orders.TO_BE_CONFIRMED))).thenReturn(1);
         OrdersConfirmDTO request = new OrdersConfirmDTO();
         request.setId(20L);
 
         orderService.confirm(request);
 
-        verify(notificationService).sendStatusAfterCommit(order, Orders.CONFIRMED, "商家已接单");
+        verify(orderStateMachine).transition(any(OrderTransition.class));
     }
 
     @Test
     void shouldRejectConcurrentStatusChangeWithoutNotification() {
-        Orders order = Orders.builder().id(20L).status(Orders.TO_BE_CONFIRMED).build();
-        when(orderQueryService.getExisting(20L)).thenReturn(order);
-        when(orderMapper.updateByExpectedStatus(any(Orders.class), eq(Orders.TO_BE_CONFIRMED))).thenReturn(0);
+        org.mockito.Mockito.doThrow(new com.sky.exception.OrderBusinessException("订单状态已变化，请刷新后重试"))
+                .when(orderStateMachine).transition(any(OrderTransition.class));
         OrdersConfirmDTO request = new OrdersConfirmDTO();
         request.setId(20L);
 

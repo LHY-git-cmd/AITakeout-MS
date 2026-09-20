@@ -19,6 +19,10 @@ spring:
 sky:
   payment:
     scheduling-enabled: false
+  refund:
+    scheduling-enabled: false
+  notification:
+    scheduling-enabled: false
   agent:
     base-url: http://localhost:8000
     default-model: test-model
