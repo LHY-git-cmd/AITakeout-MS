@@ -67,6 +67,16 @@ const router = new Router({
           },
         },
         {
+          path: 'after-sale',
+          component: () => import(/* webpackChunkName: "after-sale" */ '@/views/afterSale/index.vue'),
+          meta: { title: '退款与售后', icon: 'icon-order' },
+        },
+        {
+          path: '/after-sale/:id',
+          component: () => import(/* webpackChunkName: "after-sale-detail" */ '@/views/afterSale/detail.vue'),
+          meta: { title: '售后详情', hidden: true },
+        },
+        {
           path: 'setmeal',
           component: () => import(/* webpackChunkName: "shopTable" */ '@/views/setmeal/index.vue'),
           meta: {
@@ -119,6 +129,12 @@ const router = new Router({
           path: 'knowledge',
           component: () => import(/* webpackChunkName: "knowledge" */ '@/views/knowledge/index.vue'),
           meta: { title: '知识库', icon: 'icon-category' },
+        },
+        {
+          path: 'user-account',
+          component: () => import(/* webpackChunkName: "user-account" */ '@/views/userAccount/index.vue'),
+          name: 'UserAccount',
+          meta: { title: '用户账户', icon: 'icon-wallet', roles: ['SUPER_ADMIN'] },
         },
         {
           path: '/employee/add',

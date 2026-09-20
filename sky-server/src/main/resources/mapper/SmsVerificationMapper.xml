@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.SmsVerificationMapper">
+    <insert id="insert" parameterType="com.sky.entity.SmsVerification" useGeneratedKeys="true" keyProperty="id">
+        insert into sms_verification (phone, code_hash, purpose, expires_at, used_at, attempt_count, create_time)
+        values (#{phone}, #{codeHash}, #{purpose}, #{expiresAt}, #{usedAt}, #{attemptCount}, #{createTime})
+    </insert>
+    <select id="findLatest" resultType="com.sky.entity.SmsVerification">
+        select * from sms_verification where phone = #{phone} and purpose = #{purpose}
+        order by create_time desc, id desc limit 1
+    </select>
+    <update id="markUsed">
+        update sms_verification set used_at = #{usedAt}
+        where id = #{id} and used_at is null
+    </update>
+    <insert id="insertCooldown">
+        insert ignore into auth_sms_cooldown (phone, purpose, reservation_id, next_allowed_at)
+        values (#{phone}, #{purpose}, #{reservationId}, #{nextAllowedAt})
+    </insert>
+    <update id="advanceCooldown">
+        update auth_sms_cooldown set reservation_id = #{reservationId}, next_allowed_at = #{nextAllowedAt}
+        where phone = #{phone} and purpose = #{purpose} and next_allowed_at &lt;= #{now}
+    </update>
+    <delete id="releaseCooldown">
+        delete from auth_sms_cooldown
+        where phone = #{phone} and purpose = #{purpose} and reservation_id = #{reservationId}
+    </delete>
+</mapper>

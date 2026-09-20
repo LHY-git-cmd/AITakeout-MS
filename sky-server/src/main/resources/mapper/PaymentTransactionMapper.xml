@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.PaymentTransactionMapper">
+    <insert id="insert" parameterType="com.sky.entity.PaymentTransaction" useGeneratedKeys="true" keyProperty="id">
+        insert into payment_transaction
+            (payment_no, order_id, user_id, channel, idempotency_key, amount_cent, status,
+             gateway_trade_no, callback_event_id, expires_at, succeeded_at, failure_code, version,
+             create_time, update_time)
+        values
+            (#{paymentNo}, #{orderId}, #{userId}, #{channel}, #{idempotencyKey}, #{amountCent}, #{status},
+             #{gatewayTradeNo}, #{callbackEventId}, #{expiresAt}, #{succeededAt}, #{failureCode}, #{version},
+             #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="findByPaymentNo" resultType="com.sky.entity.PaymentTransaction">
+        select * from payment_transaction where payment_no = #{paymentNo} limit 1
+    </select>
+    <select id="findByPaymentNoForUpdate" resultType="com.sky.entity.PaymentTransaction">
+        select * from payment_transaction where payment_no = #{paymentNo} limit 1 for update
+    </select>
+    <select id="findByIdempotencyKey" resultType="com.sky.entity.PaymentTransaction">
+        select * from payment_transaction where idempotency_key = #{idempotencyKey} limit 1
+    </select>
+    <select id="findLatestByOrderAndStatus" resultType="com.sky.entity.PaymentTransaction">
+        select * from payment_transaction where order_id = #{orderId} and status = #{status}
+        order by id desc limit 1
+    </select>
+    <select id="findProcessing" resultType="com.sky.entity.PaymentTransaction">
+        select * from payment_transaction where status = 'PROCESSING' and gateway_trade_no is not null
+        order by id limit #{limit}
+    </select>
+    <select id="findExpiredForUpdate" resultType="com.sky.entity.PaymentTransaction">
+        select * from payment_transaction
+        where status in ('CREATED', 'PROCESSING') and expires_at &lt;= #{now}
+        order by expires_at, id limit #{limit} for update
+    </select>
+
+    <update id="updateState">
+        update payment_transaction
+        set status = #{status},
+            gateway_trade_no = coalesce(#{gatewayTradeNo}, gateway_trade_no),
+            callback_event_id = coalesce(#{callbackEventId}, callback_event_id),
+            failure_code = #{failureCode},
+            succeeded_at = #{succeededAt},
+            version = version + 1,
+            update_time = #{updateTime}
+        where id = #{id} and status = #{expectedStatus}
+    </update>
+</mapper>

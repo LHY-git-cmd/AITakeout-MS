@@ -2,6 +2,8 @@
 import { computed, reactive, watch } from 'vue'
 import { MapPin, X } from '@lucide/vue'
 import type { Address, AddressPayload } from '@/api/address'
+import RegionSelect from '@/components/RegionSelect.vue'
+import type { RegionValue } from '@/data/china-regions'
 
 const props = defineProps<{ address: Address | null; open: boolean; saving?: boolean; error?: string }>()
 const emit = defineEmits<{ close: []; save: [payload: AddressPayload] }>()
@@ -34,10 +36,19 @@ watch(() => [props.open, props.address] as const, () => {
 
 const valid = computed(() => form.consignee.trim().length > 0
   && /^1\d{10}$/.test(form.phone)
-  && form.provinceName?.trim()
-  && form.cityName?.trim()
-  && form.districtName?.trim()
+  && form.provinceCode?.trim()
+  && form.cityCode?.trim()
+  && form.districtCode?.trim()
   && form.detail.trim().length >= 3)
+
+const region = computed<RegionValue>({
+  get: () => ({
+    provinceCode: form.provinceCode || '', provinceName: form.provinceName || '',
+    cityCode: form.cityCode || '', cityName: form.cityName || '',
+    districtCode: form.districtCode || '', districtName: form.districtName || '',
+  }),
+  set: (value) => Object.assign(form, value),
+})
 
 function submit() {
   if (valid.value) emit('save', { ...form })
@@ -62,11 +73,7 @@ function submit() {
             <label :class="{ 'is-selected': form.sex === '1' }"><input v-model="form.sex" type="radio" value="1" />先生</label>
             <label :class="{ 'is-selected': form.sex === '0' }"><input v-model="form.sex" type="radio" value="0" />女士</label>
           </fieldset>
-          <div class="form-grid form-grid--region">
-            <label>省份<input v-model.trim="form.provinceName" placeholder="北京市" /></label>
-            <label>城市<input v-model.trim="form.cityName" placeholder="北京市" /></label>
-            <label>区县<input v-model.trim="form.districtName" placeholder="海淀区" /></label>
-          </div>
+          <RegionSelect v-model="region" :disabled="saving" />
           <label>详细地址<textarea v-model.trim="form.detail" rows="3" maxlength="100" placeholder="街道、门牌号、楼层房间号" /></label>
           <label>地址标签<input v-model.trim="form.label" maxlength="10" placeholder="家、公司或学校" /></label>
           <p v-if="error" class="form-error" role="alert">{{ error }}</p>

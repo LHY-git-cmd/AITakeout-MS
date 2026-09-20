@@ -1,11 +1,7 @@
 /**
  * 验证菜单搜索与 AI 侧栏拖拽宽度的核心计算，防止界面改动后出现越界或错误筛选。
  */
-// @ts-ignore
-import test from 'node:test'
-// @ts-ignore
-import assert from 'node:assert/strict'
-// @ts-ignore
+import { describe, expect, it } from 'vitest'
 import { clampAiPanelWidth, filterMenuProducts } from '../src/utils/menuLayout.ts'
 
 const products = [
@@ -14,14 +10,16 @@ const products = [
   { name: '清炒时蔬', description: '' },
 ]
 
-test('AI 侧栏宽度始终限制在可用范围内', () => {
-  assert.equal(clampAiPanelWidth(120, 240, 520), 240)
-  assert.equal(clampAiPanelWidth(360, 240, 520), 360)
-  assert.equal(clampAiPanelWidth(680, 240, 520), 520)
-})
+describe('菜单布局工具', () => {
+  it('AI 侧栏宽度始终限制在可用范围内', () => {
+    expect(clampAiPanelWidth(120, 240, 520)).toBe(240)
+    expect(clampAiPanelWidth(360, 240, 520)).toBe(360)
+    expect(clampAiPanelWidth(680, 240, 520)).toBe(520)
+  })
 
-test('菜单搜索同时匹配名称和描述并忽略首尾空格', () => {
-  assert.deepEqual(filterMenuProducts(products, '  烤鱼  '), [products[0]])
-  assert.deepEqual(filterMenuProducts(products, '浓郁'), [products[1]])
-  assert.deepEqual(filterMenuProducts(products, ''), products)
+  it('菜单搜索同时匹配名称和描述并忽略首尾空格', () => {
+    expect(filterMenuProducts(products, '  烤鱼  ')).toEqual([products[0]])
+    expect(filterMenuProducts(products, '浓郁')).toEqual([products[1]])
+    expect(filterMenuProducts(products, '')).toEqual(products)
+  })
 })

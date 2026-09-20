@@ -15,5 +15,7 @@ public enum AdminPermission {
     SHOP_READ,
     SHOP_STATUS_WRITE,
     WORKSPACE_READ,
-    REPORT_READ
+    REPORT_READ,
+    ACCOUNT_READ,
+    ACCOUNT_ADJUST
 }

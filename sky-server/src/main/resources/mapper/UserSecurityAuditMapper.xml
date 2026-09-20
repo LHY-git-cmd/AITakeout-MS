@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.UserSecurityAuditMapper">
+    <insert id="insert" parameterType="com.sky.entity.UserSecurityAudit" useGeneratedKeys="true" keyProperty="id">
+        insert into user_security_audit (user_id, event_type, detail_json, ip_address, user_agent, create_time)
+        values (#{userId}, #{eventType}, #{detailJson}, #{ipAddress}, #{userAgent}, #{createTime})
+    </insert>
+    <select id="countLoginFailures" resultType="int">
+        select count(*) from user_security_audit
+        where user_id = #{userId} and event_type = 'LOGIN_FAILURE' and create_time &gt;= #{since}
+          and id &gt; coalesce((select max(success.id) from user_security_audit success
+            where success.user_id = #{userId} and success.event_type = 'LOGIN_SUCCESS'), 0)
+    </select>
+    <select id="findLatest" resultType="com.sky.entity.UserSecurityAudit">
+        select * from user_security_audit where user_id = #{userId} and event_type = #{eventType}
+        order by create_time desc, id desc limit 1
+    </select>
+</mapper>

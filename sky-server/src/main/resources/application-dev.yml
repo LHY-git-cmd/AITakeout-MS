@@ -27,8 +27,6 @@ sky:
       - "http://10.*:[*]"
       - "http://172.*:[*]"
       - "http://192.168.*:[*]"
-  web-login:
-    enabled: true
   datasource:
     driver-class-name: ${DB_DRIVER_CLASS_NAME:com.mysql.cj.jdbc.Driver}
     host: ${DB_HOST:localhost}
@@ -51,3 +49,14 @@ sky:
     secret: ${WECHAT_APP_SECRET:}
     # 开发环境没有微信支付商户号时启用模拟支付
     mock-pay: true
+  delivery:
+    map-provider: ${DELIVERY_MAP_PROVIDER:mock}
+    shop-address: ${SHOP_ADDRESS:北京市海淀区上地十街10号}
+    baidu-ak: ${BAIDU_MAP_AK:}
+    near-distance-meters: 3000
+    max-distance-meters: 5000
+    near-fee-cent: 500
+    far-fee-cent: 800
+    preview-ttl-seconds: 300
+    pricing-rule-version: delivery-v1
+    preview-secret: ${CHECKOUT_PREVIEW_SECRET:development-checkout-preview-secret-change-me}

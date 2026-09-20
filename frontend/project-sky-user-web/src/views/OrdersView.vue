@@ -4,8 +4,11 @@ import { ChevronRight, ClipboardList, PackageOpen, RefreshCw } from '@lucide/vue
 import { useRouter } from 'vue-router'
 import PageScaffold from '@/components/PageScaffold.vue'
 import OrderActions from '@/components/OrderActions.vue'
+import AfterSaleDialog from '@/components/AfterSaleDialog.vue'
 import ProductImage from '@/components/ProductImage.vue'
-import { cancelOrder, getOrderPage, payOrder, remindOrder, repeatOrder, type OrderRecord } from '@/api/order'
+import { getOrderPage, remindOrder, repeatOrder, type OrderRecord } from '@/api/order'
+import { applyAfterSale } from '@/api/aftersale'
+import { beginOrderPayment } from '@/api/payment'
 import { ApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
@@ -28,6 +31,8 @@ const busyId = ref<number | null>(null)
 const busyAction = ref('')
 const error = ref('')
 const notice = ref('')
+const selectedOrder = ref<OrderRecord | null>(null)
+const afterSaleError = ref('')
 
 function handleOrderStatus(event: Event) {
   const detail = (event as CustomEvent<OrderStatusEvent>).detail
@@ -76,18 +81,13 @@ async function loadMore() {
   await load(false)
 }
 
-async function run(order: OrderRecord, action: 'cancel' | 'remind' | 'repeat' | 'pay') {
-  if (action === 'cancel' && !window.confirm('确定取消该订单吗？')) return
+async function run(order: OrderRecord, action: 'remind' | 'repeat' | 'pay') {
   busyId.value = order.id
   busyAction.value = action
   error.value = ''
   notice.value = ''
   try {
-    if (action === 'cancel') {
-      await cancelOrder(order.id)
-      notice.value = '订单已取消'
-      await load(true)
-    } else if (action === 'remind') {
+    if (action === 'remind') {
       await remindOrder(order.id)
       notice.value = '已提醒商家处理订单'
     } else if (action === 'repeat') {
@@ -96,15 +96,32 @@ async function run(order: OrderRecord, action: 'cancel' | 'remind' | 'repeat' | 
       await router.push('/')
       uiStore.openCart()
     } else {
-      const payment = await payOrder(order.number)
-      if (!payment.mockPay) throw new Error('未返回模拟支付结果')
+      const payment = await beginOrderPayment(order.id)
       sessionStorage.setItem('sky-last-order', JSON.stringify({
         id: order.id, orderNumber: order.number, orderAmount: order.amount, orderTime: order.orderTime,
       }))
-      await router.push({ name: 'payment-result', query: { success: '1', id: String(order.id) } })
+      await router.push({ name: 'payment-result', query: { paymentNo: payment.paymentNo, id: String(order.id) } })
     }
   } catch (cause) {
     error.value = cause instanceof ApiError ? cause.message : '操作失败，请稍后重试'
+  } finally {
+    busyId.value = null
+    busyAction.value = ''
+  }
+}
+
+async function submitAfterSale(reason: string) {
+  if (!selectedOrder.value) return
+  busyId.value = selectedOrder.value.id
+  busyAction.value = 'after-sale'
+  afterSaleError.value = ''
+  try {
+    const result = await applyAfterSale(selectedOrder.value.id, reason)
+    notice.value = result.status === 'COMPLETED' ? '申请已处理完成' : '申请已提交，可在订单详情查看进度'
+    selectedOrder.value = null
+    await load(true)
+  } catch (cause) {
+    afterSaleError.value = cause instanceof ApiError ? cause.message : '申请提交失败，请稍后重试'
   } finally {
     busyId.value = null
     busyAction.value = ''
@@ -174,7 +191,7 @@ watch(() => authStore.isAuthenticated, (authenticated) => {
           <OrderActions
             :order="order"
             :busy="busyId === order.id ? busyAction : ''"
-            @cancel="run(order, 'cancel')"
+            @after-sale="selectedOrder = order"
             @remind="run(order, 'remind')"
             @repeat="run(order, 'repeat')"
             @pay="run(order, 'pay')"
@@ -185,5 +202,13 @@ watch(() => authStore.isAuthenticated, (authenticated) => {
         {{ loadingMore ? '加载中...' : `加载更多（${orders.length}/${total}）` }}
       </button>
     </div>
+    <AfterSaleDialog
+      :open="Boolean(selectedOrder)"
+      :order-status="selectedOrder?.status ?? 1"
+      :submitting="busyAction === 'after-sale'"
+      :error="afterSaleError"
+      @close="selectedOrder = null"
+      @submit="submitAfterSale"
+    />
   </PageScaffold>
 </template>

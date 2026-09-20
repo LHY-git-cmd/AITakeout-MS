@@ -6,10 +6,15 @@
         insert into orders
         (number, status, user_id, address_book_id, order_time, checkout_time, pay_method, pay_status, amount, remark,
          phone, address, consignee, estimated_delivery_time, delivery_status, pack_amount, tableware_number,
-         tableware_status)
+         tableware_status, goods_amount_cent, pack_amount_cent, delivery_fee_cent, discount_amount_cent, amount_cent,
+         delivery_distance_meters, map_provider, delivery_mode, delivery_slot_start, delivery_slot_end,
+         address_latitude, address_longitude, expires_at, pricing_rule_version, version)
         values (#{number}, #{status}, #{userId}, #{addressBookId}, #{orderTime}, #{checkoutTime}, #{payMethod},
                 #{payStatus}, #{amount}, #{remark}, #{phone}, #{address}, #{consignee},
-                #{estimatedDeliveryTime}, #{deliveryStatus}, #{packAmount}, #{tablewareNumber}, #{tablewareStatus})
+                #{estimatedDeliveryTime}, #{deliveryStatus}, #{packAmount}, #{tablewareNumber}, #{tablewareStatus},
+                #{goodsAmountCent}, #{packAmountCent}, #{deliveryFeeCent}, #{discountAmountCent}, #{amountCent},
+                #{deliveryDistanceMeters}, #{mapProvider}, #{deliveryMode}, #{deliverySlotStart}, #{deliverySlotEnd},
+                #{addressLatitude}, #{addressLongitude}, #{expiresAt}, #{pricingRuleVersion}, #{version})
     </insert>
 
     <select id="pageQuery" parameterType="com.sky.dto.OrdersPageQueryDTO" resultType="Orders">

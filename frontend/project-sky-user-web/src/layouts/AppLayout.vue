@@ -1,23 +1,28 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { CircleUserRound, History, House, ShoppingBag, UtensilsCrossed, X } from '@lucide/vue'
+import { Bell, CircleUserRound, History, House, ShoppingBag, UtensilsCrossed, X } from '@lucide/vue'
 import LoginDialog from '@/components/LoginDialog.vue'
 import CartPanel from '@/components/CartPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 import { useUiStore } from '@/stores/ui'
 import { orderSocket } from '@/services/orderSocket'
+import { useAccountStore } from '@/stores/account'
+import { useNotificationStore } from '@/stores/notification'
 
 const route = useRoute()
 const uiStore = useUiStore()
 const authStore = useAuthStore()
+const accountStore = useAccountStore()
 const cartStore = useCartStore()
+const notificationStore = useNotificationStore()
 
 const navigation = [
   { label: '点餐', to: '/', icon: House, match: ['menu', 'checkout', 'payment-result'] },
   { label: '订单', to: '/orders', icon: History, match: ['orders', 'order-detail'] },
-  { label: '我的', to: '/profile', icon: CircleUserRound, match: ['profile', 'addresses'] },
+  { label: '通知', to: '/notifications', icon: Bell, match: ['notifications', 'after-sales'] },
+  { label: '我的', to: '/profile', icon: CircleUserRound, match: ['profile', 'addresses', 'wallet'] },
 ]
 
 const pageTitle = computed(() => String(route.meta.title ?? '在线点餐'))
@@ -25,27 +30,44 @@ const showFloatingCart = computed(() => String(route.name) === 'menu')
 const isActive = (names: string[]) => names.includes(String(route.name))
 
 function handleUnauthorized() {
-  authStore.logout()
+  authStore.clearSession()
   uiStore.openLogin()
+}
+
+function handleRefreshedSession(event: Event) {
+  authStore.setSession((event as CustomEvent<Parameters<typeof authStore.setSession>[0]>).detail)
+}
+
+function handleNotification() {
+  void notificationStore.catchUp()
 }
 
 onMounted(() => {
   window.addEventListener('sky:unauthorized', handleUnauthorized)
+  window.addEventListener('sky:session-refreshed', handleRefreshedSession)
+  window.addEventListener('sky:notification', handleNotification)
+  window.addEventListener('sky:socket-connected', handleNotification)
   void authStore.restoreSession()
   if (authStore.token) orderSocket.connect(authStore.token)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('sky:unauthorized', handleUnauthorized)
+  window.removeEventListener('sky:session-refreshed', handleRefreshedSession)
+  window.removeEventListener('sky:notification', handleNotification)
+  window.removeEventListener('sky:socket-connected', handleNotification)
   orderSocket.disconnect()
 })
 
 watch(() => authStore.token, (token, previousToken) => {
   if (token) {
     void cartStore.initialize(true)
+    void notificationStore.refresh()
     orderSocket.connect(token)
   } else {
     orderSocket.disconnect()
+    accountStore.reset()
+    notificationStore.reset()
     if (previousToken || !cartStore.items.length) cartStore.switchToGuest()
   }
 }, { immediate: true })
@@ -67,6 +89,7 @@ watch(() => authStore.token, (token, previousToken) => {
               :class="['desktop-nav__link', { 'is-active': isActive(item.match) }]"
             >
               {{ item.label }}
+              <span v-if="item.to === '/notifications' && notificationStore.unreadCount" class="nav-badge" :aria-label="`${notificationStore.unreadCount} 条未读通知`">{{ Math.min(notificationStore.unreadCount, 99) }}</span>
             </RouterLink>
             <button
               v-if="index === 0"
@@ -128,6 +151,7 @@ watch(() => authStore.token, (token, previousToken) => {
       >
         <component :is="item.icon" :size="22" aria-hidden="true" />
         <span>{{ item.label }}</span>
+        <span v-if="item.to === '/notifications' && notificationStore.unreadCount" class="nav-badge" :aria-label="`${notificationStore.unreadCount} 条未读通知`">{{ Math.min(notificationStore.unreadCount, 99) }}</span>
       </RouterLink>
     </nav>
   </div>

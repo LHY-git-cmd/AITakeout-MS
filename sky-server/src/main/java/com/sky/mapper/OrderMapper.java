@@ -34,6 +34,9 @@ public interface OrderMapper {
     @Select("select * from orders where id = #{id}")
     Orders getById(Long id);
 
+    @Select("select * from orders where id = #{id} for update")
+    Orders getByIdForUpdate(Long id);
+
     /**
      * 根据订单号查询订单
      * @param orderNumber

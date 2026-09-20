@@ -35,7 +35,8 @@ public class AdminAuthorizationService {
             AdminPermission.SHOP_READ,
             AdminPermission.SHOP_STATUS_WRITE,
             AdminPermission.WORKSPACE_READ,
-            AdminPermission.REPORT_READ
+            AdminPermission.REPORT_READ,
+            AdminPermission.ACCOUNT_READ
     );
 
     private final EmployeeMapper employeeMapper;

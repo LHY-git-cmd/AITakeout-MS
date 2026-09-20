@@ -14,6 +14,10 @@ export interface Address {
   detail: string
   label: string | null
   isDefault: 0 | 1
+  geocodeStatus?: 'PENDING' | 'VALID' | 'OUT_OF_RANGE' | 'INVALID' | 'TEMPORARY_FAILURE'
+  distanceMeters?: number | null
+  deliverable?: boolean | null
+  validationMessage?: string | null
 }
 
 export type AddressPayload = Omit<Address, 'id' | 'isDefault'> & { id?: number }

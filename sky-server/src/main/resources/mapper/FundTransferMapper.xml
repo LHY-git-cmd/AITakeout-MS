@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.FundTransferMapper">
+    <insert id="insert" parameterType="com.sky.entity.FundTransfer" useGeneratedKeys="true" keyProperty="id">
+        insert into fund_transfer
+            (transfer_no, business_key, transfer_type, source_account_id, target_account_id, amount_cent,
+             status, operator_id, reason, adjusted_account_id, balance_before_cent, balance_after_cent,
+             completed_at, create_time, update_time)
+        values
+            (#{transferNo}, #{businessKey}, #{transferType}, #{sourceAccountId}, #{targetAccountId}, #{amountCent},
+             #{status}, #{operatorId}, #{reason}, #{adjustedAccountId}, #{balanceBeforeCent}, #{balanceAfterCent},
+             #{completedAt}, #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="findByBusinessKey" resultType="com.sky.entity.FundTransfer">
+        select * from fund_transfer where business_key = #{businessKey}
+    </select>
+
+    <select id="findByBusinessKeyForUpdate" resultType="com.sky.entity.FundTransfer">
+        select * from fund_transfer where business_key = #{businessKey} for update
+    </select>
+
+    <select id="findById" resultType="com.sky.entity.FundTransfer">
+        select * from fund_transfer where id = #{id}
+    </select>
+
+    <delete id="deleteById">
+        delete from fund_transfer where id = #{id}
+    </delete>
+
+</mapper>

@@ -51,6 +51,36 @@ const router = createRouter({
           component: () => import('@/views/ProfileView.vue'),
           meta: { title: '我的' },
         },
+        {
+          path: 'wallet',
+          name: 'wallet',
+          component: () => import('@/views/WalletView.vue'),
+          meta: { title: '模拟钱包' },
+        },
+        {
+          path: 'profile/edit',
+          name: 'profile-edit',
+          component: () => import('@/views/ProfileEditView.vue'),
+          meta: { title: '编辑个人资料' },
+        },
+        {
+          path: 'profile/security',
+          name: 'profile-security',
+          component: () => import('@/views/SecuritySettingsView.vue'),
+          meta: { title: '账号与安全' },
+        },
+        {
+          path: 'notifications',
+          name: 'notifications',
+          component: () => import('@/views/NotificationsView.vue'),
+          meta: { title: '通知中心' },
+        },
+        {
+          path: 'after-sales',
+          name: 'after-sales',
+          component: () => import('@/views/AfterSaleView.vue'),
+          meta: { title: '退款与售后' },
+        },
       ],
     },
     {

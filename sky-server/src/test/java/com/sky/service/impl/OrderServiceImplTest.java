@@ -15,6 +15,9 @@ import com.sky.service.order.DeliveryRangeService;
 import com.sky.service.order.OrderNotificationService;
 import com.sky.service.order.OrderPaymentService;
 import com.sky.service.order.OrderQueryService;
+import com.sky.service.order.OrderStateMachine;
+import com.sky.service.order.model.OrderTransition;
+import com.sky.service.aftersale.AfterSaleService;
 import com.sky.vo.OrderSubmitVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,6 +51,8 @@ class OrderServiceImplTest {
     @Mock private OrderPaymentService orderPaymentService;
     @Mock private DeliveryRangeService deliveryRangeService;
     @Mock private OrderNotificationService notificationService;
+    @Mock private OrderStateMachine orderStateMachine;
+    @Mock private AfterSaleService afterSaleService;
     @InjectMocks private OrderServiceImpl orderService;
 
     @BeforeEach
@@ -61,37 +66,16 @@ class OrderServiceImplTest {
     }
 
     @Test
-    void shouldCalculateOrderAmountFromServerCart() {
-        AddressBook address = AddressBook.builder().id(3L).userId(7L).consignee("张三")
-                .phone("13800138000").build();
-        List<ShoppingCart> carts = List.of(
-                ShoppingCart.builder().dishId(1L).number(2).amount(new BigDecimal("10.50")).build(),
-                ShoppingCart.builder().setmealId(2L).number(1).amount(new BigDecimal("20.00")).build());
-        when(addressBookMapper.getById(3L)).thenReturn(address);
-        when(deliveryRangeService.fullAddress(address)).thenReturn("北京市海淀区测试地址");
-        when(shoppingCartMapper.list(any(ShoppingCart.class))).thenReturn(carts);
-        doAnswer(invocation -> {
-            ((Orders) invocation.getArgument(0)).setId(88L);
-            return null;
-        }).when(orderMapper).insert(any(Orders.class));
-
+    void shouldRequireAuthoritativePreviewBeforeSubmit() {
         OrdersSubmitDTO request = new OrdersSubmitDTO();
         request.setAddressBookId(3L);
-        request.setAmount(new BigDecimal("0.01"));
-        request.setPackAmount(0);
         request.setDeliveryStatus(1);
         request.setTablewareStatus(1);
         request.setTablewareNumber(3);
-        OrderSubmitVO result = orderService.submitOrder(request);
 
-        ArgumentCaptor<Orders> captor = ArgumentCaptor.forClass(Orders.class);
-        verify(orderMapper).insert(captor.capture());
-        verify(deliveryRangeService).check(address);
-        assertEquals(new BigDecimal("50.00"), captor.getValue().getAmount());
-        assertEquals(3, captor.getValue().getPackAmount());
-        assertEquals("北京市海淀区测试地址", captor.getValue().getAddress());
-        assertEquals(new BigDecimal("50.00"), result.getOrderAmount());
-        verify(shoppingCartMapper).deleteByUserId(7L);
+        assertThrows(com.sky.exception.OrderBusinessException.class,
+                () -> orderService.submitOrder(request, "SUBMIT-1"));
+        verify(orderMapper, never()).insert(any());
     }
 
     @Test
@@ -118,27 +102,37 @@ class OrderServiceImplTest {
 
     @Test
     void shouldPushConfirmedStatusThroughNotificationService() {
-        Orders order = Orders.builder().id(20L).userId(7L).status(Orders.TO_BE_CONFIRMED).build();
-        when(orderQueryService.getExisting(20L)).thenReturn(order);
-        when(orderMapper.updateByExpectedStatus(any(Orders.class), eq(Orders.TO_BE_CONFIRMED))).thenReturn(1);
         OrdersConfirmDTO request = new OrdersConfirmDTO();
         request.setId(20L);
 
         orderService.confirm(request);
 
-        verify(notificationService).sendStatusAfterCommit(order, Orders.CONFIRMED, "商家已接单");
+        verify(orderStateMachine).transition(any(OrderTransition.class));
     }
 
     @Test
     void shouldRejectConcurrentStatusChangeWithoutNotification() {
-        Orders order = Orders.builder().id(20L).status(Orders.TO_BE_CONFIRMED).build();
-        when(orderQueryService.getExisting(20L)).thenReturn(order);
-        when(orderMapper.updateByExpectedStatus(any(Orders.class), eq(Orders.TO_BE_CONFIRMED))).thenReturn(0);
+        org.mockito.Mockito.doThrow(new com.sky.exception.OrderBusinessException("订单状态已变化，请刷新后重试"))
+                .when(orderStateMachine).transition(any(OrderTransition.class));
         OrdersConfirmDTO request = new OrdersConfirmDTO();
         request.setId(20L);
 
         assertThrows(com.sky.exception.OrderBusinessException.class, () -> orderService.confirm(request));
 
         verify(notificationService, never()).sendStatusAfterCommit(any(), any(), any());
+    }
+
+    @Test
+    void shouldRejectCancellationWhilePaymentIsProcessing() throws Exception {
+        Orders order = Orders.builder().id(20L).userId(7L).status(Orders.PENDING_PAYMENT)
+                .payStatus(Orders.UN_PAID).build();
+        when(orderMapper.getByIdForUpdate(20L)).thenReturn(order);
+        org.mockito.Mockito.doThrow(new com.sky.exception.OrderBusinessException("支付处理中，暂不能取消订单"))
+                .when(orderPaymentService).assertCancelable(20L);
+
+        assertThrows(com.sky.exception.OrderBusinessException.class, () -> orderService.userCancelById(20L));
+
+        verify(orderMapper, never()).updateByExpectedStatus(any(), any());
+        verify(orderMapper).getByIdForUpdate(20L);
     }
 }

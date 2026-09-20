@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.MockAccountMapper">
+    <insert id="insert" parameterType="com.sky.entity.MockAccount" useGeneratedKeys="true" keyProperty="id">
+        insert into mock_account
+            (account_no, account_type, owner_id, available_cent, frozen_cent, version, create_time, update_time)
+        values
+            (#{accountNo}, #{accountType}, #{ownerId}, #{availableCent}, #{frozenCent}, #{version},
+             #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="findById" resultType="com.sky.entity.MockAccount">
+        select * from mock_account where id = #{id}
+    </select>
+
+    <select id="findByIdForUpdate" resultType="com.sky.entity.MockAccount">
+        select * from mock_account where id = #{id} for update
+    </select>
+
+    <select id="findByTypeAndOwner" resultType="com.sky.entity.MockAccount">
+        select * from mock_account where account_type = #{accountType} and owner_id = #{ownerId}
+    </select>
+
+    <select id="listUserAccounts" resultType="com.sky.entity.MockAccount">
+        select * from mock_account
+        where account_type = 'USER'
+        <if test="userId != null">
+            and owner_id = #{userId}
+        </if>
+        order by id
+    </select>
+
+    <update id="updateBalances">
+        update mock_account
+        set available_cent = #{availableCent}, frozen_cent = #{frozenCent},
+            version = version + 1, update_time = #{updateTime}
+        where id = #{id} and version = #{expectedVersion}
+    </update>
+</mapper>
