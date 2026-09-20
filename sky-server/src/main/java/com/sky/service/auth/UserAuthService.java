@@ -37,6 +37,9 @@ public class UserAuthService {
     public static final long ACCESS_TTL_MILLIS = 15 * 60 * 1000L;
     public static final long REFRESH_TTL_DAYS = 30L;
     private static final String REGISTER_PURPOSE = "register";
+    public static final String CHANGE_OLD_PHONE_PURPOSE = "change_old_phone";
+    public static final String CHANGE_NEW_PHONE_PURPOSE = "change_new_phone";
+    public static final String CHANGE_PASSWORD_PURPOSE = "change_password";
     private static final String DEFAULT_TEST_SECRET = "test-user-auth-secret-key-test-user-auth-secret-key";
 
     private final UserMapper userMapper;
@@ -168,6 +171,16 @@ public class UserAuthService {
         }
     }
 
+    /** 消费一次指定用途的短信验证码，供敏感资料操作复用相同校验规则。 */
+    public void consumeVerificationCode(String phone, String rawCode, String purpose) {
+        consumeCode(phone, rawCode, normalizePurpose(purpose));
+    }
+
+    /** 使用户全部刷新会话失效，敏感资料变更后强制重新登录。 */
+    public void revokeAllSessions(Long userId) {
+        sessionMapper.revokeAll(userId, LocalDateTime.now());
+    }
+
     private void consumeCode(String phone, String rawCode, String purpose) {
         SmsVerification verification = smsMapper.findLatest(phone, purpose);
         if (verification == null) throw new LoginFailedException("验证码错误或已失效");
@@ -231,7 +244,12 @@ public class UserAuthService {
     private static String normalizePurpose(String purpose) {
         if (purpose == null || purpose.isBlank()) return REGISTER_PURPOSE;
         String normalized = purpose.trim().toLowerCase();
-        if (!REGISTER_PURPOSE.equals(normalized)) throw new LoginFailedException("不支持的验证码用途");
+        if (!REGISTER_PURPOSE.equals(normalized)
+                && !CHANGE_OLD_PHONE_PURPOSE.equals(normalized)
+                && !CHANGE_NEW_PHONE_PURPOSE.equals(normalized)
+                && !CHANGE_PASSWORD_PURPOSE.equals(normalized)) {
+            throw new LoginFailedException("不支持的验证码用途");
+        }
         return normalized;
     }
 }

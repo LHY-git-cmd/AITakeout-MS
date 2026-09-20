@@ -30,6 +30,9 @@ export const useAuthStore = defineStore('auth', {
     displayName: (state) => state.user?.name || state.user?.phone || '用户',
   },
   actions: {
+    updateUser(user: UserProfile) {
+      this.user = user
+    },
     setSession(session: AuthSession) {
       this.token = session.accessToken
       this.user = session.user

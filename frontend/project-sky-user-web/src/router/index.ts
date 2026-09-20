@@ -58,6 +58,18 @@ const router = createRouter({
           meta: { title: '模拟钱包' },
         },
         {
+          path: 'profile/edit',
+          name: 'profile-edit',
+          component: () => import('@/views/ProfileEditView.vue'),
+          meta: { title: '编辑个人资料' },
+        },
+        {
+          path: 'profile/security',
+          name: 'profile-security',
+          component: () => import('@/views/SecuritySettingsView.vue'),
+          meta: { title: '账号与安全' },
+        },
+        {
           path: 'notifications',
           name: 'notifications',
           component: () => import('@/views/NotificationsView.vue'),

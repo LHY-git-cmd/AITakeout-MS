@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { Bell, LogIn, LogOut, MapPin, Phone, RotateCcw, ShieldOff, UserRound, WalletCards } from '@lucide/vue'
+import { Bell, KeyRound, LogIn, LogOut, MapPin, Pencil, Phone, RotateCcw, ShieldOff, UserRound, WalletCards } from '@lucide/vue'
 import { RouterLink } from 'vue-router'
 import PageScaffold from '@/components/PageScaffold.vue'
 import { useAccountStore } from '@/stores/account'
@@ -46,7 +46,10 @@ watch(() => authStore.isAuthenticated, (authenticated) => {
   <PageScaffold title="我的">
     <p v-if="logoutError" class="page-error" role="alert">{{ logoutError }}</p>
     <div v-if="authStore.isAuthenticated" class="profile-summary">
-      <div class="profile-summary__avatar"><UserRound :size="30" aria-hidden="true" /></div>
+      <div class="profile-summary__avatar">
+        <img v-if="authStore.user?.avatar" :src="authStore.user.avatar" alt="用户头像" />
+        <UserRound v-else :size="30" aria-hidden="true" />
+      </div>
       <div class="profile-summary__identity">
         <strong>{{ authStore.displayName }}</strong>
         <span v-if="authStore.user?.phone"><Phone :size="15" aria-hidden="true" /> {{ authStore.user.phone }}</span>
@@ -60,6 +63,14 @@ watch(() => authStore.isAuthenticated, (authenticated) => {
         </button>
       </div>
     </div>
+    <RouterLink v-if="authStore.isAuthenticated" class="profile-menu-link" to="/profile/edit">
+      <Pencil :size="20" aria-hidden="true" />
+      <span><strong>编辑个人资料</strong><small>修改昵称和头像</small></span>
+    </RouterLink>
+    <RouterLink v-if="authStore.isAuthenticated" class="profile-menu-link" to="/profile/security">
+      <KeyRound :size="20" aria-hidden="true" />
+      <span><strong>账号与安全</strong><small>换绑手机号或修改密码</small></span>
+    </RouterLink>
     <div v-else class="profile-guest">
       <div><UserRound :size="30" aria-hidden="true" /></div>
       <strong>登录后查看订单和地址</strong>
