@@ -65,8 +65,6 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .addPathPatterns("/user/**")
                 .excludePathPatterns(
                         "/user/user/login",
-                        "/user/user/login/web",
-                        "/user/user/register/web",
                         "/user/auth/**",
                         "/user/shop/status",
                         "/user/category/list",

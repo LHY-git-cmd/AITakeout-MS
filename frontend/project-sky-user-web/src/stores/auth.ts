@@ -57,7 +57,8 @@ export const useAuthStore = defineStore('auth', {
         this.setSession(await refreshSession())
       } catch {
         // 首次打开页面且没有 Refresh Cookie 时保持游客状态，不主动打断用户。
-        this.clearSession()
+        // 若刷新请求期间用户已完成登录或注册，不得用旧请求的失败结果覆盖新会话。
+        if (!this.isAuthenticated) this.clearSession()
       } finally {
         this.restoring = false
       }

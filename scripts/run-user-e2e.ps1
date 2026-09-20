@@ -118,6 +118,8 @@ try {
     $env:SKY_PAYMENT_RECONCILE_DELAY_MS = '100'
     $env:USER_API_TARGET = "http://127.0.0.1:${backendPort}"
     $env:USER_E2E_BASE_URL = "http://127.0.0.1:${frontendPort}"
+    # Vite 只代理 /api，E2E WebSocket 必须直连本轮临时后端，避免被开发服务器按策略关闭。
+    $env:VITE_WS_URL = "ws://127.0.0.1:${backendPort}/ws/"
 
     $backendProcess = Start-Process -FilePath 'java' -ArgumentList @(
         '-jar', (Join-Path $repoRoot 'sky-server/target/sky-server-1.0-SNAPSHOT.jar'),
@@ -145,9 +147,9 @@ try {
     Push-Location $frontendRoot
     try {
         if ($Project -eq 'all') {
-            & npx playwright test e2e/auth-payment.spec.ts e2e/refund-notification.spec.ts
+            & npx playwright test e2e/auth-payment.spec.ts e2e/refund-notification.spec.ts e2e/full-order-refund.spec.ts e2e/error-recovery.spec.ts
         } else {
-            & npx playwright test --project=$Project e2e/auth-payment.spec.ts e2e/refund-notification.spec.ts
+            & npx playwright test --project=$Project e2e/auth-payment.spec.ts e2e/refund-notification.spec.ts e2e/full-order-refund.spec.ts e2e/error-recovery.spec.ts
         }
         if ($LASTEXITCODE -ne 0) { throw '用户端 Playwright E2E 执行失败' }
     } finally {
