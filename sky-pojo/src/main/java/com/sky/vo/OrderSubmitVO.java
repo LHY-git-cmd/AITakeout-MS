@@ -1,5 +1,6 @@
 package com.sky.vo;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,13 +14,17 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "订单提交视图对象")
 public class OrderSubmitVO implements Serializable {
-    //订单id
+    @Schema(description = "订单ID")
     private Long id;
-    //订单号
+
+    @Schema(description = "订单号")
     private String orderNumber;
-    //订单金额
+
+    @Schema(description = "订单金额")
     private BigDecimal orderAmount;
-    //下单时间
+
+    @Schema(description = "下单时间")
     private LocalDateTime orderTime;
 }

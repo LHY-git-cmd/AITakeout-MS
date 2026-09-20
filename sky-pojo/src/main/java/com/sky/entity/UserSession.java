@@ -13,11 +13,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserSession {
-    private Long id;
-    private Long userId;
-    private String refreshTokenHash;
-    private String deviceId;
-    private LocalDateTime expiresAt;
-    private LocalDateTime revokedAt;
-    private LocalDateTime createTime;
+    private Long id;                    // 唯一标识符
+    private Long userId;                // 用户ID
+    private String refreshTokenHash;    // 刷新令牌哈希值
+    private String deviceId;            // 设备ID
+    private LocalDateTime expiresAt;    // 过期时间
+    private LocalDateTime revokedAt;    // 撤销时间
+    private LocalDateTime createTime;   // 创建时间
 }

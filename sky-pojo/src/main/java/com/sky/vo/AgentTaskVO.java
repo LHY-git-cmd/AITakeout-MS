@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Agent任务响应数据")
+@Schema(description = "Agent任务视图对象")
 public class AgentTaskVO implements Serializable {
 
     @Schema(description = "主键值")

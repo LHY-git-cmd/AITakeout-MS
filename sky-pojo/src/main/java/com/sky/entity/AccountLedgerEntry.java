@@ -13,11 +13,11 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AccountLedgerEntry {
-    private Long id;
-    private Long transferId;
-    private Long accountId;
-    private String direction;
-    private Long amountCent;
-    private Long balanceAfterCent;
-    private LocalDateTime createTime;
+    private Long id;                    // 唯一标识符
+    private Long transferId;            // 关联的转账ID
+    private Long accountId;             // 账户ID
+    private String direction;           // 资金方向（DEBIT/CREDIT）
+    private Long amountCent;            // 金额（分）
+    private Long balanceAfterCent;      // 交易后余额（分）
+    private LocalDateTime createTime;   // 创建时间
 }

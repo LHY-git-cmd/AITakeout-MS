@@ -13,7 +13,7 @@ import java.io.Serializable;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Agent 服务健康状态")
+@Schema(description = "Agent服务健康状态视图对象")
 public class AgentHealthVO implements Serializable {
 
     @Schema(description = "服务名称")

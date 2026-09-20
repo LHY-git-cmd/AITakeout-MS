@@ -1,16 +1,18 @@
 package com.sky.vo;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+import java.io.Serializable;
 import java.util.Map;
 
-/** Java原子业务操作的统一响应信封。 */
+@Schema(description = "Agent工具操作响应视图对象")
 public record AgentToolOperationResponse(
-        @JsonProperty("tool_call_id") String toolCallId,
-        String status,
-        Object data,
-        Map<String, Object> error,
-        @JsonProperty("trace_id") String traceId) {
+        @Schema(description = "工具调用ID") @JsonProperty("tool_call_id") String toolCallId,
+        @Schema(description = "状态") String status,
+        @Schema(description = "数据") Object data,
+        @Schema(description = "错误信息") Map<String, Object> error,
+        @Schema(description = "追踪ID") @JsonProperty("trace_id") String traceId) implements Serializable {
 
     public static AgentToolOperationResponse success(String callId, Object data, String traceId) {
         return new AgentToolOperationResponse(callId, "success", data, null, traceId);

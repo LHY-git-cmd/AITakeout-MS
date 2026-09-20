@@ -13,20 +13,20 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FundTransfer {
-    private Long id;
-    private String transferNo;
-    private String businessKey;
-    private String transferType;
-    private Long sourceAccountId;
-    private Long targetAccountId;
-    private Long amountCent;
-    private String status;
-    private Long operatorId;
-    private String reason;
-    private Long adjustedAccountId;
-    private Long balanceBeforeCent;
-    private Long balanceAfterCent;
-    private LocalDateTime completedAt;
-    private LocalDateTime createTime;
-    private LocalDateTime updateTime;
+    private Long id;                    // 唯一标识符
+    private String transferNo;          // 转账单号
+    private String businessKey;         // 业务键
+    private String transferType;        // 转账类型
+    private Long sourceAccountId;       // 源账户ID
+    private Long targetAccountId;       // 目标账户ID
+    private Long amountCent;            // 金额（分）
+    private String status;              // 状态
+    private Long operatorId;            // 操作员ID
+    private String reason;              // 原因
+    private Long adjustedAccountId;     // 调整账户ID
+    private Long balanceBeforeCent;     // 交易前余额（分）
+    private Long balanceAfterCent;      // 交易后余额（分）
+    private LocalDateTime completedAt;  // 完成时间
+    private LocalDateTime createTime;   // 创建时间
+    private LocalDateTime updateTime;   // 更新时间
 }

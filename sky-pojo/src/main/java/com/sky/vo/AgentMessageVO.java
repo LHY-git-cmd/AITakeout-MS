@@ -17,7 +17,7 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Agent消息响应数据")
+@Schema(description = "Agent消息响应视图对象")
 public class AgentMessageVO implements Serializable {
 
     @Schema(description = "主键值")

@@ -11,48 +11,15 @@ import java.time.LocalDateTime;
 @Data
 public class AgentMessageCitation {
 
-    /**
-     * 主键
-     */
-    private Long id;
-    /**
-     * 消息ID
-     */
-    private String messageId;
-    /**
-     * 知识库ID
-     */
-    private String kbId;
-    /**
-     * 文档ID
-     */
-    private String documentId;
-    /**
-     * 文档版本
-     */
-    private Integer documentVersion;
-    /**
-     * 块ID
-     */
-    private String chunkId;
-    /**
-     * 文件名
-     */
-    private String fileName;
-    /**
-     * 页码
-     */
-    private Integer pageNo;
-    /**
-     * 分数
-     */
-    private BigDecimal score;
-    /**
-     * 引用内容
-     */
-    private String quote;
-    /**
-     * 创建时间
-     */
-    private LocalDateTime createTime;
+    private Long id;                    // 主键
+    private String messageId;           // 消息ID
+    private String kbId;                // 知识库ID
+    private String documentId;          // 文档ID
+    private Integer documentVersion;    // 文档版本
+    private String chunkId;             // 块ID
+    private String fileName;            // 文件名
+    private Integer pageNo;             // 页码
+    private BigDecimal score;           // 分数
+    private String quote;               // 引用内容
+    private LocalDateTime createTime;   // 创建时间
 }

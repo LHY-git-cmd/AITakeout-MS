@@ -67,21 +67,21 @@ public class Orders implements Serializable {
     private BigDecimal amount;
 
     // 权威结算金额，统一以分存储
-    private Long goodsAmountCent;
-    private Long packAmountCent;
-    private Long deliveryFeeCent;
-    private Long discountAmountCent;
-    private Long amountCent;
-    private Integer deliveryDistanceMeters;
-    private String mapProvider;
-    private String deliveryMode;
-    private LocalDateTime deliverySlotStart;
-    private LocalDateTime deliverySlotEnd;
-    private BigDecimal addressLatitude;
-    private BigDecimal addressLongitude;
-    private LocalDateTime expiresAt;
-    private String pricingRuleVersion;
-    private Integer version;
+    private Long goodsAmountCent;           // 商品金额（分）
+    private Long packAmountCent;            // 打包费（分）
+    private Long deliveryFeeCent;           // 配送费（分）
+    private Long discountAmountCent;        // 优惠金额（分）
+    private Long amountCent;                // 实收金额（分）
+    private Integer deliveryDistanceMeters; // 配送距离（米）
+    private String mapProvider;             // 地图提供商
+    private String deliveryMode;            // 配送方式
+    private LocalDateTime deliverySlotStart; // 配送时间段开始
+    private LocalDateTime deliverySlotEnd;  // 配送时间段结束
+    private BigDecimal addressLatitude;     // 收货地址纬度
+    private BigDecimal addressLongitude;    // 收货地址经度
+    private LocalDateTime expiresAt;        // 订单过期时间
+    private String pricingRuleVersion;      // 定价规则版本
+    private Integer version;                // 版本号
 
     //备注
     private String remark;

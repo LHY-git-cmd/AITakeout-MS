@@ -16,52 +16,16 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AgentSession implements Serializable {
-    /**
-     * 主键
-     */
-    private Long id;
-    /**
-     * 会话ID
-     */
-    private String sessionId;
-    /**
-     * 用户ID
-     */
-    private Long userId;
-    /**
-     * 知识库ID
-     */
-    private String kbId;
-    /**
-     * 标题
-     */
-    private String title;
-    /**
-     * 状态（1-进行中，2-已归档，3-已删除）
-     */
-    private Integer status;
-    /**
-     * 最新任务ID
-     */
-    private String lastTaskId;
-    /**
-     * 消息数量
-     */
-    private Integer messageCount;
-    /**
-     * 创建时间
-     */
-    private LocalDateTime createTime;
-    /**
-     * 更新时间
-     */
-    private LocalDateTime updateTime;
-    /**
-     * 创建人
-     */
-    private Long createUser;
-    /**
-     * 更新人
-     */
-    private Long updateUser;
+    private Long id;                    // 主键
+    private String sessionId;           // 会话ID
+    private Long userId;                // 用户ID
+    private String kbId;                // 知识库ID
+    private String title;               // 标题
+    private Integer status;             // 状态 (1:进行中, 2:已归档, 3:已删除)
+    private String lastTaskId;          // 最新任务ID
+    private Integer messageCount;       // 消息数量
+    private LocalDateTime createTime;   // 创建时间
+    private LocalDateTime updateTime;   // 更新时间
+    private Long createUser;            // 创建人
+    private Long updateUser;            // 更新人
 }

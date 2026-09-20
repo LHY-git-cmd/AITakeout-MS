@@ -1,5 +1,6 @@
 package com.sky.vo;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,12 +12,13 @@ import java.io.Serializable;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "营业额报告视图对象")
 public class TurnoverReportVO implements Serializable {
 
-    //日期，以逗号分隔，例如：2022-10-01,2022-10-02,2022-10-03
+    @Schema(description = "日期列表，以逗号分隔")
     private String dateList;
 
-    //营业额，以逗号分隔，例如：406.0,1520.0,75.0
+    @Schema(description = "营业额列表，以逗号分隔")
     private String turnoverList;
 
 }
