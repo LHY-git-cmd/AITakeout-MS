@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.ProductSearchMapper">
+    <select id="search" resultType="com.sky.vo.ProductSearchItemVO">
+        SELECT product_id AS id, product_type, name, price, image, description,
+               category_id, category_name, relevance_score
+        FROM (
+            SELECT d.id AS product_id, 'dish' AS product_type, d.name, d.price, d.image, d.description,
+                   d.category_id, c.name AS category_name,
+                   CASE WHEN LOWER(d.name) = #{keyword} THEN 3
+                        WHEN LOWER(d.name) LIKE #{prefix} THEN 2 ELSE 1 END AS relevance_score
+            FROM dish d
+            JOIN category c ON c.id = d.category_id
+            WHERE d.status = 1 AND c.status = 1
+              AND (LOWER(d.name) LIKE #{contains} ESCAPE '!' OR LOWER(COALESCE(d.description, '')) LIKE #{contains} ESCAPE '!'
+                   OR LOWER(c.name) LIKE #{contains} ESCAPE '!')
+            UNION ALL
+            SELECT s.id AS product_id, 'setmeal' AS product_type, s.name, s.price, s.image, s.description,
+                   s.category_id, c.name AS category_name,
+                   CASE WHEN LOWER(s.name) = #{keyword} THEN 3
+                        WHEN LOWER(s.name) LIKE #{prefix} THEN 2 ELSE 1 END AS relevance_score
+            FROM setmeal s
+            JOIN category c ON c.id = s.category_id
+            WHERE s.status = 1 AND c.status = 1
+              AND (LOWER(s.name) LIKE #{contains} ESCAPE '!' OR LOWER(COALESCE(s.description, '')) LIKE #{contains} ESCAPE '!'
+                   OR LOWER(c.name) LIKE #{contains} ESCAPE '!')
+        ) products
+        <if test="cursorScore != null">
+            WHERE relevance_score &lt; #{cursorScore}
+               OR (relevance_score = #{cursorScore} AND product_type &gt; #{cursorType})
+               OR (relevance_score = #{cursorScore} AND product_type = #{cursorType} AND product_id &gt; #{cursorId})
+        </if>
+        ORDER BY relevance_score DESC, product_type ASC, product_id ASC
+        LIMIT #{limit}
+    </select>
+</mapper>
