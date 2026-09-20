@@ -20,32 +20,14 @@ public class SetmealDish implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private Long id;
-
-    //套餐id
-    private Long setmealId;
-
-    //菜品id
-    private Long dishId;
-
-    //菜品名称 （冗余字段）
-    private String name;
-
-    //菜品原价
-    private BigDecimal price;
-
-    //份数
-    private Integer copies;
-
-    //创建时间
-    private LocalDateTime createTime;
-
-    //更新时间
-    private LocalDateTime updateTime;
-
-    //创建人
-    private Long createUser;
-
-    //更新人
-    private Long updateUser;
+    private Long id;                    // 主键
+    private Long setmealId;             // 套餐id
+    private Long dishId;                // 菜品id
+    private String name;                // 菜品名称 (冗余)
+    private BigDecimal price;           // 菜品原价
+    private Integer copies;             // 份数
+    private LocalDateTime createTime;   // 创建时间
+    private LocalDateTime updateTime;   // 更新时间
+    private Long createUser;            // 创建人
+    private Long updateUser;            // 修改人
 }

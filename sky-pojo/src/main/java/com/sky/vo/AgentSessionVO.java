@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Agent会话响应数据")
+@Schema(description = "Agent会话视图对象")
 public class AgentSessionVO implements Serializable {
 
     @Schema(description = "主键值")

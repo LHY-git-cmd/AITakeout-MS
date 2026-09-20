@@ -16,18 +16,12 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Agent会话详情响应数据（含消息历史）")
+@Schema(description = "Agent会话详情视图对象（含消息历史）")
 public class AgentSessionDetailVO implements Serializable {
 
-    /**
-     * 会话信息
-     */
     @Schema(description = "会话信息")
     private AgentSessionVO session;
 
-    /**
-     * 该会话下的所有消息（按seq_no升序）
-     */
     @Schema(description = "该会话下的所有消息（按序号升序）")
     private List<AgentMessageVO> messages;
 }

@@ -72,13 +72,13 @@ public class AddressBook implements Serializable {
     private Integer isDefault;
 
     // 地图解析与配送预检结果
-    private BigDecimal latitude;
-    private BigDecimal longitude;
-    private String geocodeStatus;
-    private String mapProvider;
-    private Integer distanceMeters;
-    private Boolean deliverable;
-    private String validationMessage;
-    private LocalDateTime validatedAt;
-    private String deliveryRuleVersion;
+    private BigDecimal latitude;            // 纬度
+    private BigDecimal longitude;           // 经度
+    private String geocodeStatus;           // 地理编码状态
+    private String mapProvider;             // 地图提供商
+    private Integer distanceMeters;         // 距离（米）
+    private Boolean deliverable;            // 是否可配送
+    private String validationMessage;       // 验证信息
+    private LocalDateTime validatedAt;      // 验证时间
+    private String deliveryRuleVersion;     // 配送规则版本
 }

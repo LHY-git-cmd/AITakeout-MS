@@ -1,5 +1,6 @@
 package com.sky.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -8,40 +9,37 @@ import org.springframework.format.annotation.DateTimeFormat;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 
-/**
- * 订单分页查询DTO
- * 用于管理端订单条件搜索的请求参数
- */
 @Data
+@Schema(description = "订单分页查询数据传输对象")
 public class OrdersPageQueryDTO implements Serializable {
 
-    // 页码
     @Min(value = 1, message = "页码必须大于0")
+    @Schema(description = "页码，从1开始", defaultValue = "1")
     private int page;
 
-    // 每页条数
     @Min(value = 1, message = "每页条数必须大于0")
     @Max(value = 100, message = "每页条数不能超过100")
+    @Schema(description = "每页记录数", defaultValue = "10")
     private int pageSize;
 
-    // 订单号
+    @Schema(description = "订单号，用于模糊查询")
     private String number;
 
-    // 手机号
+    @Schema(description = "手机号，用于查询")
     private String phone;
 
-    // 订单状态
+    @Schema(description = "订单状态")
     private Integer status;
 
-    // 开始时间
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Schema(description = "查询起始时间，格式 yyyy-MM-dd HH:mm:ss")
     private LocalDateTime beginTime;
 
-    // 结束时间
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @Schema(description = "查询结束时间，格式 yyyy-MM-dd HH:mm:ss")
     private LocalDateTime endTime;
 
-    // 用户ID（用于C端查询时过滤）
+    @Schema(description = "用户ID，C端查询时用于过滤个人订单")
     private Long userId;
 
 }

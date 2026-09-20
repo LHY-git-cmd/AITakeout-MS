@@ -13,15 +13,15 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderTimelineEvent {
-    private Long id;
-    private String eventNo;
-    private Long orderId;
-    private String eventType;
-    private String businessNo;
-    private String displayMessage;
-    private String operatorType;
-    private Long operatorId;
-    private String payloadJson;
-    private LocalDateTime eventTime;
-    private LocalDateTime createTime;
+    private Long id;                    // 唯一标识符
+    private String eventNo;             // 事件单号
+    private Long orderId;               // 订单ID
+    private String eventType;           // 事件类型
+    private String businessNo;          // 业务单号
+    private String displayMessage;      // 显示信息
+    private String operatorType;        // 操作员类型
+    private Long operatorId;            // 操作员ID
+    private String payloadJson;         // 附带的JSON数据
+    private LocalDateTime eventTime;    // 事件时间
+    private LocalDateTime createTime;   // 创建时间
 }

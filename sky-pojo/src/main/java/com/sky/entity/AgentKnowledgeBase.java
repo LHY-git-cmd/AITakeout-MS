@@ -13,62 +13,15 @@ import java.time.LocalDateTime;
 @Data
 public class AgentKnowledgeBase {
 
-    /**
-     * 数据库主键ID
-     */
-    private Long id;
-
-    /**
-     * 知识库的唯一业务标识符，通常由UUID生成
-     */
-    private String kbId;
-
-    /**
-     * 知识库的名称
-     */
-    private String name;
-
-    /**
-     * 知识库的详细描述
-     */
-    private String description;
-
-    /**
-     * 用于生成向量嵌入（Embedding）的模型名称
-     */
-    private String embeddingModel;
-
-    /**
-     * 文档分块（Chunking）策略的标识符
-     */
-    private String chunkStrategy;
-
-    /**
-     * 知识库状态
-     * 0: 初始化中
-     * 1: 可用
-     * 2: 索引中
-     * 3: 失败
-     */
-    private Integer status;
-
-    /**
-     * 创建该知识库的用户ID
-     */
-    private Long createUser;
-
-    /**
-     * 最后更新该知识库的用户ID
-     */
-    private Long updateUser;
-
-    /**
-     * 记录创建时间
-     */
-    private LocalDateTime createTime;
-
-    /**
-     * 记录最后更新时间
-     */
-    private LocalDateTime updateTime;
+    private Long id;                    // 主键ID
+    private String kbId;                // 知识库唯一标识符 (UUID)
+    private String name;                // 知识库名称
+    private String description;         // 知识库描述
+    private String embeddingModel;      // Embedding模型名称
+    private String chunkStrategy;       // 文档分块策略标识符
+    private Integer status;             // 状态 (0:初始化, 1:可用, 2:索引中, 3:失败)
+    private Long createUser;            // 创建用户ID
+    private Long updateUser;            // 更新用户ID
+    private LocalDateTime createTime;   // 创建时间
+    private LocalDateTime updateTime;   // 更新时间
 }

@@ -17,33 +17,20 @@ public class Employee implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    private Long id;
-
-    private String username;
-
-    private String name;
-
-    private String password;
-
-    private String phone;
-
-    private String sex;
-
-    private String idNumber;
-
-    private Integer status;
-
-    /** 权威管理端角色：SUPER_ADMIN / ADMIN。 */
-    private String role;
-
+    private Long id;                // 唯一标识符
+    private String username;        // 用户名
+    private String name;            // 姓名
+    private String password;        // 密码
+    private String phone;           // 手机号
+    private String sex;             // 性别
+    private String idNumber;        // 身份证号
+    private Integer status;         // 状态
+    private String role;            // 角色 (SUPER_ADMIN / ADMIN)
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime createTime;
-
+    private LocalDateTime createTime; // 创建时间
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime updateTime;
-
-    private Long createUser;
-
-    private Long updateUser;
+    private LocalDateTime updateTime; // 更新时间
+    private Long createUser;        // 创建人
+    private Long updateUser;        // 更新人
 
 }
