@@ -22,6 +22,7 @@ public class ProductSearchItemVO {
     private Long categoryId;
     private String categoryName;
     private Integer relevanceScore;
+    private Boolean hasFlavor;
 
     public String getStableKey() {
         return productType + ":" + id;
