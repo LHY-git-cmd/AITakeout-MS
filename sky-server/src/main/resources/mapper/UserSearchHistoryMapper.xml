@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.UserSearchHistoryMapper">
+    <insert id="insert" parameterType="com.sky.entity.UserSearchHistory" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_search_history(user_id, keyword, normalized_keyword, create_time, update_time)
+        VALUES (#{userId}, #{keyword}, #{normalizedKeyword}, #{createTime}, #{updateTime})
+    </insert>
+    <update id="touch">
+        UPDATE user_search_history
+        SET keyword = #{keyword}, update_time = #{updateTime}
+        WHERE user_id = #{userId} AND normalized_keyword = #{normalizedKeyword}
+    </update>
+    <select id="listRecent" resultType="com.sky.entity.UserSearchHistory">
+        SELECT id, user_id, keyword, normalized_keyword, create_time, update_time
+        FROM user_search_history WHERE user_id = #{userId}
+        ORDER BY update_time DESC, id DESC LIMIT #{limit}
+    </select>
+    <delete id="trimToLimit">
+        DELETE FROM user_search_history
+        WHERE user_id = #{userId} AND id NOT IN (
+            SELECT id FROM (
+                SELECT id FROM user_search_history WHERE user_id = #{userId}
+                ORDER BY update_time DESC, id DESC LIMIT #{limit}
+            ) retained
+        )
+    </delete>
+    <delete id="clear">DELETE FROM user_search_history WHERE user_id = #{userId}</delete>
+</mapper>
