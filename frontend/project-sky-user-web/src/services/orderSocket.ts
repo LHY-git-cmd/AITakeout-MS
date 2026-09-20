@@ -34,12 +34,15 @@ class OrderSocket {
       this.reconnectAttempt = 0
       this.startHeartbeat()
       this.send({ event: 'orders.subscribe' })
+      window.dispatchEvent(new CustomEvent('sky:socket-connected'))
     }
     socket.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data) as OrderStatusEvent
         if (event.event === 'order.status.changed') {
           window.dispatchEvent(new CustomEvent<OrderStatusEvent>('sky:order-status', { detail: event }))
+        } else if ((event as OrderStatusEvent & { notificationId?: number }).notificationId) {
+          window.dispatchEvent(new CustomEvent('sky:notification', { detail: event }))
         }
       } catch {
         // Ignore malformed server messages; the HTTP refresh remains authoritative.

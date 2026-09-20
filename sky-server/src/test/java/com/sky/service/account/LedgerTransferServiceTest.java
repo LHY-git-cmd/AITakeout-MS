@@ -114,6 +114,22 @@ class LedgerTransferServiceTest {
         assertThat(ledger.sumByTransfer(result.transferId())).isZero();
     }
 
+    @Test
+    void frozenFundsAreReleasedOnceToRefundTarget() {
+        accounts.add(account(3L, "USER-9", "USER", 9L, 0L));
+        transferService.freeze(new FreezeCommand("REFUND-FREEZE", 1L, 8_000L, "REFUND_FREEZE"));
+
+        TransferResult first = transferService.transferFrozen(
+                new TransferCommand("REFUND-RELEASE", 1L, 3L, 8_000L, "ORDER_REFUND"));
+        TransferResult replay = transferService.transferFrozen(
+                new TransferCommand("REFUND-RELEASE", 1L, 3L, 8_000L, "ORDER_REFUND"));
+
+        assertThat(accounts.findById(1L).getFrozenCent()).isZero();
+        assertThat(accounts.findById(3L).getAvailableCent()).isEqualTo(8_000L);
+        assertThat(replay.transferId()).isEqualTo(first.transferId());
+        assertThat(replay.replayed()).isTrue();
+    }
+
     private static MockAccount account(long id, String no, String type, long ownerId, long available) {
         return MockAccount.builder().id(id).accountNo(no).accountType(type).ownerId(ownerId)
                 .availableCent(available).frozenCent(0L).version(0).build();

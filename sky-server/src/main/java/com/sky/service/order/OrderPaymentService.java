@@ -38,6 +38,7 @@ public class OrderPaymentService {
     private final OrderNotificationService notificationService;
     private final PaymentTransactionMapper paymentTransactionMapper;
     private final PaymentApplicationService paymentApplicationService;
+    private final com.sky.service.payment.RefundApplicationService refundApplicationService;
 
     /** 支付处理中禁止取消，避免取消与渠道成功结果竞争。 */
     public void assertCancelable(Long orderId) {
@@ -116,7 +117,7 @@ public class OrderPaymentService {
      * @param update 待更新的订单实体
      */
     public void prepareRefund(Orders order, Orders update) {
-        if (Orders.PAID.equals(order.getPayStatus())) update.setPayStatus(Orders.REFUND);
+        // 退款成功前不提前修改支付状态，避免用户误看到“已退款”。
     }
 
     /**
@@ -126,9 +127,8 @@ public class OrderPaymentService {
      * @throws Exception 退款异常
      */
     public void refundIfNecessary(Orders order) throws Exception {
-        if (Orders.PAID.equals(order.getPayStatus()) && !Boolean.TRUE.equals(weChatProperties.getMockPay())) {
-            weChatPayUtil.refund(order.getNumber(), order.getNumber(),
-                    new BigDecimal("0.01"), new BigDecimal("0.01"));
+        if (Orders.PAID.equals(order.getPayStatus())) {
+            refundApplicationService.createFullRefund(order.getId(), "LEGACY_CANCEL:" + order.getId());
         }
     }
 

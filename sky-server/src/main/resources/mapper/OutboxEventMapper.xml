@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.OutboxEventMapper">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into outbox_event(event_id,business_key,aggregate_type,aggregate_id,event_type,payload_json,status,
+          attempt_count,next_attempt_at,published_at,last_error,create_time,update_time)
+        values(#{eventId},#{businessKey},#{aggregateType},#{aggregateId},#{eventType},#{payloadJson},#{status},
+          #{attemptCount},#{nextAttemptAt},#{publishedAt},#{lastError},#{createTime},#{updateTime})
+    </insert>
+    <select id="findDue" resultType="com.sky.entity.OutboxEvent">
+        select * from outbox_event where status in ('PENDING','RETRY') and next_attempt_at&lt;=#{now}
+        order by next_attempt_at,id limit #{limit}
+    </select>
+    <update id="markPublished">
+        update outbox_event set status='PUBLISHED',published_at=#{publishedAt},last_error=null,update_time=#{updateTime}
+        where id=#{id} and status in ('PENDING','RETRY')
+    </update>
+    <update id="markFailed">
+        update outbox_event set status=#{status},attempt_count=#{attemptCount},next_attempt_at=#{nextAttemptAt},
+          last_error=#{lastError},update_time=#{updateTime}
+        where id=#{id} and attempt_count=#{expectedAttempts} and status in ('PENDING','RETRY')
+    </update>
+</mapper>

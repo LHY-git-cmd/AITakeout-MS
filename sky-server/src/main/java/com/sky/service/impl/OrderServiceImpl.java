@@ -17,6 +17,11 @@ import com.sky.service.order.DeliveryRangeService;
 import com.sky.service.order.OrderNotificationService;
 import com.sky.service.order.OrderPaymentService;
 import com.sky.service.order.OrderQueryService;
+import com.sky.service.order.OrderStateMachine;
+import com.sky.service.order.OrderTimelineService;
+import com.sky.service.order.model.OrderTransition;
+import com.sky.service.aftersale.AfterSaleService;
+import com.sky.service.payment.RefundApplicationService;
 import com.sky.service.checkout.CheckoutQuoteService;
 import com.sky.service.checkout.CheckoutModels.QuoteSnapshot;
 import com.sky.service.checkout.OrderSubmissionService;
@@ -61,6 +66,10 @@ public class OrderServiceImpl implements OrderService {
     private final CheckoutQuoteService checkoutQuoteService;
     private final PreviewTokenService previewTokenService;
     private final OrderSubmissionService orderSubmissionService;
+    private final OrderStateMachine orderStateMachine;
+    private final OrderTimelineService orderTimelineService;
+    private final AfterSaleService afterSaleService;
+    private final RefundApplicationService refundApplicationService;
 
     @Override
     @Transactional
@@ -125,6 +134,7 @@ public class OrderServiceImpl implements OrderService {
         order.setPricingRuleVersion(quote.preview().getPricingRuleVersion());
         order.setVersion(0);
         orderMapper.insert(order);
+        orderTimelineService.append(order.getId(), "ORDER_CREATED", order.getNumber(), "订单已创建，等待付款", "USER", userId);
 
         List<OrderDetail> details = new ArrayList<>();
         for (ShoppingCart cart : quote.cartSnapshot()) {
@@ -226,22 +236,14 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public void userCancelById(Long id) throws Exception {
-        // 与支付创建共用订单行锁，消除“检查完成后才进入支付处理中”的并发窗口。
+        // 与支付创建共用订单行锁，消除检查后才进入支付处理的并发窗口。
         Orders order = id == null ? null : orderMapper.getByIdForUpdate(id);
-        if (order == null) {
-            throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
-        }
+        if (order == null) throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
         checkOrderOwner(order);
-        if (!Orders.PENDING_PAYMENT.equals(order.getStatus())
-                && !Orders.TO_BE_CONFIRMED.equals(order.getStatus())) {
-            throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
-        }
-        if (Orders.PENDING_PAYMENT.equals(order.getStatus())) {
-            orderPaymentService.assertCancelable(order.getId());
-        }
-        Orders update = Orders.builder().id(order.getId()).status(Orders.CANCELLED)
-                .cancelReason("用户取消").cancelTime(LocalDateTime.now()).build();
-        cancelOrder(order, update, order.getStatus(), "订单已取消");
+        if (Orders.PENDING_PAYMENT.equals(order.getStatus())) orderPaymentService.assertCancelable(order.getId());
+        AfterSaleApplyDTO dto = new AfterSaleApplyDTO();
+        dto.setReason("用户取消");
+        afterSaleService.apply(BaseContext.getCurrentId(), id, dto, "LEGACY-CANCEL-" + id);
     }
 
     /**
@@ -310,11 +312,8 @@ public class OrderServiceImpl implements OrderService {
      */
     @Override
     public void confirm(OrdersConfirmDTO request) {
-        Orders order = orderQueryService.getExisting(request.getId());
-        requireStatus(order, Orders.TO_BE_CONFIRMED);
-        updateStatusOrThrow(Orders.builder().id(order.getId()).status(Orders.CONFIRMED).build(),
-                Orders.TO_BE_CONFIRMED);
-        notificationService.sendStatusAfterCommit(order, Orders.CONFIRMED, "商家已接单");
+        orderStateMachine.transition(new OrderTransition(request.getId(), Orders.TO_BE_CONFIRMED, Orders.CONFIRMED,
+                "ADMIN", BaseContext.getCurrentId(), "商家接单"));
     }
 
     /**
@@ -329,11 +328,11 @@ public class OrderServiceImpl implements OrderService {
                 || request.getRejectionReason().trim().isEmpty()) {
             throw new OrderBusinessException("拒单原因不能为空");
         }
-        Orders order = orderQueryService.getExisting(request.getId());
-        requireStatus(order, Orders.TO_BE_CONFIRMED);
-        Orders update = Orders.builder().id(order.getId()).status(Orders.CANCELLED)
-                .rejectionReason(request.getRejectionReason()).cancelTime(LocalDateTime.now()).build();
-        cancelOrder(order, update, Orders.TO_BE_CONFIRMED, "商家已拒单");
+        Orders order = orderMapper.getById(request.getId());
+        if (order == null) throw new OrderBusinessException(MessageConstant.ORDER_NOT_FOUND);
+        orderStateMachine.transition(new OrderTransition(order.getId(), Orders.TO_BE_CONFIRMED, Orders.CANCELLED,
+                "ADMIN", BaseContext.getCurrentId(), request.getRejectionReason()));
+        if (Orders.PAID.equals(order.getPayStatus())) refundApplicationService.createFullRefund(order.getId(), "ADMIN_REJECT:" + order.getId());
     }
 
     /**
@@ -351,9 +350,9 @@ public class OrderServiceImpl implements OrderService {
         if (Orders.CANCELLED.equals(order.getStatus()) || Orders.COMPLETED.equals(order.getStatus())) {
             throw new OrderBusinessException(MessageConstant.ORDER_STATUS_ERROR);
         }
-        Orders update = Orders.builder().id(order.getId()).status(Orders.CANCELLED)
-                .cancelReason(request.getCancelReason()).cancelTime(LocalDateTime.now()).build();
-        cancelOrder(order, update, order.getStatus(), "商家已取消订单");
+        orderStateMachine.transition(new OrderTransition(order.getId(), order.getStatus(), Orders.CANCELLED,
+                "ADMIN", BaseContext.getCurrentId(), request.getCancelReason()));
+        if (Orders.PAID.equals(order.getPayStatus())) refundApplicationService.createFullRefund(order.getId(), "ADMIN_CANCEL:" + order.getId());
     }
 
     /**
@@ -363,11 +362,8 @@ public class OrderServiceImpl implements OrderService {
      */
     @Override
     public void delivery(Long id) {
-        Orders order = orderQueryService.getExisting(id);
-        requireStatus(order, Orders.CONFIRMED);
-        updateStatusOrThrow(Orders.builder().id(order.getId()).status(Orders.DELIVERY_IN_PROGRESS).build(),
-                Orders.CONFIRMED);
-        notificationService.sendStatusAfterCommit(order, Orders.DELIVERY_IN_PROGRESS, "订单开始配送");
+        orderStateMachine.transition(new OrderTransition(id, Orders.CONFIRMED, Orders.DELIVERY_IN_PROGRESS,
+                "ADMIN", BaseContext.getCurrentId(), "开始配送"));
     }
 
     /**
@@ -377,12 +373,8 @@ public class OrderServiceImpl implements OrderService {
      */
     @Override
     public void complete(Long id) {
-        Orders order = orderQueryService.getExisting(id);
-        requireStatus(order, Orders.DELIVERY_IN_PROGRESS);
-        Orders update = Orders.builder().id(order.getId()).status(Orders.COMPLETED)
-                .deliveryTime(LocalDateTime.now()).build();
-        updateStatusOrThrow(update, Orders.DELIVERY_IN_PROGRESS);
-        notificationService.sendStatusAfterCommit(order, Orders.COMPLETED, "订单已送达");
+        orderStateMachine.transition(new OrderTransition(id, Orders.DELIVERY_IN_PROGRESS, Orders.COMPLETED,
+                "ADMIN", BaseContext.getCurrentId(), "确认送达"));
     }
 
     /**

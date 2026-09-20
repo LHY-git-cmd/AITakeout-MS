@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.AfterSaleRequestMapper">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into after_sale_request(request_no, order_id, user_id, request_type, reason, status,
+          previous_order_status, reviewed_by, review_reason, reviewed_at, refund_no, create_time, update_time)
+        values(#{requestNo},#{orderId},#{userId},#{requestType},#{reason},#{status},#{previousOrderStatus},
+          #{reviewedBy},#{reviewReason},#{reviewedAt},#{refundNo},#{createTime},#{updateTime})
+    </insert>
+    <select id="findById" resultType="com.sky.entity.AfterSaleRequest">
+        select * from after_sale_request where id=#{id}
+    </select>
+    <select id="findByIdForUpdate" resultType="com.sky.entity.AfterSaleRequest">
+        select * from after_sale_request where id=#{id} for update
+    </select>
+    <select id="findActiveByOrderId" resultType="com.sky.entity.AfterSaleRequest">
+        select * from after_sale_request where order_id=#{orderId}
+          and status in ('PENDING','APPROVED','REFUND_PROCESSING','REFUND_FAILED') order by id desc limit 1
+    </select>
+    <select id="findLatestByOrderAndUser" resultType="com.sky.entity.AfterSaleRequest">
+        select * from after_sale_request where order_id=#{orderId} and user_id=#{userId} order by id desc limit 1
+    </select>
+    <select id="listByUser" resultType="com.sky.entity.AfterSaleRequest">
+        select * from after_sale_request where user_id=#{userId}
+        <if test="beforeId != null">and id &lt; #{beforeId}</if>
+        order by id desc limit #{limit}
+    </select>
+    <select id="listForAdmin" resultType="com.sky.entity.AfterSaleRequest">
+        select * from after_sale_request where 1=1
+        <if test="status != null and status != ''">and status=#{status}</if>
+        <if test="beforeId != null">and id &lt; #{beforeId}</if>
+        order by id desc limit #{limit}
+    </select>
+    <update id="updateReview">
+        update after_sale_request set status=#{status}, reviewed_by=#{reviewedBy}, review_reason=#{reviewReason},
+          reviewed_at=#{reviewedAt}, update_time=#{updateTime} where id=#{id} and status='PENDING'
+    </update>
+    <update id="updateRefund">
+        update after_sale_request set status=#{status}, refund_no=coalesce(#{refundNo}, refund_no), update_time=#{updateTime}
+        where id=#{id} and status=#{expectedStatus}
+    </update>
+    <update id="updateByRefundNo">
+        update after_sale_request set status=#{status}, update_time=#{updateTime}
+        where refund_no=#{refundNo} and status in ('REFUND_PROCESSING','REFUND_FAILED','APPROVED')
+    </update>
+</mapper>

@@ -145,9 +145,9 @@ try {
     Push-Location $frontendRoot
     try {
         if ($Project -eq 'all') {
-            & npx playwright test e2e/auth-payment.spec.ts
+            & npx playwright test e2e/auth-payment.spec.ts e2e/refund-notification.spec.ts
         } else {
-            & npx playwright test --project=$Project e2e/auth-payment.spec.ts
+            & npx playwright test --project=$Project e2e/auth-payment.spec.ts e2e/refund-notification.spec.ts
         }
         if ($LASTEXITCODE -ne 0) { throw '用户端 Playwright E2E 执行失败' }
     } finally {
