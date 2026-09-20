@@ -2892,6 +2892,249 @@
   background: var(--color-surface);
 }
 
+.profile-summary__avatar {
+  overflow: hidden;
+}
+
+.profile-summary__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-card {
+  margin-top: 20px;
+  padding: 22px;
+  border: 1px solid var(--color-line);
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.settings-card > header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--color-line);
+}
+
+.settings-card > header > svg {
+  color: var(--color-brand);
+}
+
+.settings-card h2,
+.settings-card header p {
+  margin: 0;
+}
+
+.settings-card h2 {
+  font-size: 18px;
+}
+
+.settings-card header p,
+.avatar-editor small {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.avatar-editor {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 0;
+}
+
+.avatar-editor__preview {
+  display: grid;
+  width: 76px;
+  height: 76px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--color-muted);
+  background: var(--color-canvas);
+}
+
+.avatar-editor__preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-editor > div:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.file-picker,
+.avatar-editor > button,
+.settings-form > button,
+.settings-empty button {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 16px;
+  border: 1px solid var(--color-brand);
+  border-radius: 9px;
+  color: var(--color-brand-dark);
+  background: var(--color-surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.avatar-editor > button,
+.settings-form > button,
+.settings-empty button {
+  color: #fff;
+  background: var(--color-brand);
+}
+
+.avatar-editor > button:disabled,
+.settings-form > button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.settings-form {
+  display: grid;
+  gap: 9px;
+}
+
+.settings-form > label {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.settings-form > input,
+.settings-form .verification-field > input {
+  min-width: 0;
+  height: 46px;
+  padding: 0 13px;
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  color: var(--color-ink);
+  background: var(--color-surface);
+}
+
+.settings-form > button {
+  justify-self: start;
+  margin-top: 10px;
+}
+
+.settings-message {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.settings-message.is-error {
+  color: var(--color-brand-dark);
+  background: var(--color-brand-soft);
+}
+
+.settings-message.is-success {
+  color: var(--color-success);
+  background: #eaf7ef;
+}
+
+.security-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.security-grid > .settings-card {
+  min-width: 0;
+}
+
+.security-mode {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px;
+  margin: 18px 0 8px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--color-canvas);
+}
+
+.security-mode button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--color-muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.security-mode button.is-active {
+  color: var(--color-brand-dark);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+  font-weight: 700;
+}
+
+.settings-form .verification-field button {
+  min-height: 44px;
+}
+
+.security-warning {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 13px 16px;
+  border-radius: 9px;
+  color: #705c17;
+  background: #fff8da;
+  font-size: 13px;
+}
+
+.settings-empty {
+  display: grid;
+  min-height: 260px;
+  margin-top: 20px;
+  place-content: center;
+  justify-items: center;
+  color: var(--color-muted);
+  text-align: center;
+}
+
+@media (max-width: 767px) {
+  .settings-card {
+    padding: 18px 16px;
+  }
+
+  .avatar-editor {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .avatar-editor > button {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .settings-form > button {
+    width: 100%;
+  }
+
+  .security-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .security-warning {
+    grid-column: auto;
+  }
+}
+
 .profile-menu-link > svg {
   color: var(--color-brand);
 }
