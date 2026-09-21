@@ -49,6 +49,12 @@ sky:
     secret: ${WECHAT_APP_SECRET:}
     # 开发环境没有微信支付商户号时启用模拟支付
     mock-pay: true
+  auth:
+    # 本地 HTTP 开发需要允许浏览器发送 Refresh Cookie；生产环境由 application.yml 默认开启 Secure。
+    refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:false}
+  avatar:
+    local-enabled: true
+    local-root: ${AVATAR_LOCAL_ROOT:data/uploads}
   delivery:
     map-provider: ${DELIVERY_MAP_PROVIDER:mock}
     shop-address: ${SHOP_ADDRESS:北京市海淀区上地十街10号}

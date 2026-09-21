@@ -21,8 +21,11 @@ export function uploadAvatar(file: File) {
   const data = new FormData()
   data.append('file', file)
   return request<UserProfile>({
-    url: '/user/user/avatar', method: 'POST', data,
-    headers: { 'Content-Type': 'multipart/form-data' },
+    url: '/user/user/avatar',
+    method: 'POST',
+    data,
+    // 清除 http.ts 的 JSON 默认头，让浏览器自动补 multipart boundary。
+    headers: { 'Content-Type': undefined },
   })
 }
 
