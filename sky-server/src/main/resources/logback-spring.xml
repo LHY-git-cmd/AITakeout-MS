@@ -2,6 +2,7 @@
     <springProperty scope="context" name="environment" source="spring.profiles.active" defaultValue="default"/>
     <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
             <customFields>{"service":"sky-server"}</customFields>
             <includeMdcKeyName>trace_id</includeMdcKeyName>
             <includeMdcKeyName>task_id</includeMdcKeyName>

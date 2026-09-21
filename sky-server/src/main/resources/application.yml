@@ -93,6 +93,11 @@ logging:
         controller: info
 
 sky:
+  auth:
+    refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:true}
+  avatar:
+    local-enabled: false
+    local-root: ${AVATAR_LOCAL_ROOT:data/uploads}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:9528,http://localhost:8081}
   jwt:
@@ -114,13 +119,13 @@ sky:
     appid: ${sky.wechat.appid}
     secret: ${sky.wechat.secret}
   shop:
-    address: ${SHOP_ADDRESS:北京市海淀区上地十街10号}
+    address: ${SHOP_ADDRESS:广东省广州市花都区广州城市理工学院}
   baidu:
     ak: ${BAIDU_MAP_AK:}
   delivery:
     # 非开发环境默认使用百度地图；缺少 AK 时 BaiduMapGateway 会阻止启动。
     map-provider: ${DELIVERY_MAP_PROVIDER:baidu}
-    shop-address: ${SHOP_ADDRESS:北京市海淀区上地十街10号}
+    shop-address: ${SHOP_ADDRESS:guangz}
     baidu-ak: ${BAIDU_MAP_AK:}
     near-distance-meters: 3000
     max-distance-meters: 5000

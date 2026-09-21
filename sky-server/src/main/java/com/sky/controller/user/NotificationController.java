@@ -5,6 +5,7 @@ import com.sky.result.Result;
 import com.sky.service.notification.NotificationService;
 import com.sky.vo.NotificationVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -20,7 +21,8 @@ public class NotificationController {
 
     @GetMapping
     public Result<List<NotificationVO>> list(@RequestParam(required = false) Long beforeId,
-                                             @RequestParam(required = false) LocalDateTime since,
+                                             @RequestParam(required = false)
+                                             @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm") LocalDateTime since,
                                              @RequestParam(defaultValue = "20") int limit) {
         return Result.success(notificationService.list(BaseContext.getCurrentId(), beforeId, since, limit));
     }
