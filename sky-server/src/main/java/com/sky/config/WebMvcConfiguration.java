@@ -18,6 +18,8 @@ import org.springframework.http.converter.json.MappingJackson2HttpMessageConvert
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.beans.factory.annotation.Value;
+import java.nio.file.Path;
 
 import java.util.List;
 
@@ -34,6 +36,10 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
     private final AdminPermissionInterceptor adminPermissionInterceptor;
     private final AgentInternalServiceInterceptor agentInternalServiceInterceptor;
     private final CorsProperties corsProperties;
+    @Value("${sky.avatar.local-root:data/uploads}")
+    private String avatarLocalRoot;
+    @Value("${sky.avatar.local-enabled:false}")
+    private boolean avatarLocalEnabled;
 
     /**
      * 注册自定义拦截器
@@ -93,6 +99,14 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .allowedHeaders("*")
                 .allowCredentials(true)
                 .maxAge(3600);
+    }
+
+    /** 开发环境头像由本地相对目录提供静态访问。 */
+    @Override
+    public void addResourceHandlers(org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry registry) {
+        if (!avatarLocalEnabled) return;
+        String location = Path.of(avatarLocalRoot).toAbsolutePath().normalize().toUri().toString();
+        registry.addResourceHandler("/uploads/**").addResourceLocations(location.endsWith("/") ? location : location + "/");
     }
 
     /**
