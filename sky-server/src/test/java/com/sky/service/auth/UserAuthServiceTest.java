@@ -75,6 +75,22 @@ class UserAuthServiceTest {
     }
 
     @Test
+    void refreshSessionExpiresAfterTwoHours() {
+        User user = User.builder().id(1L).phone("13800138000").password("encoded").build();
+        when(userMapper.getByPhoneForUpdate(user.getPhone())).thenReturn(user);
+        when(passwordEncoder.matches("StrongPass8", "encoded")).thenReturn(true);
+        UserAuthService service = service();
+        java.time.LocalDateTime before = java.time.LocalDateTime.now();
+
+        service.login(new UserPasswordLoginDTO(user.getPhone(), "StrongPass8"), client());
+
+        org.mockito.ArgumentCaptor<UserSession> captor = org.mockito.ArgumentCaptor.forClass(UserSession.class);
+        verify(sessionMapper).insert(captor.capture());
+        assertThat(captor.getValue().getExpiresAt())
+                .isBetween(before.plusHours(2), java.time.LocalDateTime.now().plusHours(2));
+    }
+
+    @Test
     void expiredVerificationCodeCannotRegister() {
         when(userMapper.getByPhone("13800138000")).thenReturn(null);
         when(smsMapper.findLatest("13800138000", "register")).thenReturn(SmsVerification.builder()

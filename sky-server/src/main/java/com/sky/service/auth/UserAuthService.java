@@ -35,7 +35,8 @@ import java.util.Map;
 @Service
 public class UserAuthService {
     public static final long ACCESS_TTL_MILLIS = 15 * 60 * 1000L;
-    public static final long REFRESH_TTL_DAYS = 30L;
+    /** Refresh 会话有效期与用户端 Cookie 保持一致，为 2 小时。 */
+    public static final long REFRESH_TTL_HOURS = 2L;
     private static final String REGISTER_PURPOSE = "register";
     public static final String CHANGE_OLD_PHONE_PURPOSE = "change_old_phone";
     public static final String CHANGE_NEW_PHONE_PURPOSE = "change_new_phone";
@@ -197,7 +198,7 @@ public class UserAuthService {
         String rawRefresh = randomToken();
         LocalDateTime now = LocalDateTime.now();
         sessionMapper.insert(UserSession.builder().userId(user.getId()).refreshTokenHash(sha256(rawRefresh))
-                .deviceId(deviceId).expiresAt(now.plusDays(REFRESH_TTL_DAYS)).createTime(now).build());
+                .deviceId(deviceId).expiresAt(now.plusHours(REFRESH_TTL_HOURS)).createTime(now).build());
         String access = JwtUtil.createJWT(jwtSecret, ACCESS_TTL_MILLIS,
                 Map.of(JwtClaimsConstant.USER_ID, user.getId()));
         UserSessionVO.AuthenticatedUser safeUser = new UserSessionVO.AuthenticatedUser(

@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -31,7 +32,11 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class UserAuthController {
     static final String REFRESH_COOKIE = "refresh_token";
+    private static final String REFRESH_COOKIE_PATH = "/api/user/auth";
+    private static final Duration REFRESH_COOKIE_TTL = Duration.ofHours(2);
     private final UserAuthService authService;
+    @Value("${sky.auth.refresh-cookie-secure:true}")
+    private boolean refreshCookieSecure;
 
     @PostMapping("/sms/send")
     public Result<Void> sendSms(@Valid @RequestBody SmsRequest request) {
@@ -44,7 +49,7 @@ public class UserAuthController {
                                           HttpServletRequest request, HttpServletResponse response,
                                           @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
         UserSessionVO session = authService.register(dto, client(request, deviceId));
-        setRefreshCookie(response, session.refreshToken(), Duration.ofDays(30));
+        setRefreshCookie(response, session.refreshToken(), REFRESH_COOKIE_TTL);
         return Result.success(session);
     }
 
@@ -53,7 +58,7 @@ public class UserAuthController {
                                        HttpServletRequest request, HttpServletResponse response,
                                        @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
         UserSessionVO session = authService.login(dto, client(request, deviceId));
-        setRefreshCookie(response, session.refreshToken(), Duration.ofDays(30));
+        setRefreshCookie(response, session.refreshToken(), REFRESH_COOKIE_TTL);
         return Result.success(session);
     }
 
@@ -61,7 +66,7 @@ public class UserAuthController {
     public Result<UserSessionVO> refresh(@CookieValue(value = REFRESH_COOKIE, required = false) String refreshToken,
                                          HttpServletResponse response) {
         UserSessionVO session = authService.refresh(refreshToken);
-        setRefreshCookie(response, session.refreshToken(), Duration.ofDays(30));
+        setRefreshCookie(response, session.refreshToken(), REFRESH_COOKIE_TTL);
         return Result.success(session);
     }
 
@@ -83,9 +88,9 @@ public class UserAuthController {
         return new AuthClientContext(request.getRemoteAddr(), request.getHeader("User-Agent"), deviceId);
     }
 
-    private static void setRefreshCookie(HttpServletResponse response, String value, Duration maxAge) {
-        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE, value).httpOnly(true).secure(true)
-                .sameSite("Lax").path("/user/auth").maxAge(maxAge).build();
+    private void setRefreshCookie(HttpServletResponse response, String value, Duration maxAge) {
+        ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE, value).httpOnly(true).secure(refreshCookieSecure)
+                .sameSite("Lax").path(REFRESH_COOKIE_PATH).maxAge(maxAge).build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
