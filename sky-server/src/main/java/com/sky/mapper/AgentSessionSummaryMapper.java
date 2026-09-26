@@ -7,7 +7,7 @@ import org.apache.ibatis.annotations.Select;
 
 @Mapper
 public interface AgentSessionSummaryMapper {
-    @Select("select * from agent_session_summary where session_id = #{sessionId}")
+    @Select("select * from admin_agent_session_summary where session_id = #{sessionId}")
     AgentSessionSummary getBySessionId(String sessionId);
 
     int insert(AgentSessionSummary summary);

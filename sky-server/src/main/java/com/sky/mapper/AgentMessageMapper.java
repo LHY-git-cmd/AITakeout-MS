@@ -27,13 +27,13 @@ public interface AgentMessageMapper {
     /**
      * 根据messageId查询
      */
-    @Select("select * from agent_message where message_id = #{messageId}")
+    @Select("select * from admin_agent_message where message_id = #{messageId}")
     AgentMessage getByMessageId(String messageId);
 
     /**
      * 查询指定会话的所有消息（按seq_no升序）
      */
-    @Select("select * from agent_message where session_id = #{sessionId} order by seq_no asc")
+    @Select("select * from admin_agent_message where session_id = #{sessionId} order by seq_no asc")
     List<AgentMessage> listBySessionIdOrderBySeqNo(String sessionId);
 
     /** 查询会话最近的消息，并按对话顺序返回 */
@@ -43,18 +43,18 @@ public interface AgentMessageMapper {
     /**
      * 查询指定任务关联的消息
      */
-    @Select("select * from agent_message where task_id = #{taskId} order by seq_no asc")
+    @Select("select * from admin_agent_message where task_id = #{taskId} order by seq_no asc")
     List<AgentMessage> listByTaskId(String taskId);
 
     /**
      * 统计指定会话的消息数
      */
-    @Select("select count(id) from agent_message where session_id = #{sessionId}")
+    @Select("select count(id) from admin_agent_message where session_id = #{sessionId}")
     int countBySessionId(String sessionId);
 
     /**
      * 查询指定会话的下一个seq_no
      */
-    @Select("select coalesce(max(seq_no), 0) + 1 from agent_message where session_id = #{sessionId}")
+    @Select("select coalesce(max(seq_no), 0) + 1 from admin_agent_message where session_id = #{sessionId}")
     int getNextSeqNo(String sessionId);
 }

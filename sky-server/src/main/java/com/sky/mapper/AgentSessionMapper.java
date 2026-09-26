@@ -23,22 +23,29 @@ public interface AgentSessionMapper {
     /**
      * 根据DB主键查询
      */
-    @Select("select * from agent_session where id = #{id}")
+    @Select("select * from admin_agent_session where id = #{id}")
     AgentSession getById(Long id);
 
     /**
      * 根据业务sessionId查询
      */
-    @Select("select * from agent_session where session_id = #{sessionId}")
+    @Select("select * from admin_agent_session where session_id = #{sessionId}")
     AgentSession getBySessionId(String sessionId);
 
-    @Select("select * from agent_session where session_id = #{sessionId} for update")
+    @Select("select * from admin_agent_session where session_id = #{sessionId} for update")
     AgentSession getBySessionIdForUpdate(String sessionId);
+
+    /** 管理表只保存员工会话，直接按历史员工字段校验归属。 */
+    @Select("select * from admin_agent_session where session_id = #{sessionId} and user_id = #{actorId}")
+    AgentSession getBySessionIdAndActor(@Param("sessionId") String sessionId,
+                                        @Param("actorType") String actorType,
+                                        @Param("actorId") Long actorId);
 
     /**
      * 分页查询会话列表
      */
-    Page<AgentSession> pageQuery(@Param("userId") Long userId,
+    Page<AgentSession> pageQuery(@Param("actorType") String actorType,
+                                 @Param("actorId") Long actorId,
                                  @Param("status") Integer status);
 
     /**

@@ -8,7 +8,7 @@ import com.sky.dto.*;
 import com.sky.entity.AgentEvent;
 import com.sky.result.PageResult;
 import com.sky.result.Result;
-import com.sky.service.AgentService;
+import com.sky.service.AdminAgentService;
 import com.sky.service.agent.AgentEventHub;
 import com.sky.vo.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @Tag(name = "Agent智能体接口")
 public class AgentController {
 
-    private final AgentService agentService;
+    private final AdminAgentService agentService;
     private final AgentClient agentClient;
     private final AgentEventHub eventHub;
     private final ObjectMapper objectMapper;
@@ -322,6 +322,8 @@ public class AgentController {
         private static boolean isTerminal(String eventType) {
             return "task_end".equals(eventType)
                     || "task_error".equals(eventType)
+                    || "task_completed".equals(eventType)
+                    || "task_failed".equals(eventType)
                     || "task_cancelled".equals(eventType);
         }
     }

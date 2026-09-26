@@ -33,7 +33,8 @@ class AgentContractTest {
         assertTrue(json.contains("\"task_id\":\"task-1\""));
         assertTrue(json.contains("\"trace_id\":\"trace-1\""));
         assertTrue(json.contains("\"session_id\":\"session-1\""));
-        assertTrue(json.contains("\"user_id\":7"));
+        assertTrue(json.contains("\"actor_id\":7"));
+        assertTrue(json.contains("\"actor_type\":\"ADMIN\""));
         assertTrue(json.contains("\"actor_role\":\"SUPER_ADMIN\""));
         assertTrue(json.contains("\"kb_id\":\"kb-1\""));
         assertTrue(json.contains("\"document_versions\":{\"document-1\":2}"));

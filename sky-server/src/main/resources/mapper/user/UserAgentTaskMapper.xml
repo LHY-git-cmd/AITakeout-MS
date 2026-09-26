@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.user.UserAgentTaskMapper">
+    <insert id="insertIgnore" parameterType="com.sky.entity.AgentTask">
+        insert ignore into user_agent_task
+            (task_id, session_id, user_id, query, status, progress, model, request_hash,
+             assistant_message_id, started_at, finished_at, error_msg, create_time, update_time)
+        values
+            (#{taskId}, #{sessionId}, #{userId}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
+             #{assistantMessageId}, #{startedAt}, #{finishedAt}, #{errorMsg}, now(), now())
+    </insert>
+    <select id="getByTaskId" resultType="com.sky.entity.AgentTask">
+        select * from user_agent_task where task_id = #{taskId}
+    </select>
+    <select id="getOwned" resultType="com.sky.entity.AgentTask">
+        select * from user_agent_task where task_id = #{taskId} and user_id = #{userId}
+    </select>
+    <select id="listUnfinished" resultType="com.sky.entity.AgentTask">
+        select * from user_agent_task where status in (0, 1) order by create_time asc
+    </select>
+    <select id="pageQuery" resultType="com.sky.entity.AgentTask">
+        select * from user_agent_task
+        where user_id = #{userId}
+        <if test="sessionId != null and sessionId != ''">and session_id = #{sessionId}</if>
+        <if test="status != null">and status = #{status}</if>
+        order by create_time desc
+    </select>
+    <update id="transitionStatus">
+        update user_agent_task
+        set status = #{status}, progress = #{progress},
+            <if test="assistantMessageId != null">assistant_message_id = #{assistantMessageId},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            <if test="status == 1">started_at = coalesce(started_at, now()),</if>
+            <if test="status == 2 or status == 3 or status == 4">finished_at = now(),</if>
+            update_time = now()
+        where task_id = #{taskId} and status in
+        <foreach collection="expectedStatuses" item="expected" open="(" separator="," close=")">
+            #{expected}
+        </foreach>
+    </update>
+    <update id="updateStatusAndProgress">
+        update user_agent_task
+        set status = #{status},
+            <if test="progress != null">progress = #{progress},</if>
+            <if test="errorMsg != null">error_msg = #{errorMsg},</if>
+            update_time = now()
+        where task_id = #{taskId}
+    </update>
+</mapper>

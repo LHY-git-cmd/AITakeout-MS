@@ -40,6 +40,12 @@ const router = createRouter({
           meta: { title: '订单详情' },
         },
         {
+          path: 'assistant',
+          name: 'assistant',
+          component: () => import('@/views/AgentView.vue'),
+          meta: { title: '饱饱助手' },
+        },
+        {
           path: 'addresses',
           name: 'addresses',
           component: () => import('@/views/AddressesView.vue'),

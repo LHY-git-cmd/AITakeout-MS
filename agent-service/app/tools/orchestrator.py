@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.llm.gateway import LLMCallStats
 from app.tools.context import ToolContext
 from app.tools.executor import JavaToolClient, ToolExecutionError
-from app.tools.models import ToolAccess, ToolResult
+from app.tools.models import ActorRole, ToolAccess, ToolResult
 from app.tools.registry import ToolRegistry, ToolRegistryError
 
 
@@ -101,8 +101,11 @@ class ToolOrchestrator:
                                 trace_id=context.trace_id)
                 yield AgentOutput("tool_result", {
                     "tool_call_id": call_id,
+                    "tool_name": name,
                     "status": result.status,
                     "error": result.error,
+                    # 用户端卡片只接收Java业务服务已经过脱敏的结构化结果。
+                    "data": result.data if context.actor_role == ActorRole.CUSTOMER else None,
                 })
                 messages.append({
                     "role": "tool",

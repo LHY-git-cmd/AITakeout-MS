@@ -37,6 +37,10 @@ class ToolOrchestratorTest(unittest.IsolatedAsyncioTestCase):
         return ToolContext(task_id="task-1", trace_id="trace-1",
                            employee_id=9, actor_role="ADMIN")
 
+    def customer_context(self):
+        return ToolContext(task_id="task-user", trace_id="trace-user",
+                           actor_id=17, actor_type="USER", actor_role="CUSTOMER")
+
     async def test_read_tool_result_is_returned_as_untrusted_data(self):
         gateway = FakeGateway([
             response(calls=[call("call-1", "query_employees", {"page": 1})]),
@@ -72,3 +76,21 @@ class ToolOrchestratorTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual([], client.calls)
         self.assertEqual("TOOL_NOT_FOUND", outputs[1].data["error"]["code"])
+
+    async def test_customer_tool_result_exposes_only_structured_business_data(self):
+        gateway = FakeGateway([
+            response(calls=[call("call-user", "search_products", {"keyword": "鱼"})]),
+            response(content="已找到实时可售商品。"),
+        ])
+        client = FakeClient(ToolResult(
+            tool_call_id="call-user", status="success",
+            data={"items": [{"id": 3, "name": "清蒸鱼", "price": 38}]},
+            trace_id="trace-user"))
+        orchestrator = ToolOrchestrator(gateway, build_default_registry(), client)
+
+        outputs = [value async for value in orchestrator.run(
+            [{"role": "user", "content": "推荐鱼"}],
+            context=self.customer_context(), model="model", temperature=0.2)]
+
+        self.assertEqual("search_products", outputs[1].data["tool_name"])
+        self.assertEqual("清蒸鱼", outputs[1].data["data"]["items"][0]["name"])

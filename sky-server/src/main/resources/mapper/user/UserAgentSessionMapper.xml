@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.user.UserAgentSessionMapper">
+    <insert id="insert" parameterType="com.sky.entity.AgentSession" useGeneratedKeys="true" keyProperty="id">
+        insert into user_agent_session
+            (session_id, user_id, title, status, last_task_id, message_count,
+             create_time, update_time, create_user, update_user)
+        values
+            (#{sessionId}, #{userId}, #{title}, #{status}, #{lastTaskId}, #{messageCount},
+             now(), now(), #{userId}, #{userId})
+    </insert>
+    <select id="getBySessionId" resultType="com.sky.entity.AgentSession">
+        select * from user_agent_session where session_id = #{sessionId}
+    </select>
+    <select id="getBySessionIdForUpdate" resultType="com.sky.entity.AgentSession">
+        select * from user_agent_session where session_id = #{sessionId} for update
+    </select>
+    <select id="getOwned" resultType="com.sky.entity.AgentSession">
+        select * from user_agent_session where session_id = #{sessionId} and user_id = #{userId}
+    </select>
+    <select id="pageQuery" resultType="com.sky.entity.AgentSession">
+        select * from user_agent_session
+        where user_id = #{userId}
+        <if test="status != null">and status = #{status}</if>
+        order by update_time desc
+    </select>
+    <update id="update" parameterType="com.sky.entity.AgentSession">
+        update user_agent_session
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="lastTaskId != null">last_task_id = #{lastTaskId},</if>
+            update_time = now()
+        </set>
+        where id = #{id}
+    </update>
+    <update id="incrementMessageCount">
+        update user_agent_session
+        set message_count = message_count + 1, last_task_id = #{lastTaskId}, update_time = now()
+        where id = #{id}
+    </update>
+</mapper>

@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.tools.models import AdminRole, ToolArguments, ToolDefinition
+from app.tools.models import ActorRole, ToolArguments, ToolDefinition
 
 
 class ToolRegistryError(ValueError):
@@ -25,26 +25,26 @@ class ToolRegistry:
             raise ValueError(f"duplicate tool: {definition.name}")
         self._definitions[definition.name] = definition
 
-    def names_for_role(self, role: AdminRole | str) -> tuple[str, ...]:
-        resolved_role = AdminRole(role)
+    def names_for_role(self, role: ActorRole | str) -> tuple[str, ...]:
+        resolved_role = ActorRole(role)
         return tuple(
             name for name, definition in self._definitions.items()
             if resolved_role in definition.allowed_roles
         )
 
-    def schemas_for_role(self, role: AdminRole | str) -> list[dict[str, Any]]:
+    def schemas_for_role(self, role: ActorRole | str) -> list[dict[str, Any]]:
         names = self.names_for_role(role)
         return [self._definitions[name].openai_schema() for name in names]
 
-    def definition_for_role(self, name: str, role: AdminRole | str) -> ToolDefinition:
+    def definition_for_role(self, name: str, role: ActorRole | str) -> ToolDefinition:
         definition = self._definitions.get(name)
         if definition is None:
             raise ToolRegistryError("TOOL_NOT_FOUND", "模型请求了未注册工具")
-        if AdminRole(role) not in definition.allowed_roles:
-            raise ToolRegistryError("TOOL_PERMISSION_DENIED", "当前管理员无权调用该工具")
+        if ActorRole(role) not in definition.allowed_roles:
+            raise ToolRegistryError("TOOL_PERMISSION_DENIED", "当前主体无权调用该工具")
         return definition
 
-    def validate_arguments(self, name: str, role: AdminRole | str,
+    def validate_arguments(self, name: str, role: ActorRole | str,
                            raw_arguments: str | dict[str, Any]) -> ToolArguments:
         definition = self.definition_for_role(name, role)
         try:
