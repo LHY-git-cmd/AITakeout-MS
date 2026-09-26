@@ -2756,8 +2756,41 @@
   margin: 0;
   color: var(--color-muted);
   font-family: var(--font-serif);
-  font-size: 15px;
-  letter-spacing: 2px;
+  font-size: 13px;
+  letter-spacing: .5px;
+}
+
+.ai-chat-panel__content {
+  gap: 10px;
+  justify-items: center;
+}
+
+.ai-chat-panel__content > strong {
+  font-family: var(--font-serif);
+  font-size: 17px;
+}
+
+.ai-chat-panel__mark {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border-radius: 14px;
+  color: var(--color-brand-dark);
+  background: var(--color-brand-soft);
+}
+
+.ai-chat-panel__content > a {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 0 15px;
+  border-radius: 9px;
+  color: #fff;
+  background: var(--color-brand);
+  font-weight: 750;
 }
 
 .menu-page {

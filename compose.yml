@@ -82,7 +82,7 @@ services:
     image: qdrant/qdrant:v1.15.5
     restart: unless-stopped
     ports:
-      - "${QDRANT_HTTP_PORT:-16333}:6333"
+      - "${QDRANT_HTTP_PORT:-6333}:6333"
     volumes:
       - qdrant-data:/qdrant/storage
     healthcheck:
@@ -110,7 +110,7 @@ services:
       EMBEDDING_USE_FP16: ${EMBEDDING_USE_FP16:-false}
       EMBEDDING_MAX_BATCH_SIZE: ${EMBEDDING_MAX_BATCH_SIZE:-16}
     ports:
-      - "${SKY_EMBEDDING_PORT:-18001}:8001"
+      - "${SKY_EMBEDDING_PORT:-8001}:8001"
     volumes:
       - "${BGE_MODEL_HOST_PATH:-./sky-embedding/models/bge-m3}:/models/bge-m3:ro"
     healthcheck:
@@ -134,7 +134,8 @@ services:
       AGENT_INTERNAL_SERVICE_TOKEN: ${AGENT_INTERNAL_SERVICE_TOKEN:?AGENT_INTERNAL_SERVICE_TOKEN is required}
       TOOL_CONFIRMATION_TIMEOUT_SECONDS: ${TOOL_CONFIRMATION_TIMEOUT_SECONDS:-300}
       QDRANT_URL: http://qdrant:6333
-      QDRANT_COLLECTION: ${QDRANT_COLLECTION:-sky_knowledge_v2}
+      ADMIN_QDRANT_COLLECTION: ${ADMIN_QDRANT_COLLECTION:-sky_admin_internal_knowledge}
+      USER_QDRANT_COLLECTION: ${USER_QDRANT_COLLECTION:-sky_user_public_knowledge}
       EMBEDDING_BASE_URL: http://sky-embedding:8001
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
       EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1024}
@@ -159,11 +160,14 @@ services:
       LLM_TEMPERATURE_MAX: ${LLM_TEMPERATURE_MAX:-0.3}
       LLM_THINKING_ENABLED: ${LLM_THINKING_ENABLED:-false}
       AGENT_MAX_CONTEXT_CHARS: ${AGENT_MAX_CONTEXT_CHARS:-24000}
-      TASK_STATE_DB: /app/data/agent_tasks.sqlite3
-      KNOWLEDGE_STATE_DB: /app/data/knowledge_tasks.sqlite3
-      KNOWLEDGE_SOURCE_PATH: /app/data/knowledge_sources
+      ADMIN_TASK_STATE_DB: /app/data/admin_agent_tasks.sqlite3
+      USER_TASK_STATE_DB: /app/data/user_agent_tasks.sqlite3
+      ADMIN_KNOWLEDGE_STATE_DB: /app/data/admin_knowledge_tasks.sqlite3
+      USER_KNOWLEDGE_STATE_DB: /app/data/user_knowledge_tasks.sqlite3
+      ADMIN_KNOWLEDGE_SOURCE_PATH: /app/data/admin_knowledge_sources
+      USER_KNOWLEDGE_SOURCE_PATH: /app/data/user_knowledge_sources
     ports:
-      - "${SKY_AGENT_PORT:-18000}:8000"
+      - "${SKY_AGENT_PORT:-8000}:8000"
     volumes:
       - agent-data:/app/data
     depends_on:

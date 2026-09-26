@@ -5,7 +5,7 @@
 
     <insert id="insert" parameterType="com.sky.entity.AgentMessage"
             useGeneratedKeys="true" keyProperty="id">
-        insert into agent_message
+        insert into admin_agent_message
         (message_id, session_id, task_id, role, content, content_type,
          token_count, seq_no, create_time)
         values
@@ -15,7 +15,7 @@
 
     <insert id="insertIfAbsent" parameterType="com.sky.entity.AgentMessage"
             useGeneratedKeys="true" keyProperty="id">
-        insert ignore into agent_message
+        insert ignore into admin_agent_message
         (message_id, session_id, task_id, role, content, content_type,
          token_count, seq_no, create_time)
         values
@@ -27,7 +27,7 @@
         select *
         from (
             select *
-            from agent_message
+            from admin_agent_message
             where session_id = #{sessionId}
             order by seq_no desc
             limit #{limit}

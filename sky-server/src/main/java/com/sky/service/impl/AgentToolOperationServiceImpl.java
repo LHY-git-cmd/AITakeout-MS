@@ -8,21 +8,27 @@ import com.sky.dto.*;
 import com.sky.entity.*;
 import com.sky.enumeration.AdminPermission;
 import com.sky.enumeration.AdminRole;
+import com.sky.enumeration.AgentActorType;
 import com.sky.exception.AgentConfirmationConflictException;
 import com.sky.exception.PermissionDeniedException;
 import com.sky.mapper.AgentKnowledgeMapper;
 import com.sky.mapper.AgentTaskMapper;
 import com.sky.mapper.AgentToolAuditMapper;
 import com.sky.mapper.AgentToolConfirmationMapper;
+import com.sky.mapper.user.UserAgentTaskMapper;
+import com.sky.mapper.user.UserAgentToolAuditMapper;
+import com.sky.mapper.user.UserAgentToolConfirmationMapper;
 import com.sky.context.BaseContext;
 import com.sky.properties.AgentProperties;
 import com.sky.result.PageResult;
 import com.sky.service.*;
+import com.sky.service.agent.UserAgentToolExecutor;
 import com.sky.service.security.AdminAuthorizationService;
 import com.sky.vo.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -57,6 +63,26 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
     private final RedisTemplate<String, Object> redisTemplate;
     private final AgentProperties agentProperties;
     private final ObjectMapper objectMapper;
+    private UserAgentToolExecutor userAgentToolExecutor;
+    private UserAgentTaskMapper userTaskMapper;
+    private UserAgentToolAuditMapper userAuditMapper;
+    private UserAgentToolConfirmationMapper userConfirmationMapper;
+
+    /** 注入用户工具执行器；保留显式方法便于隔离测试。 */
+    @Autowired
+    public void setUserAgentToolExecutor(UserAgentToolExecutor userAgentToolExecutor) {
+        this.userAgentToolExecutor = userAgentToolExecutor;
+    }
+
+    /** 注入用户端独立任务与审计存储，不改变管理端构造契约。 */
+    @Autowired
+    public void setUserAgentStorage(UserAgentTaskMapper userTaskMapper,
+                                    UserAgentToolAuditMapper userAuditMapper,
+                                    UserAgentToolConfirmationMapper userConfirmationMapper) {
+        this.userTaskMapper = userTaskMapper;
+        this.userAuditMapper = userAuditMapper;
+        this.userConfirmationMapper = userConfirmationMapper;
+    }
 
     @Override
     public AgentToolOperationResponse execute(AgentToolOperationRequest request) {
@@ -69,12 +95,27 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
 
         try {
             task = taskMapper.getByTaskId(request.taskId());
+            if (task == null && userTaskMapper != null) {
+                task = userTaskMapper.getByTaskId(request.taskId());
+                if (task != null) {
+                    task.setActorType(AgentActorType.USER.name());
+                    task.setActorId(task.getUserId());
+                    task.setActorRole("CUSTOMER");
+                }
+            }
             if (task == null) {
                 response = error(request, "rejected", "TASK_NOT_FOUND", "任务不存在或已失效", traceId);
+            } else if (AgentActorType.USER.name().equals(actorType(task))) {
+                response = userAgentToolExecutor.execute(request, actorId(task), traceId);
             } else if (operation == null) {
                 response = error(request, "rejected", "UNKNOWN_OPERATION", "不支持的原子操作", traceId);
+            } else if (!isAdminActor(task)) {
+                // 用户端工具将在独立目录开放，禁止普通用户继承任何管理端工具。
+                response = error(request, "rejected", "ACTOR_TYPE_NOT_SUPPORTED",
+                        "当前主体不能调用管理端工具", traceId);
             } else {
-                role = authorizationService.resolveRole(task.getUserId());
+                Long actorId = actorId(task);
+                role = authorizationService.resolveRole(actorId);
                 authorizationService.require(role, operation.permission);
                 validateArguments(operation, request.arguments());
                 if (operation.write) {
@@ -82,7 +123,7 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
                             "该操作需要管理员确认后才能执行", traceId);
                 } else {
                     response = AgentToolOperationResponse.success(request.toolCallId(),
-                            dispatchRead(operation, request.arguments(), task.getUserId(), role), traceId);
+                            dispatchRead(operation, request.arguments(), actorId, role), traceId);
                 }
             }
         } catch (PermissionDeniedException exception) {
@@ -111,7 +152,9 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
             if (task == null) throw new IllegalArgumentException("任务不存在或已失效");
             if (operation == null || !operation.write)
                 throw new IllegalArgumentException("仅写操作可以创建确认凭证");
-            role = authorizationService.resolveRole(task.getUserId());
+            requireAdminActor(task);
+            Long actorId = actorId(task);
+            role = authorizationService.resolveRole(actorId);
             authorizationService.require(role, operation.permission);
             validateArguments(operation, request.arguments());
 
@@ -122,7 +165,8 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
                 AgentToolConfirmation value = AgentToolConfirmation.builder()
                         .confirmationId(UUID.randomUUID().toString().replace("-", ""))
                         .taskId(request.taskId()).toolCallId(request.toolCallId())
-                        .employeeId(task.getUserId()).actorRole(role.name())
+                        .employeeId(actorId).actorType(AgentActorType.ADMIN.name())
+                        .actorId(actorId).actorRole(role.name())
                         .operation(operation.code).argumentsJson(argumentsJson)
                 .argumentHash(argumentHash(request.arguments()))
                         .resourceVersion(resourceVersion(operation, request.arguments()))
@@ -162,26 +206,51 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
 
     @Override
     public Map<String, Object> confirmationStatus(String confirmationId) {
-        AgentToolConfirmation value = requiredConfirmation(confirmationId);
+        AgentToolConfirmation value = confirmationMapper.getByConfirmationId(confirmationId);
+        if (value == null && userConfirmationMapper != null) {
+            value = userConfirmationMapper.getByConfirmationId(confirmationId);
+        }
+        if (value == null) throw new IllegalArgumentException("确认凭证不存在");
+        if (AgentActorType.USER.name().equals(value.getActorType())) {
+            return confirmationView(value);
+        }
         expireIfNeeded(value);
         return confirmationView(requiredConfirmation(confirmationId));
     }
 
     @Override
-    public Map<String, Object> decideConfirmation(String confirmationId, Long employeeId,
-                                                  boolean approved) {
+    public Map<String, Object> decideConfirmation(String confirmationId, String actorType,
+                                                  Long actorId, boolean approved) {
+        if (AgentActorType.USER.name().equals(actorType)) {
+            if (userConfirmationMapper == null || userTaskMapper == null) {
+                throw new PermissionDeniedException("用户确认服务不可用");
+            }
+            AgentToolConfirmation value = userConfirmationMapper.getByConfirmationId(confirmationId);
+            AgentTask task = value == null ? null : userTaskMapper.getByTaskId(value.getTaskId());
+            if (value == null || task == null || !Objects.equals(task.getUserId(), actorId)
+                    || !Objects.equals(value.getActorId(), actorId)) {
+                throw new PermissionDeniedException("只能确认本人发起的AI操作");
+            }
+            int changed = userConfirmationMapper.transitionByUser(
+                    confirmationId, actorId, "PENDING", approved ? "CONFIRMED" : "REJECTED");
+            if (changed == 0) throw new AgentConfirmationConflictException("确认凭证已处理或已过期");
+            return confirmationView(userConfirmationMapper.getByConfirmationId(confirmationId));
+        }
         AgentToolConfirmation value = requiredConfirmation(confirmationId);
         AgentTask task = taskMapper.getByTaskId(value.getTaskId());
-        if (task == null || !Objects.equals(task.getUserId(), employeeId)
-                || !Objects.equals(value.getEmployeeId(), employeeId)) {
+        if (task == null || !Objects.equals(actorType(task), actorType)
+                || !Objects.equals(actorId(task), actorId)
+                || !Objects.equals(value.getActorType(), actorType)
+                || !Objects.equals(value.getActorId(), actorId)) {
             throw new PermissionDeniedException("只能确认本人发起的AI操作");
         }
         Operation operation = Operation.fromCode(value.getOperation());
-        AdminRole role = authorizationService.resolveRole(employeeId);
+        requireAdminActor(task);
+        AdminRole role = authorizationService.resolveRole(actorId);
         if (operation == null) throw new IllegalArgumentException("确认记录中的操作无效");
         authorizationService.require(role, operation.permission);
         expireIfNeeded(value);
-        int changed = confirmationMapper.transitionByActor(confirmationId, employeeId,
+        int changed = confirmationMapper.transitionByActor(confirmationId, actorType, actorId,
                 "PENDING", approved ? "CONFIRMED" : "REJECTED");
         if (changed == 0) {
             AgentToolConfirmation current = requiredConfirmation(confirmationId);
@@ -210,7 +279,9 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
                     confirmation.getToolCallId(), confirmation.getOperation(), arguments);
             if (task == null || operation == null || !operation.write)
                 throw new IllegalArgumentException("确认凭证关联的任务或操作无效");
-            role = authorizationService.resolveRole(task.getUserId());
+            requireAdminActor(task);
+            Long actorId = actorId(task);
+            role = authorizationService.resolveRole(actorId);
             authorizationService.require(role, operation.permission);
             expireIfNeeded(confirmation);
             String currentStatus = requiredConfirmation(confirmationId).getStatus();
@@ -238,7 +309,7 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
             if (confirmationMapper.transition(confirmationId, "CONFIRMED", "EXECUTING") == 0)
                 return audited(auditRequest, task, role, operation, started, traceId,
                         error(auditRequest, "rejected", "CONFIRMATION_USED", "确认凭证已被使用", traceId));
-            BaseContext.setCurrentId(task.getUserId());
+            BaseContext.setCurrentId(actorId);
             BaseContext.setCurrentRole(role.name());
             Object data;
             try {
@@ -499,6 +570,7 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
         result.put("tool_call_id", value.getToolCallId());
         result.put("status", value.getStatus());
         result.put("summary", value.getSummary());
+        result.put("actor_type", value.getActorType());
         result.put("expires_at", value.getExpiresAt());
         result.put("argument_hash", value.getArgumentHash());
         result.put("object_version", value.getResourceVersion());
@@ -761,19 +833,48 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
                            long durationMs, String traceId) {
         try {
             String errorCode = response.error() == null ? null : String.valueOf(response.error().get("code"));
-            auditMapper.insert(AgentToolAudit.builder()
+            AgentToolAudit audit = AgentToolAudit.builder()
                     .requestId(request.requestId() == null || request.requestId().isBlank()
                             ? request.toolCallId() : request.requestId())
                     .taskId(request.taskId()).toolCallId(request.toolCallId())
-                    .employeeId(task == null ? null : task.getUserId())
+                    .employeeId(task == null || !isAdminActor(task) ? null : actorId(task))
+                    .actorType(task == null ? null : actorType(task))
+                    .actorId(task == null ? null : actorId(task))
                     .actorRole(role == null ? null : role.name())
                     .operation(request.operation())
                     .requiredPermission(operation == null ? "UNKNOWN" : operation.permission.name())
                     .argumentHash(sha256(request.arguments() == null ? "null" : request.arguments().toString()))
                     .status(response.status()).errorCode(errorCode).durationMs(durationMs)
-                    .traceId(traceId).build());
+                    .traceId(traceId).build();
+            if (task != null && AgentActorType.USER.name().equals(actorType(task))
+                    && userAuditMapper != null) {
+                userAuditMapper.insert(audit);
+            } else {
+                auditMapper.insert(audit);
+            }
         } catch (Exception exception) {
             log.error("AI工具调用审计写入失败, traceId={}", traceId, exception);
+        }
+    }
+
+    /** 返回任务的通用主体ID，并兼容迁移前只保存user_id的管理端任务。 */
+    private Long actorId(AgentTask task) {
+        return task.getActorId() == null ? task.getUserId() : task.getActorId();
+    }
+
+    /** 返回标准主体类型，并兼容历史管理端任务。 */
+    private String actorType(AgentTask task) {
+        return AgentActorType.fromDatabase(task.getActorType()).name();
+    }
+
+    private boolean isAdminActor(AgentTask task) {
+        return AgentActorType.ADMIN.name().equals(actorType(task));
+    }
+
+    /** 管理端工具只能在管理员主体上下文中执行。 */
+    private void requireAdminActor(AgentTask task) {
+        if (!isAdminActor(task)) {
+            throw new PermissionDeniedException("当前主体不能调用管理端工具");
         }
     }
 

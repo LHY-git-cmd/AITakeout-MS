@@ -50,7 +50,8 @@ class RagEndToEndTest(unittest.IsolatedAsyncioTestCase):
     async def test_query_to_real_qdrant_to_mock_llm_to_sse(self):
         qdrant_url = os.getenv("QDRANT_URL", "http://127.0.0.1:6333")
         embedding_url = os.getenv("EMBEDDING_BASE_URL", "http://127.0.0.1:8001")
-        collection = os.getenv("QDRANT_COLLECTION", "sky_knowledge_v2")
+        collection = os.getenv(
+            "ADMIN_QDRANT_COLLECTION", "sky_admin_internal_knowledge")
         async with httpx.AsyncClient(timeout=10) as client:
             self.assertEqual(200, (await client.get(f"{qdrant_url}/healthz")).status_code)
             health = await client.get(f"{embedding_url}/health")

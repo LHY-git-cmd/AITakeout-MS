@@ -65,6 +65,7 @@ class AgentServiceKnowledgeTest {
                 eventMapper, properties, eventStreamCoordinator, messageCacheService, summaryService,
                 knowledgeMapper, citationMapper, summaryMapper);
         BaseContext.setCurrentId(7L);
+        BaseContext.setCurrentRole("ADMIN");
     }
 
     @AfterEach
@@ -156,7 +157,7 @@ class AgentServiceKnowledgeTest {
         kb.setKbId("kb-1");
         kb.setStatus(1);
         AtomicReference<AgentTask> storedTask = new AtomicReference<>();
-        when(taskMapper.getByTaskIdAndUserId("task-4", 7L)).thenAnswer(ignored -> storedTask.get());
+        when(taskMapper.getByTaskIdAndActor("task-4", "ADMIN", 7L)).thenAnswer(ignored -> storedTask.get());
         when(sessionMapper.getBySessionIdForUpdate("session-1")).thenReturn(session);
         when(sessionMapper.getBySessionId("session-1")).thenReturn(session);
         when(knowledgeMapper.getOwnedBase("kb-1", 7L)).thenReturn(kb);
@@ -190,7 +191,7 @@ class AgentServiceKnowledgeTest {
 
     @Test
     void anotherAdministratorCannotReadTheirTask() {
-        when(taskMapper.getByTaskIdAndUserId("task-owned-by-another-admin", 7L)).thenReturn(null);
+        when(taskMapper.getByTaskIdAndActor("task-owned-by-another-admin", "ADMIN", 7L)).thenReturn(null);
 
         assertThrows(PermissionDeniedException.class,
                 () -> service.getTaskDetail("task-owned-by-another-admin"));

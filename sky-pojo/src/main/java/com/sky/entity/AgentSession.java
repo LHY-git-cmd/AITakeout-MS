@@ -18,7 +18,9 @@ import java.time.LocalDateTime;
 public class AgentSession implements Serializable {
     private Long id;                    // 主键
     private String sessionId;           // 会话ID
-    private Long userId;                // 用户ID
+    private Long userId;                // 历史管理端主体ID，兼容旧查询
+    private String actorType;           // 主体类型：ADMIN/USER/SYSTEM
+    private Long actorId;               // 主体ID
     private String kbId;                // 知识库ID
     private String title;               // 标题
     private Integer status;             // 状态 (1:进行中, 2:已归档, 3:已删除)

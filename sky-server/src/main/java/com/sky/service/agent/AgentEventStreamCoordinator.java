@@ -129,6 +129,8 @@ public class AgentEventStreamCoordinator implements ApplicationRunner {
     private boolean isTerminal(String eventType) {
         return "task_end".equals(eventType)
                 || "task_error".equals(eventType)
+                || "task_completed".equals(eventType)
+                || "task_failed".equals(eventType)
                 || "task_cancelled".equals(eventType);
     }
 

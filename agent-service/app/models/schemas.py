@@ -3,9 +3,10 @@
 使用 Pydantic 定义请求体和响应体的结构，
 FastAPI 会自动根据这些模型生成 Swagger 文档和进行参数校验
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, Dict, Any, Literal
 from datetime import datetime
+from app.tools.models import ActorRole, ActorType
 
 
 class AgentRequest(BaseModel):
@@ -13,13 +14,15 @@ class AgentRequest(BaseModel):
     Agent 通用请求模型
     同步查询、流式查询、异步提交三个接口共用此请求体
     """
-    # Java/数据库中的用户主键为数值型；Python 3 的 int 可承载 Java Long。
-    user_id: Optional[int] = Field(None, description="当前用户ID，异步任务接口必填，其他接口可选")
+    actor_id: Optional[int] = Field(None, gt=0, description="由Java鉴权并绑定到任务的主体ID")
+    # 兼容旧管理端协议；新请求统一使用actor_id。
+    user_id: Optional[int] = Field(None, gt=0, description="已废弃的管理端主体ID")
     task_id: Optional[str] = Field(None, min_length=1, max_length=64, description="由Java生成的任务ID")
     trace_id: Optional[str] = Field(None, min_length=1, max_length=64, description="跨服务调用追踪ID")
-    actor_role: Literal["SUPER_ADMIN", "ADMIN"] = Field(
-        default="ADMIN", description="由Java数据库确定的管理员角色快照，仅用于筛选工具"
-    )
+    actor_type: ActorType = Field(default=ActorType.ADMIN, description="任务主体类型")
+    actor_role: ActorRole = Field(default=ActorRole.ADMIN, description="由Java确定的角色快照")
+    agent_profile: Literal["ADMIN_ASSISTANT", "USER_ASSISTANT"] = Field(
+        default="ADMIN_ASSISTANT", description="逻辑Agent边界")
     session_id: Optional[str] = Field(None, max_length=64, description="Java会话ID")
     query: str = Field(..., description="用户输入的问题或指令")
     model: Optional[str] = Field(None, max_length=64, description="模型名称，为空时使用服务端默认值")
@@ -32,11 +35,40 @@ class AgentRequest(BaseModel):
     )
     stream: bool = Field(default=False, description="是否以流式方式输出")
 
+    @model_validator(mode="after")
+    def validate_actor_identity(self):
+        """统一新旧主体ID，并阻止主体类型与角色组合越权。"""
+        if self.actor_id is not None and self.user_id is not None and self.actor_id != self.user_id:
+            raise ValueError("actor_id and legacy user_id must match")
+        allowed = {
+            ActorType.ADMIN: {ActorRole.SUPER_ADMIN, ActorRole.ADMIN},
+            ActorType.USER: {ActorRole.CUSTOMER},
+            ActorType.SYSTEM: {ActorRole.SYSTEM},
+        }
+        if self.actor_role not in allowed[self.actor_type]:
+            raise ValueError("actor_role does not match actor_type")
+        expected_profile = (
+            "USER_ASSISTANT" if self.actor_type == ActorType.USER else "ADMIN_ASSISTANT")
+        if self.agent_profile != expected_profile:
+            raise ValueError("agent_profile does not match actor_type")
+        return self
+
+    @property
+    def resolved_actor_id(self) -> Optional[int]:
+        """读取通用主体ID，并兼容旧管理端请求。"""
+        return self.actor_id if self.actor_id is not None else self.user_id
+
 
 class AgentSubmitRequest(AgentRequest):
     """异步提交专用模型：任务身份必须由调用方生成并在重试时复用。"""
     task_id: str = Field(..., min_length=1, max_length=64, description="由Java生成的任务ID")
-    user_id: int = Field(..., gt=0, description="当前用户ID")
+
+    @model_validator(mode="after")
+    def require_actor_id(self):
+        """异步任务必须绑定一个已认证主体。"""
+        if self.resolved_actor_id is None:
+            raise ValueError("actor_id is required")
+        return self
 
 
 class AgentResponse(BaseModel):

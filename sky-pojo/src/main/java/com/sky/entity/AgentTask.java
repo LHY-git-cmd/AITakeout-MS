@@ -17,7 +17,9 @@ public class AgentTask implements Serializable {
     private Long id;                        // 唯一标识符
     private String taskId;                  // 任务ID
     private String sessionId;               // 会话ID
-    private Long userId;                    // 用户ID
+    private Long userId;                    // 历史管理端主体ID，兼容旧查询
+    private String actorType;               // 主体类型：ADMIN/USER/SYSTEM
+    private Long actorId;                   // 主体ID
     private String actorRole;               // 角色快照
     private String query;                   // 查询语句
     private Integer status;                 // 任务状态 (0:排队, 1:执行中, 2:完成, 3:失败, 4:取消)
