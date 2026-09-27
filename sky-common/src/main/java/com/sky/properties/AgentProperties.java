@@ -57,7 +57,10 @@ public class AgentProperties {
     private boolean messageCacheEnabled = true;
 
     /** Agent消息历史缓存key前缀 */
-    private String messageCacheKeyPrefix = "sky:agent:messages:";
+    private String messageCacheKeyPrefix = "sky:admin-agent:messages:";
+
+    /** 用户端消息缓存使用独立命名空间。 */
+    private String userMessageCacheKeyPrefix = "sky:user-agent:messages:";
 
     /** Agent消息历史缓存有效期（秒） */
     private long messageCacheTtlSeconds = 1800;

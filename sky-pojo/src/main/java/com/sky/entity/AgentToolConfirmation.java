@@ -13,7 +13,9 @@ public class AgentToolConfirmation {
     private String confirmationId;      // 确认凭证ID
     private String taskId;              // 任务ID
     private String toolCallId;          // 工具调用ID
-    private Long employeeId;            // 员工ID
+    private Long employeeId;            // 历史管理员ID，兼容旧数据
+    private String actorType;           // 主体类型：ADMIN/USER/SYSTEM
+    private Long actorId;               // 主体ID
     private String actorRole;           // 角色
     private String operation;           // 操作
     private String argumentsJson;       // 参数 (JSON格式)

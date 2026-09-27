@@ -15,11 +15,12 @@ import com.sky.exception.AgentBusinessException;
 import com.sky.exception.AgentPermissionDeniedException;
 import com.sky.exception.AgentTaskConflictException;
 import com.sky.enumeration.AdminRole;
+import com.sky.enumeration.AgentActorType;
 import com.sky.mapper.*;
 import com.sky.mapper.AgentSessionSummaryMapper;
 import com.sky.properties.AgentProperties;
 import com.sky.result.PageResult;
-import com.sky.service.AgentService;
+import com.sky.service.AdminAgentService;
 import com.sky.service.agent.AgentEventStreamCoordinator;
 import com.sky.service.agent.AgentMessageCacheService;
 import com.sky.service.agent.AgentSummaryService;
@@ -50,7 +51,7 @@ import org.slf4j.MDC;
 @Service
 @Slf4j
 @RequiredArgsConstructor
-public class AgentServiceImpl implements AgentService {
+public class AgentServiceImpl implements AdminAgentService {
 
     private static final String RESOURCE_ACCESS_DENIED = "资源不存在或无权访问";
 
@@ -65,6 +66,26 @@ public class AgentServiceImpl implements AgentService {
     private final AgentSummaryService summaryService;
     private final AgentKnowledgeMapper knowledgeMapper;
     private final AgentCitationMapper citationMapper;
+
+    /** 创建属于当前JWT主体的空会话。 */
+    @Override
+    @Transactional
+    public AgentSessionVO createSession(String title) {
+        ActorIdentity actor = currentActor();
+        AgentSession session = AgentSession.builder()
+                .sessionId(UUID.randomUUID().toString().replace("-", ""))
+                .userId(actor.isAdmin() ? actor.id() : null)
+                .actorType(actor.type())
+                .actorId(actor.id())
+                .title(title == null || title.isBlank() ? "新对话" : truncateTitle(title.trim()))
+                .status(1)
+                .messageCount(0)
+                .build();
+        sessionMapper.insert(session);
+        AgentSessionVO result = new AgentSessionVO();
+        BeanUtils.copyProperties(session, result);
+        return result;
+    }
 
     /**
      * 提交一个新的智能助手任务。
@@ -84,15 +105,17 @@ public class AgentServiceImpl implements AgentService {
     @Override
     @Transactional
     public AgentSubmitVO submitTask(AgentSubmitDTO dto) {
-        Long userId = BaseContext.getCurrentId();
-        String actorRole = AdminRole.fromDatabase(BaseContext.getCurrentRole()).name();
+        ActorIdentity actor = currentActor();
+        Long userId = actor.id();
+        String actorRole = actor.role();
         String requestedTaskId = dto.getTaskId();
         String requestedKbId = normalizeKbId(dto.getKbId());
         String model = dto.getModel() == null || dto.getModel().isBlank()
                 ? agentProperties.getDefaultModel() : dto.getModel();
 
         // 重试检查：如果任务已存在，验证请求一致性，避免重复处理
-        AgentTask existing = taskMapper.getByTaskIdAndUserId(requestedTaskId, userId);
+        AgentTask existing = taskMapper.getByTaskIdAndActor(
+                requestedTaskId, actor.type(), actor.id());
         if (existing != null) {
             if (dto.getSessionId() != null && !dto.getSessionId().isBlank()
                     && !dto.getSessionId().equals(existing.getSessionId())) {
@@ -105,10 +128,10 @@ public class AgentServiceImpl implements AgentService {
                     && !sameNullable(requestedKbId, existingSession.getKbId())) {
                 throw new AgentTaskConflictException("taskId已被其他知识库请求使用");
             }
-            String requestHash = requestHash(requestedTaskId, existing.getSessionId(), userId,
+            String requestHash = requestHash(requestedTaskId, existing.getSessionId(), actor,
                     dto.getQuery(), model, effectiveKbId);
             if (!matchesStoredRequestHash(existing.getRequestHash(), requestHash, requestedTaskId,
-                    existing.getSessionId(), userId, dto.getQuery(), model, requestedKbId == null)) {
+                    existing.getSessionId(), actor, dto.getQuery(), model, requestedKbId == null)) {
                 throw new AgentTaskConflictException("taskId已被其他请求使用");
             }
             return toSubmitVO(existing);
@@ -119,10 +142,12 @@ public class AgentServiceImpl implements AgentService {
         AgentSession session;
         if (sessionId == null || sessionId.isEmpty()) {
             sessionId = UUID.randomUUID().toString().replace("-", "");
-            validateKnowledgeBase(requestedKbId, userId);
+            validateKnowledgeBaseForActor(requestedKbId, actor);
             session = AgentSession.builder()
                     .sessionId(sessionId)
-                    .userId(userId)
+                    .userId(actor.isAdmin() ? actor.id() : null)
+                    .actorType(actor.type())
+                    .actorId(actor.id())
                     .kbId(requestedKbId)
                     .title(truncateTitle(dto.getQuery()))
                     .status(1) // 1: active
@@ -134,23 +159,25 @@ public class AgentServiceImpl implements AgentService {
             if (session == null) {
                 throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
             }
-            if (!userId.equals(session.getUserId())) {
+            if (!owns(session, actor)) {
                 throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
             }
             if (session.getStatus() == 3) { // 3: deleted
                 throw new AgentBusinessException("会话已删除: " + sessionId);
             }
-            bindKnowledgeBase(session, requestedKbId, userId);
+            bindKnowledgeBase(session, requestedKbId, actor);
         }
 
         // 2. 任务抢占：使用数据库唯一约束原子性地插入任务，只有成功者才能继续
         String taskId = requestedTaskId;
         List<AgentHistoryMessage> history = buildHistory(sessionId, session.getId());
-        String requestHash = requestHash(taskId, sessionId, userId, dto.getQuery(), model, session.getKbId());
+        String requestHash = requestHash(taskId, sessionId, actor, dto.getQuery(), model, session.getKbId());
         AgentTask task = AgentTask.builder()
                 .taskId(taskId)
                 .sessionId(sessionId)
-                .userId(userId)
+                .userId(actor.isAdmin() ? actor.id() : null)
+                .actorType(actor.type())
+                .actorId(actor.id())
                 .actorRole(actorRole)
                 .query(dto.getQuery())
                 .status(0) // 0: created
@@ -160,7 +187,7 @@ public class AgentServiceImpl implements AgentService {
                 .build();
         if (taskMapper.insertIgnore(task) == 0) {
             // 插入失败，意味着任务已存在，进行冲突检查
-            AgentTask winner = taskMapper.getByTaskIdAndUserId(taskId, userId);
+            AgentTask winner = taskMapper.getByTaskIdAndActor(taskId, actor.type(), actor.id());
             if (winner == null) {
                 throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
             }
@@ -178,12 +205,13 @@ public class AgentServiceImpl implements AgentService {
         AgentSubmitRequest request = new AgentSubmitRequest(
                 taskId,
                 sessionId,
-                userId,
+                actor.id(),
                 dto.getQuery(),
                 model,
                 agentProperties.getDefaultTemperature(),
-                Map.of("history", history), buildKnowledgeScope(session.getKbId(), userId), traceId,
-                actorRole);
+                buildRequestContext(history, dto.getClientContext()),
+                buildKnowledgeScope(session.getKbId(), actor), traceId,
+                actor.type(), actorRole);
         log.info("提交Python Agent调用, traceId={}, taskId={}, sessionId={}, model={}",
                 traceId, taskId, sessionId, model);
         try {
@@ -242,9 +270,9 @@ public class AgentServiceImpl implements AgentService {
      */
     @Override
     public PageResult pageQuerySessions(AgentSessionPageQueryDTO dto) {
-        Long userId = BaseContext.getCurrentId();
+        ActorIdentity actor = currentActor();
         PageHelper.startPage(dto.getPage(), dto.getPageSize());
-        Page<AgentSession> page = sessionMapper.pageQuery(userId, dto.getStatus());
+        Page<AgentSession> page = sessionMapper.pageQuery(actor.type(), actor.id(), dto.getStatus());
         return new PageResult(page.getTotal(), page.getResult());
     }
 
@@ -256,12 +284,12 @@ public class AgentServiceImpl implements AgentService {
      */
     @Override
     public AgentSessionDetailVO getSessionDetail(String sessionId) {
-        Long userId = BaseContext.getCurrentId();
+        ActorIdentity actor = currentActor();
         AgentSession session = sessionMapper.getBySessionId(sessionId);
         if (session == null) {
             throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
-        if (!userId.equals(session.getUserId())) {
+        if (!owns(session, actor)) {
             throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
 
@@ -292,8 +320,8 @@ public class AgentServiceImpl implements AgentService {
         if (session == null) {
             throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
-        Long userId = BaseContext.getCurrentId();
-        if (!userId.equals(session.getUserId())) {
+        ActorIdentity actor = currentActor();
+        if (!owns(session, actor)) {
             throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
 
@@ -314,9 +342,10 @@ public class AgentServiceImpl implements AgentService {
      */
     @Override
     public PageResult pageQueryTasks(AgentTaskPageQueryDTO dto) {
-        Long userId = BaseContext.getCurrentId();
+        ActorIdentity actor = currentActor();
         PageHelper.startPage(dto.getPage(), dto.getPageSize());
-        Page<AgentTask> page = taskMapper.pageQuery(dto.getSessionId(), userId, dto.getStatus());
+        Page<AgentTask> page = taskMapper.pageQuery(
+                dto.getSessionId(), actor.type(), actor.id(), dto.getStatus());
         return new PageResult(page.getTotal(), page.getResult());
     }
 
@@ -411,8 +440,8 @@ public class AgentServiceImpl implements AgentService {
      * @throws AgentPermissionDeniedException 如果任务不存在或用户无权访问
      */
     private AgentTask getOwnedTask(String taskId) {
-        Long userId = BaseContext.getCurrentId();
-        AgentTask task = taskMapper.getByTaskIdAndUserId(taskId, userId);
+        ActorIdentity actor = currentActor();
+        AgentTask task = taskMapper.getByTaskIdAndActor(taskId, actor.type(), actor.id());
         if (task == null) {
             throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
@@ -443,10 +472,11 @@ public class AgentServiceImpl implements AgentService {
      * @param model     使用的模型
      * @return SHA-256哈希字符串
      */
-    private String requestHash(String taskId, String sessionId, Long userId, String query, String model,
+    private String requestHash(String taskId, String sessionId, ActorIdentity actor, String query, String model,
                                String kbId) {
         String input = String.join("\u0000", String.valueOf(taskId), String.valueOf(sessionId),
-                String.valueOf(userId), String.valueOf(query), String.valueOf(model), String.valueOf(kbId));
+                actor.type(), String.valueOf(actor.id()), String.valueOf(query),
+                String.valueOf(model), String.valueOf(kbId));
         return sha256(input);
     }
 
@@ -473,12 +503,13 @@ public class AgentServiceImpl implements AgentService {
     }
 
     private boolean matchesStoredRequestHash(String storedHash, String currentHash, String taskId,
-                                             String sessionId, Long userId, String query, String model,
+                                             String sessionId, ActorIdentity actor, String query, String model,
                                              boolean allowLegacyHash) {
         if (storedHash == null || storedHash.equals(currentHash)) {
             return true;
         }
-        return allowLegacyHash && storedHash.equals(legacyRequestHash(taskId, sessionId, userId, query, model));
+        return actor.isAdmin() && allowLegacyHash
+                && storedHash.equals(legacyRequestHash(taskId, sessionId, actor.id(), query, model));
     }
 
     private String legacyRequestHash(String taskId, String sessionId, Long userId, String query, String model) {
@@ -487,11 +518,14 @@ public class AgentServiceImpl implements AgentService {
         return sha256(input);
     }
 
-    private void validateKnowledgeBase(String kbId, Long userId) {
+    private void validateKnowledgeBaseForActor(String kbId, ActorIdentity actor) {
         if (kbId == null || kbId.isBlank()) {
             return;
         }
-        AgentKnowledgeBase kb = knowledgeMapper.getOwnedBase(kbId, userId);
+        if (!actor.isAdmin()) {
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
+        }
+        AgentKnowledgeBase kb = knowledgeMapper.getOwnedBase(kbId, actor.id());
         if (kb == null) {
             throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
         }
@@ -500,9 +534,9 @@ public class AgentServiceImpl implements AgentService {
         }
     }
 
-    private void bindKnowledgeBase(AgentSession session, String requestedKbId, Long userId) {
+    private void bindKnowledgeBase(AgentSession session, String requestedKbId, ActorIdentity actor) {
         if (session.getKbId() == null || session.getKbId().isBlank()) {
-            validateKnowledgeBase(requestedKbId, userId);
+            validateKnowledgeBaseForActor(requestedKbId, actor);
             if (requestedKbId != null && !requestedKbId.isBlank()) {
                 session.setKbId(requestedKbId);
                 sessionMapper.update(AgentSession.builder().id(session.getId()).kbId(requestedKbId).build());
@@ -512,14 +546,14 @@ public class AgentServiceImpl implements AgentService {
         if (!sameNullable(session.getKbId(), requestedKbId)) {
             throw new AgentBusinessException("会话已绑定其他知识库，不能切换");
         }
-        validateKnowledgeBase(session.getKbId(), userId);
+        validateKnowledgeBaseForActor(session.getKbId(), actor);
     }
 
-    private AgentKnowledgeScope buildKnowledgeScope(String kbId, Long userId) {
+    private AgentKnowledgeScope buildKnowledgeScope(String kbId, ActorIdentity actor) {
         if (!agentProperties.isRagEnabled() || kbId == null || kbId.isBlank()) {
             return null;
         }
-        validateKnowledgeBase(kbId, userId);
+        validateKnowledgeBaseForActor(kbId, actor);
         Map<String, Integer> versions = knowledgeMapper.listReadyDocuments(kbId).stream()
                 .filter(document -> document.getActiveVersion() != null)
                 .collect(Collectors.toMap(AgentKnowledgeDocument::getDocumentId,
@@ -575,7 +609,38 @@ public class AgentServiceImpl implements AgentService {
         return history;
     }
 
+    /** 合并可信历史和不可信页面提示；页面上下文不得用于权限判断。 */
+    private Map<String, Object> buildRequestContext(List<AgentHistoryMessage> history,
+                                                    Map<String, Object> clientContext) {
+        if (clientContext == null || clientContext.isEmpty()) {
+            return Map.of("history", history);
+        }
+        return Map.of("history", history, "client_context", clientContext);
+    }
+
     private final AgentSessionSummaryMapper summaryMapper;
+
+    /** 从管理员拦截器上下文构造可信主体；普通用户不得进入管理存储域。 */
+    private ActorIdentity currentActor() {
+        Long actorId = BaseContext.getCurrentId();
+        String currentRole = BaseContext.getCurrentRole();
+        if (actorId == null || currentRole == null || currentRole.isBlank()) {
+            throw new AgentPermissionDeniedException(RESOURCE_ACCESS_DENIED);
+        }
+        return new ActorIdentity(AgentActorType.ADMIN.name(), actorId,
+                AdminRole.fromDatabase(currentRole).name());
+    }
+
+    /** 管理端表已形成独立边界，归属只取员工ID。 */
+    private boolean owns(AgentSession session, ActorIdentity actor) {
+        return actor.isAdmin() && actor.id().equals(session.getUserId());
+    }
+
+    private record ActorIdentity(String type, Long id, String role) {
+        private boolean isAdmin() {
+            return AgentActorType.ADMIN.name().equals(type);
+        }
+    }
 
     /**
      * 在事务提交后调度会话摘要任务。

@@ -5,35 +5,33 @@
 
     <insert id="insert" parameterType="com.sky.entity.AgentTask"
             useGeneratedKeys="true" keyProperty="id">
-        insert into agent_task
-        (task_id, session_id, user_id, actor_role, query, status, progress, model, request_hash,
+        insert into admin_agent_task
+        (task_id, session_id, user_id, actor_type, actor_id, actor_role, query, status, progress, model, request_hash,
          assistant_message_id, started_at, finished_at, error_msg,
          create_time, update_time)
         values
-        (#{taskId}, #{sessionId}, #{userId}, #{actorRole}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
+        (#{taskId}, #{sessionId}, #{userId}, #{actorType}, #{actorId}, #{actorRole}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
          #{assistantMessageId}, #{startedAt}, #{finishedAt}, #{errorMsg},
          #{createTime}, #{updateTime})
     </insert>
 
     <insert id="insertIgnore" parameterType="com.sky.entity.AgentTask">
-        insert ignore into agent_task
-        (task_id, session_id, user_id, actor_role, query, status, progress, model, request_hash,
+        insert ignore into admin_agent_task
+        (task_id, session_id, user_id, actor_type, actor_id, actor_role, query, status, progress, model, request_hash,
          assistant_message_id, started_at, finished_at, error_msg, create_time, update_time)
         values
-        (#{taskId}, #{sessionId}, #{userId}, #{actorRole}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
+        (#{taskId}, #{sessionId}, #{userId}, #{actorType}, #{actorId}, #{actorRole}, #{query}, #{status}, #{progress}, #{model}, #{requestHash},
          #{assistantMessageId}, #{startedAt}, #{finishedAt}, #{errorMsg}, #{createTime}, #{updateTime})
     </insert>
 
     <select id="pageQuery" resultType="com.sky.entity.AgentTask">
         select *
-        from agent_task
+        from admin_agent_task
         <where>
             <if test="sessionId != null and sessionId != ''">
                 and session_id = #{sessionId}
             </if>
-            <if test="userId != null">
-                and user_id = #{userId}
-            </if>
+            and user_id = #{actorId}
             <if test="status != null">
                 and status = #{status}
             </if>
@@ -42,9 +40,11 @@
     </select>
 
     <update id="update" parameterType="com.sky.entity.AgentTask">
-        update agent_task
+        update admin_agent_task
         <set>
             <if test="query != null">query = #{query},</if>
+            <if test="actorType != null">actor_type = #{actorType},</if>
+            <if test="actorId != null">actor_id = #{actorId},</if>
             <if test="actorRole != null">actor_role = #{actorRole},</if>
             <if test="status != null">status = #{status},</if>
             <if test="progress != null">progress = #{progress},</if>
@@ -60,7 +60,7 @@
     </update>
 
     <update id="updateStatusAndProgress">
-        update agent_task
+        update admin_agent_task
         set status = #{status},
             <if test="progress != null">
                 progress = #{progress},
@@ -76,7 +76,7 @@
     </update>
 
     <update id="transitionStatus">
-        update agent_task
+        update admin_agent_task
         set status = #{status},
             progress = #{progress},
             <if test="assistantMessageId != null">

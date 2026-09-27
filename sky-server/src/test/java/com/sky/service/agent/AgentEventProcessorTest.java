@@ -83,6 +83,27 @@ class AgentEventProcessorTest {
     }
 
     @Test
+    void userProtocolAliasesAdvanceAndCompleteTask() {
+        AgentTask task = AgentTask.builder().taskId("task-user").sessionId("session-user")
+                .status(1).progress(1).build();
+        AgentSession session = AgentSession.builder().id(12L).sessionId("session-user").build();
+        ObjectNode data = objectMapper.createObjectNode().put("result", "结构化回复");
+        when(taskMapper.getByTaskId("task-user")).thenReturn(task);
+        when(eventMapper.insertIfAbsent(any(AgentEvent.class))).thenReturn(1);
+        when(taskMapper.transitionStatus(eq("task-user"), eq(2), eq(100), any(),
+                eq(null), eq(java.util.List.of(0, 1)))).thenReturn(1);
+        when(messageMapper.getNextSeqNo("session-user")).thenReturn(2);
+        when(messageMapper.insertIfAbsent(any(AgentMessage.class))).thenReturn(1);
+        when(sessionMapper.getBySessionIdForUpdate("session-user")).thenReturn(session);
+
+        assertTrue(processor.process(event("task-user", 5, "task_completed", data)));
+
+        ArgumentCaptor<AgentMessage> message = ArgumentCaptor.forClass(AgentMessage.class);
+        verify(messageMapper).insertIfAbsent(message.capture());
+        assertEquals("结构化回复", message.getValue().getContent());
+    }
+
+    @Test
     void completedTaskRejectsLateTokenBeforePersistence() {
         AgentTask task = AgentTask.builder().taskId("task-3").status(2).build();
         when(taskMapper.getByTaskId("task-3")).thenReturn(task);

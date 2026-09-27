@@ -31,7 +31,7 @@ import java.util.UUID;
  * <p>
  * 核心职责：
  * 1.  <b>幂等处理</b>：消费来自Python Agent的SSE事件，并确保每个事件只被处理一次，即使在分布式或重试场景下。
- * 2.  <b>持久化</b>：将事件日志（`agent_event`）持久化到数据库，用于审计、调试和断线重连。
+ * 2.  <b>持久化</b>：将事件日志（`admin_agent_event`）持久化到数据库，用于审计、调试和断线重连。
  * 3.  <b>状态推进</b>：根据事件类型，驱动相关的业务实体（如`AgentTask`, `AgentMessage`, `AgentSession`）的状态变更。
  * 4.  <b>数据转换</b>：将事件中的JSON数据转换为Java实体，并写入相应的业务表。
  * 5.  <b>缓存管理</b>：在事务提交后，使相关的缓存（如消息列表）失效，确保数据一致性。
@@ -94,7 +94,7 @@ public class AgentEventProcessor {
      * <p>
      * 此方法是事件处理的核心入口，它在一个事务中执行以下操作：
      * 1.  <b>校验</b>：检查任务是否存在，以及事件是否与当前任务状态兼容。
-     * 2.  <b>幂等写入</b>：尝试将事件插入`agent_event`表。如果插入失败（因为事件已存在），则跳过后续处理。
+     * 2.  <b>幂等写入</b>：尝试将事件插入`admin_agent_event`表。如果插入失败（因为事件已存在），则跳过后续处理。
      * 3.  <b>状态分派</b>：根据事件类型（如`task_start`, `task_end`等），调用相应的私有方法来更新业务状态。
      * </p>
      *
@@ -131,10 +131,10 @@ public class AgentEventProcessor {
 
         // 3. 根据事件类型推进业务状态
         boolean success = switch (event.event()) {
-            case "task_start" -> startTask(task);
-            case "token" -> acceptToken(task);
-            case "task_end" -> completeTask(task, event.data());
-            case "task_error" -> failTask(task, event.data());
+            case "task_start", "task_started" -> startTask(task);
+            case "token", "message_delta" -> acceptToken(task);
+            case "task_end", "task_completed" -> completeTask(task, event.data());
+            case "task_error", "task_failed" -> failTask(task, event.data());
             case "task_cancelled" -> cancelTask(task);
             default -> true; // 对于不改变状态的事件（如中间步骤），直接返回成功
         };
@@ -314,7 +314,8 @@ public class AgentEventProcessor {
         }
         // 已取消：不再接受终态事件
         if (status == 4) {
-            return !"task_end".equals(eventType) && !"task_error".equals(eventType);
+            return !"task_end".equals(eventType) && !"task_error".equals(eventType)
+                    && !"task_completed".equals(eventType) && !"task_failed".equals(eventType);
         }
         return true;
     }

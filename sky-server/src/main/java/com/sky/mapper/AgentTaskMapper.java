@@ -28,18 +28,24 @@ public interface AgentTaskMapper {
     /**
      * 根据DB主键查询
      */
-    @Select("select * from agent_task where id = #{id}")
+    @Select("select * from admin_agent_task where id = #{id}")
     AgentTask getById(Long id);
 
     /**
      * 根据业务taskId查询
      */
-    @Select("select * from agent_task where task_id = #{taskId}")
+    @Select("select * from admin_agent_task where task_id = #{taskId}")
     AgentTask getByTaskId(String taskId);
 
-    @Select("select * from agent_task where task_id = #{taskId} and user_id = #{userId}")
+    @Select("select * from admin_agent_task where task_id = #{taskId} and user_id = #{userId}")
     AgentTask getByTaskIdAndUserId(@Param("taskId") String taskId,
                                    @Param("userId") Long userId);
+
+    /** 管理表只保存员工任务，直接按历史员工字段校验归属。 */
+    @Select("select * from admin_agent_task where task_id = #{taskId} and user_id = #{actorId}")
+    AgentTask getByTaskIdAndActor(@Param("taskId") String taskId,
+                                  @Param("actorType") String actorType,
+                                  @Param("actorId") Long actorId);
 
     /**
      * 更新任务信息
@@ -63,19 +69,20 @@ public interface AgentTaskMapper {
                          @Param("errorMsg") String errorMsg,
                          @Param("expectedStatuses") List<Integer> expectedStatuses);
 
-    @Select("select * from agent_task where status in (0, 1) order by create_time asc")
+    @Select("select * from admin_agent_task where status in (0, 1) order by create_time asc")
     List<AgentTask> listUnfinished();
 
     /**
      * 分页查询任务列表
      */
     Page<AgentTask> pageQuery(@Param("sessionId") String sessionId,
-                              @Param("userId") Long userId,
+                              @Param("actorType") String actorType,
+                              @Param("actorId") Long actorId,
                               @Param("status") Integer status);
 
     /**
      * 查询指定会话下的所有任务
      */
-    @Select("select * from agent_task where session_id = #{sessionId} order by create_time asc")
+    @Select("select * from admin_agent_task where session_id = #{sessionId} order by create_time asc")
     List<AgentTask> listBySessionId(String sessionId);
 }

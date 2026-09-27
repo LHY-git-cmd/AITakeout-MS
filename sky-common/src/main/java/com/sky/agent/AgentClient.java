@@ -436,7 +436,14 @@ public class AgentClient {
      */
     public void subscribeTaskEvents(String taskId, int lastEventId,
                                     Consumer<AgentStreamEvent> eventConsumer) {
-        String url = agentProperties.getBaseUrl() + "/api/v1/agent/stream/" + taskId;
+        subscribeTaskEvents(taskId, lastEventId, "ADMIN_ASSISTANT", eventConsumer);
+    }
+
+    /** 在指定Agent存储域订阅结构化事件，禁止同名任务跨域命中。 */
+    public void subscribeTaskEvents(String taskId, int lastEventId, String agentProfile,
+                                    Consumer<AgentStreamEvent> eventConsumer) {
+        String url = agentProperties.getBaseUrl() + "/api/v1/agent/stream/" + taskId
+                + "?agent_profile=" + agentProfile;
         HttpURLConnection connection = null;
         try {
             connection = (HttpURLConnection) new URL(url).openConnection();
@@ -476,13 +483,24 @@ public class AgentClient {
     }
 
     public AgentTaskStatusResponse cancelTask(String taskId) {
+        return cancelTask(taskId, "ADMIN_ASSISTANT");
+    }
+
+    /** 在指定Agent存储域取消任务。 */
+    public AgentTaskStatusResponse cancelTask(String taskId, String agentProfile) {
         String url = agentProperties.getBaseUrl()
-                + "/api/v1/agent/tasks/" + taskId + "/cancel";
+                + "/api/v1/agent/tasks/" + taskId + "/cancel?agent_profile=" + agentProfile;
         return restTemplate.postForObject(url, null, AgentTaskStatusResponse.class);
     }
 
     public AgentTaskStatusResponse getTaskStatus(String taskId) {
-        String url = agentProperties.getBaseUrl() + "/api/v1/agent/status/" + taskId;
+        return getTaskStatus(taskId, "ADMIN_ASSISTANT");
+    }
+
+    /** 在指定Agent存储域查询任务。 */
+    public AgentTaskStatusResponse getTaskStatus(String taskId, String agentProfile) {
+        String url = agentProperties.getBaseUrl() + "/api/v1/agent/status/" + taskId
+                + "?agent_profile=" + agentProfile;
         return restTemplate.getForObject(url, AgentTaskStatusResponse.class);
     }
 

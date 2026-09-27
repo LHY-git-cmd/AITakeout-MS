@@ -5,9 +5,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     HOST=0.0.0.0 \
     PORT=8000 \
-    TASK_STATE_DB=/app/data/agent_tasks.sqlite3 \
-    KNOWLEDGE_STATE_DB=/app/data/knowledge_tasks.sqlite3 \
-    KNOWLEDGE_SOURCE_PATH=/app/data/knowledge_sources
+    ADMIN_TASK_STATE_DB=/app/data/admin_agent_tasks.sqlite3 \
+    USER_TASK_STATE_DB=/app/data/user_agent_tasks.sqlite3 \
+    ADMIN_KNOWLEDGE_STATE_DB=/app/data/admin_knowledge_tasks.sqlite3 \
+    USER_KNOWLEDGE_STATE_DB=/app/data/user_knowledge_tasks.sqlite3 \
+    ADMIN_KNOWLEDGE_SOURCE_PATH=/app/data/admin_knowledge_sources \
+    USER_KNOWLEDGE_SOURCE_PATH=/app/data/user_knowledge_sources
 
 RUN groupadd --system --gid 10001 sky \
     && useradd --system --uid 10001 --gid sky --home-dir /app --shell /usr/sbin/nologin sky

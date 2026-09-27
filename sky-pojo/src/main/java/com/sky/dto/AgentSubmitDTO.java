@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.Map;
 
 @Data
 @Schema(description = "Agent任务提交数据传输对象")
@@ -26,4 +27,7 @@ public class AgentSubmitDTO implements Serializable {
 
     @Schema(description = "使用的模型名称，可选")
     private String model;
+
+    @Schema(description = "前端页面上下文，仅作为提示信息，不作为权限依据")
+    private Map<String, Object> clientContext;
 }

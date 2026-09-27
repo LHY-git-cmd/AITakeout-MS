@@ -18,7 +18,8 @@ sky:
     tool-confirmation-ttl-seconds: ${TOOL_CONFIRMATION_TIMEOUT_SECONDS:300}
     recovery-enabled: true
     message-cache-enabled: true
-    message-cache-key-prefix: "sky:agent:messages:"
+    message-cache-key-prefix: "sky:admin-agent:messages:"
+    user-message-cache-key-prefix: "sky:user-agent:messages:"
     message-cache-ttl-seconds: 1800
   cors:
     allowed-origin-patterns:

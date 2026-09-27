@@ -31,6 +31,7 @@ from app.core.task_store import TaskStore
 from app.core.config import settings
 from app.core.trace import current_session_id, current_task_id, current_trace_id
 from app.tools.orchestrator import AgentOutput
+from app.user_agent.metrics import user_agent_metrics
 
 
 class TaskCapacityError(ValueError):
@@ -50,7 +51,8 @@ class TaskQueue:
       - `_worker_tasks[task_id]`: 指向实际在后台执行模型调用的 `asyncio.Task` 对象。
     """
 
-    def __init__(self, agent: PythonAgent, state_path: Optional[str] = None):
+    def __init__(self, agent: PythonAgent, state_path: Optional[str] = None,
+                 agent_profile: str = "ADMIN_ASSISTANT"):
         """
         初始化任务队列管理器。
 
@@ -58,6 +60,7 @@ class TaskQueue:
         :param state_path: (可选) 用于持久化任务状态的 SQLite 数据库路径。如果提供，则会启用状态持久化。
         """
         self.agent = agent
+        self.agent_profile = agent_profile
         self._tasks: Dict[str, dict] = {}
         self._subscribers: Dict[str, Set[asyncio.Queue]] = {}
         self._events: Dict[str, list[dict]] = {}
@@ -112,12 +115,15 @@ class TaskQueue:
         if self._store:
             self._store.close()
 
-    async def submit(self, user_id: int, query: str,
+    async def submit(self, query: str, user_id: Optional[int] = None,
                      context: Optional[dict] = None,
                      knowledge: Optional[dict] = None,
                      task_id: str = None,
                      trace_id: Optional[str] = None,
+                     actor_id: Optional[int] = None,
+                     actor_type: str = "ADMIN",
                      actor_role: str = "ADMIN",
+                     agent_profile: str = "ADMIN_ASSISTANT",
                      session_id: Optional[str] = None,
                      model: str = None,
                      temperature: float = 0.2) -> dict:
@@ -127,8 +133,10 @@ class TaskQueue:
         这是一个幂等操作。如果使用相同的 `task_id` 和请求参数重复提交，
         它将直接返回现有任务的状态，而不会重复执行。
 
-        :param user_id: 用户 ID。
-        :param actor_role: Java确定的管理员角色快照，仅用于工具可见性筛选。
+        :param user_id: 已废弃的管理端主体ID，仅用于协议兼容。
+        :param actor_id: Java鉴权后绑定到任务的通用主体ID。
+        :param actor_type: 主体类型：ADMIN/USER/SYSTEM。
+        :param actor_role: Java确定的角色快照，仅用于工具可见性筛选。
         :param query: 用户的查询。
         :param context: 上下文信息，如历史对话。
         :param knowledge: 知识库相关参数。
@@ -140,12 +148,23 @@ class TaskQueue:
         """
         if not task_id:
             raise ValueError("task_id is required")
+        if agent_profile != self.agent_profile:
+            raise ValueError("task submitted to the wrong agent profile")
+        expected_actor_type = (
+            "USER" if self.agent_profile == "USER_ASSISTANT" else "ADMIN")
+        if actor_type != expected_actor_type:
+            raise ValueError("actor_type does not match agent profile")
+        resolved_actor_id = actor_id if actor_id is not None else user_id
+        if resolved_actor_id is None:
+            raise ValueError("actor_id is required")
         model = model or settings.LLM_MODEL
         execution = {
             "trace_id": trace_id or task_id,
             "session_id": session_id,
-            "user_id": user_id,
+            "actor_id": resolved_actor_id,
+            "actor_type": actor_type,
             "actor_role": actor_role,
+            "agent_profile": agent_profile,
             "query": query,
             "context": context,
             "knowledge": knowledge,
@@ -174,7 +193,10 @@ class TaskQueue:
             self._tasks[task_id] = {
                 "task_id": task_id,
                 "trace_id": trace_id or task_id,
-                "user_id": user_id,
+                "user_id": resolved_actor_id,
+                "actor_id": resolved_actor_id,
+                "actor_type": actor_type,
+                "agent_profile": agent_profile,
                 "query": query,
                 "status": "pending",
                 "result": None,
@@ -188,6 +210,8 @@ class TaskQueue:
             self._events[task_id] = []
             self._persist_locked(task_id)
 
+        if actor_type == "USER":
+            await user_agent_metrics.task_started(task_id)
         await self._start_worker(task_id)
         return await self.get_status(task_id)
 
@@ -205,7 +229,10 @@ class TaskQueue:
         :param last_event_id: 客户端收到的最后一个事件的序列号，用于断线重连时回放错过的事件。
         :yield: 任务产生的事件字典。
         """
-        terminal_events = {"task_end", "task_error", "task_cancelled"}
+        terminal_events = {
+            "task_end", "task_error", "task_cancelled",
+            "task_completed", "task_failed",
+        }
         queue: asyncio.Queue = asyncio.Queue()
 
         # 在同一把锁内获取历史事件快照并注册实时订阅，避免在切换期间丢失事件。
@@ -341,7 +368,11 @@ class TaskQueue:
                     self._tasks[task_id]["updated_at"] = datetime.now()
                     self._persist_locked(task_id)
 
-                await self._publish(task_id, "task_start", {
+                started_event = (
+                    "task_started" if execution.get("actor_type") == "USER"
+                    else "task_start"
+                )
+                await self._publish(task_id, started_event, {
                     "task_id": task_id,
                     "status": "running"
                 })
@@ -366,6 +397,8 @@ class TaskQueue:
             if not self._shutting_down:
                 await self._publish(task_id, "task_cancelled", {
                     "status": "cancelled", "partial_result": full_result})
+                if self._tasks[task_id].get("actor_type") == "USER":
+                    await user_agent_metrics.task_finished(task_id, "cancelled")
         except Exception as e:
             full_result = getattr(e, "partial_result", full_result)
             error_msg = str(e)
@@ -375,9 +408,16 @@ class TaskQueue:
                 self._tasks[task_id]["error_msg"] = error_msg
                 self._tasks[task_id]["updated_at"] = datetime.now()
                 self._persist_locked(task_id)
-            await self._publish(task_id, "task_error", {
+            failed_event = (
+                "task_failed"
+                if self._tasks[task_id]["_execution"].get("actor_type") == "USER"
+                else "task_error"
+            )
+            await self._publish(task_id, failed_event, {
                 "status": "failed", "error_type": error_type,
                 "error_msg": error_msg, "partial_result": full_result})
+            if self._tasks[task_id].get("actor_type") == "USER":
+                await user_agent_metrics.task_finished(task_id, "failed")
         finally:
             async with self._lock:
                 self._worker_tasks.pop(task_id, None)
@@ -388,7 +428,8 @@ class TaskQueue:
             rag_context, citations, refusal = (None, [], None)
             if execution.get("knowledge") and hasattr(self.agent, "prepare_rag"):
                 rag_context, citations, refusal = await self.agent.prepare_rag(
-                    execution["query"], execution["context"], execution["knowledge"])
+                    execution["query"], execution["context"], execution["knowledge"],
+                    agent_profile=execution.get("agent_profile", self.agent_profile))
             stream_args = {
                 "model": execution["model"],
                 "temperature": execution["temperature"],
@@ -396,26 +437,42 @@ class TaskQueue:
                 "session_id": execution.get("session_id"),
                 "trace_id": execution.get("trace_id"),
             }
-            parameters = inspect.signature(self.agent.stream_process).parameters.values()
-            supports_tool_context = any(
-                value.name == "employee_id" for value in parameters)
-            if supports_tool_context:
-                stream_args.update(
-                    employee_id=execution.get("user_id"),
-                    actor_role=execution.get("actor_role"),
-                )
+            parameters = inspect.signature(self.agent.stream_process).parameters
+            # 测试替身与旧Agent实现可能仍使用旧签名；只传递其明确支持的
+            # 身份字段，同时保证正式实现能收到完整的双域执行上下文。
+            identity_args = {
+                "actor_id": execution.get("actor_id"),
+                "actor_type": execution.get("actor_type"),
+                "actor_role": execution.get("actor_role"),
+                "agent_profile": execution.get("agent_profile", self.agent_profile),
+            }
+            stream_args.update({
+                name: value for name, value in identity_args.items()
+                if name in parameters
+            })
             if rag_context or refusal:
                 stream_args.update(rag_context=rag_context, refusal=refusal)
             async for token in self.agent.stream_process(
-                    execution["query"], execution["context"], **stream_args):
+                execution["query"], execution["context"], **stream_args):
                 if isinstance(token, AgentOutput):
-                    if token.event == "token":
+                    if token.event in {"token", "message_delta"}:
+                        # 新旧文本增量事件都参与最终消息聚合，保证安全拒绝等
+                        # 仅产生结构化事件的路径仍能持久化完整助手回复。
                         content = str(token.data.get("content", ""))
                         full_result += content
-                    await self._publish(task_id, token.event, token.data)
+                    if execution.get("actor_type") == "USER":
+                        await self._publish_user_output(task_id, token)
+                    else:
+                        await self._publish(task_id, token.event, token.data)
                 else:
                     full_result += token
-                    await self._publish(task_id, "token", {"content": token})
+                    event_name = (
+                        "message_delta" if execution.get("actor_type") == "USER"
+                        else "token"
+                    )
+                    if execution.get("actor_type") == "USER":
+                        await user_agent_metrics.event(task_id, event_name, {"content": token})
+                    await self._publish(task_id, event_name, {"content": token})
 
             # 成功
             async with self._lock:
@@ -424,7 +481,14 @@ class TaskQueue:
                 self._tasks[task_id]["updated_at"] = datetime.now()
                 self._persist_locked(task_id)
 
-            await self._publish(task_id, "task_end", {
+            completed_event = (
+                "task_completed"
+                if execution.get("actor_type") == "USER"
+                else "task_end"
+            )
+            if execution.get("actor_type") == "USER":
+                await user_agent_metrics.task_finished(task_id, "completed")
+            await self._publish(task_id, completed_event, {
                 "status": "completed",
                 "result": full_result,
                 "citations": citations
@@ -436,6 +500,35 @@ class TaskQueue:
             if current is not None:
                 setattr(current, "partial_result", full_result)
             raise
+
+    async def _publish_user_output(self, task_id: str, output: AgentOutput) -> None:
+        """把内部兼容事件转换为用户端稳定协议，并派生业务卡片事件。"""
+        event_name = {
+            "token": "message_delta",
+            "tool_start": "tool_started",
+            "tool_result": "tool_completed",
+            "tool_confirmation_required": "confirmation_required",
+        }.get(output.event, output.event)
+        await user_agent_metrics.event(task_id, event_name, output.data)
+        await self._publish(task_id, event_name, output.data)
+
+        if output.event != "tool_result" or output.data.get("status") != "success":
+            return
+        tool_name = output.data.get("tool_name")
+        result = output.data.get("data")
+        if tool_name == "search_products":
+            items = result.get("items", []) if isinstance(result, dict) else result
+            await self._publish(task_id, "recommendation_cards", {
+                "items": items if isinstance(items, list) else [],
+            })
+        elif tool_name == "add_cart_item":
+            value = result if isinstance(result, dict) else {}
+            await self._publish(task_id, "business_state_changed", {
+                "resource": "cart",
+                "operation": "item_added",
+                "items": value.get("items", []),
+                "replayed": bool(value.get("replayed", False)),
+            })
 
     async def _start_worker(self, task_id: str) -> None:
         worker = asyncio.create_task(

@@ -5,7 +5,7 @@
 
     <insert id="insert" parameterType="com.sky.entity.AgentEvent"
             useGeneratedKeys="true" keyProperty="id">
-        insert into agent_event
+        insert into admin_agent_event
         (event_id, task_id, seq_no, event_type, data, create_time)
         values
         (#{eventId}, #{taskId}, #{seqNo}, #{eventType}, #{data}, #{createTime})
@@ -13,14 +13,14 @@
 
     <insert id="insertIfAbsent" parameterType="com.sky.entity.AgentEvent"
             useGeneratedKeys="true" keyProperty="id">
-        insert ignore into agent_event
+        insert ignore into admin_agent_event
         (event_id, task_id, seq_no, event_type, data, create_time)
         values
         (#{eventId}, #{taskId}, #{seqNo}, #{eventType}, #{data}, now())
     </insert>
 
     <insert id="batchInsert" parameterType="java.util.List">
-        insert into agent_event
+        insert into admin_agent_event
         (event_id, task_id, seq_no, event_type, data, create_time)
         values
         <foreach collection="list" item="item" separator=",">

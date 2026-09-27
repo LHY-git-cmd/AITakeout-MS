@@ -5,21 +5,19 @@
 
     <insert id="insert" parameterType="com.sky.entity.AgentSession"
             useGeneratedKeys="true" keyProperty="id">
-        insert into agent_session
-        (session_id, user_id, kb_id, title, status, last_task_id, message_count,
+        insert into admin_agent_session
+        (session_id, user_id, actor_type, actor_id, kb_id, title, status, last_task_id, message_count,
          create_time, update_time, create_user, update_user)
         values
-        (#{sessionId}, #{userId}, #{kbId}, #{title}, #{status}, #{lastTaskId}, #{messageCount},
+        (#{sessionId}, #{userId}, #{actorType}, #{actorId}, #{kbId}, #{title}, #{status}, #{lastTaskId}, #{messageCount},
          #{createTime}, #{updateTime}, #{createUser}, #{updateUser})
     </insert>
 
     <select id="pageQuery" resultType="com.sky.entity.AgentSession">
         select *
-        from agent_session
+        from admin_agent_session
         <where>
-            <if test="userId != null">
-                and user_id = #{userId}
-            </if>
+            and user_id = #{actorId}
             <if test="status != null">
                 and status = #{status}
             </if>
@@ -28,7 +26,7 @@
     </select>
 
     <update id="update" parameterType="com.sky.entity.AgentSession">
-        update agent_session
+        update admin_agent_session
         <set>
             <if test="title != null">title = #{title},</if>
             <if test="kbId != null">kb_id = #{kbId},</if>
@@ -42,7 +40,7 @@
     </update>
 
     <update id="incrementMessageCount">
-        update agent_session
+        update admin_agent_session
         set message_count = message_count + 1,
             last_task_id = #{lastTaskId},
             update_time = now()
@@ -50,7 +48,7 @@
     </update>
 
     <update id="softDelete">
-        update agent_session
+        update admin_agent_session
         set status = 3,
             update_time = now()
         where id = #{id}

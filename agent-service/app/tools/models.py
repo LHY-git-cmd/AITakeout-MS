@@ -6,9 +6,22 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class AdminRole(StrEnum):
+class ActorType(StrEnum):
+    ADMIN = "ADMIN"
+    USER = "USER"
+    SYSTEM = "SYSTEM"
+
+
+class ActorRole(StrEnum):
     SUPER_ADMIN = "SUPER_ADMIN"
     ADMIN = "ADMIN"
+    CUSTOMER = "CUSTOMER"
+    SYSTEM = "SYSTEM"
+
+
+# 保留旧导入名称，现有管理端工具定义可平滑迁移。
+AdminRole = ActorRole
+ADMIN_ROLES = frozenset({ActorRole.SUPER_ADMIN, ActorRole.ADMIN})
 
 
 class ToolAccess(StrEnum):
@@ -42,7 +55,7 @@ class ToolDefinition:
     arguments_model: type[ToolArguments]
     operation: str
     access: ToolAccess = ToolAccess.READ
-    allowed_roles: frozenset[AdminRole] = frozenset(AdminRole)
+    allowed_roles: frozenset[ActorRole] = ADMIN_ROLES
     requires_confirmation: bool = False
     timeout_seconds: float = 10.0
 
@@ -51,8 +64,7 @@ class ToolDefinition:
             raise ValueError("tool name and operation are required")
         if self.timeout_seconds <= 0:
             raise ValueError("tool timeout must be positive")
-        if self.access == ToolAccess.WRITE and not self.requires_confirmation:
-            raise ValueError("write tools must require confirmation")
+        # 低风险写操作（如明确加购）允许直接执行；高风险写工具必须在定义中显式开启确认。
 
     def openai_schema(self) -> dict[str, Any]:
         parameters = self.arguments_model.model_json_schema()
