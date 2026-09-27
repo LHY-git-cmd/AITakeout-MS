@@ -74,7 +74,7 @@ public class OrderPaymentService {
             throw new OrderBusinessException("当前用户不存在或未绑定微信账号");
         }
         JSONObject result = weChatPayUtil.pay(order.getNumber(), order.getAmount(),
-                "苍穹外卖订单", user.getOpenid());
+                "饱饱点餐订单", user.getOpenid());
         if ("ORDERPAID".equals(result.getString("code"))) {
             throw new OrderBusinessException("该订单已支付");
         }

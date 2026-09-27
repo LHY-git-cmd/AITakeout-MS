@@ -3,7 +3,7 @@
 ## 1. 基本信息
 
 - 实施日期：2026-09-07
-- 项目：苍穹外卖智能助手
+- 项目：饱饱点餐智能助手
 - 实施范围：BGE-M3独立Embedding服务、Qdrant V2集合、multipart文档传输、RAG配置统一、旧接口兼容处理、端到端测试
 - 原集合：`sky_knowledge_v1`（384维，保留且未修改）
 - 新集合：`sky_knowledge_v2`（1024维，Cosine）

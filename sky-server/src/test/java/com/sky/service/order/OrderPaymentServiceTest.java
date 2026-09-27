@@ -48,7 +48,7 @@ class OrderPaymentServiceTest {
         JSONObject response = new JSONObject();
         response.put("package", "prepay_id=test");
         when(weChatPayUtil.pay("202608220001", new BigDecimal("50.00"),
-                "苍穹外卖订单", "openid-7")).thenReturn(response);
+                "饱饱点餐订单", "openid-7")).thenReturn(response);
         OrdersPaymentDTO request = new OrdersPaymentDTO();
         request.setOrderNumber("202608220001");
 
@@ -56,7 +56,7 @@ class OrderPaymentServiceTest {
 
         assertEquals("prepay_id=test", result.getPackageStr());
         verify(weChatPayUtil).pay("202608220001", new BigDecimal("50.00"),
-                "苍穹外卖订单", "openid-7");
+                "饱饱点餐订单", "openid-7");
     }
 
     @Test
