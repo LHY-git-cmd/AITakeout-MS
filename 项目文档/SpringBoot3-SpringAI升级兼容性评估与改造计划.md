@@ -1,8 +1,8 @@
-# 苍穹外卖 Spring Boot 3 / Spring AI 升级兼容性评估与改造计划
+# 饱饱点餐 Spring Boot 3 / Spring AI 升级兼容性评估与改造计划
 
 ## 1. 目标与范围
 
-本计划用于将现有苍穹外卖后端从 Spring Boot 2.7.18 迁移到能够稳定接入 Spring AI 的技术基线。
+本计划用于将现有饱饱点餐后端从 Spring Boot 2.7.18 迁移到能够稳定接入 Spring AI 的技术基线。
 
 本轮实施范围仅包含阶段 0 到阶段 4：
 

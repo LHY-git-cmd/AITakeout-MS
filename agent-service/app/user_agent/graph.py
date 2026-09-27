@@ -112,7 +112,7 @@ class UserAgentWorkflow:
             "knowledge": "规则类问题优先使用知识库；营业状态等实时事实使用get_shop_status。",
             "unknown": "无法确定意图时只追问一个最关键的问题，不执行写操作。",
         }[intent]
-        return {"system_instruction": "你是苍穹外卖用户助手。" + instruction}
+        return {"system_instruction": "你是饱饱点餐用户助手。" + instruction}
 
 
 user_agent_workflow = UserAgentWorkflow()
