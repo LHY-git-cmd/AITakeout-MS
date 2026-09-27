@@ -27,7 +27,7 @@ public interface AgentCitationMapper {
      * @return 成功插入的行数（0或1）
      */
     @Insert("""
-            insert ignore into agent_message_citation
+            insert ignore into admin_agent_message_citation
                 (message_id, kb_id, document_id, document_version, chunk_id,
                  file_name, page_no, score, quote, create_time)
             values
@@ -47,7 +47,7 @@ public interface AgentCitationMapper {
      */
     @Select("""
             select *
-            from agent_message_citation
+            from admin_agent_message_citation
             where message_id = #{messageId}
             order by score desc
             limit 5

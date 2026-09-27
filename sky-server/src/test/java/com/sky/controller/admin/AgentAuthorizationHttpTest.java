@@ -100,7 +100,7 @@ class AgentAuthorizationHttpTest {
 
     @Test
     void anotherAdministratorCannotReadTaskWithoutResourceDisclosure() throws Exception {
-        when(taskMapper.getByTaskIdAndUserId("task-owned-by-another-admin", 7L)).thenReturn(null);
+        when(taskMapper.getByTaskIdAndActor("task-owned-by-another-admin", "ADMIN", 7L)).thenReturn(null);
 
         assertForbidden(get("/admin/agent/tasks/task-owned-by-another-admin"));
     }

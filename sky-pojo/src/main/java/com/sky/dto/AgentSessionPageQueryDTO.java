@@ -14,12 +14,12 @@ public class AgentSessionPageQueryDTO implements Serializable {
 
     @Min(value = 1, message = "页码最小为1")
     @Schema(description = "页码，从1开始", defaultValue = "1")
-    private int page;
+    private int page = 1;
 
     @Min(value = 1, message = "每页条数必须大于0")
     @Max(value = 100, message = "每页条数不能超过100")
     @Schema(description = "每页记录数", defaultValue = "10")
-    private int pageSize;
+    private int pageSize = 20;
 
     @Size(max = 40, message = "知识库ID过长")
     @Schema(description = "知识库ID，用于筛选")

@@ -27,6 +27,17 @@ router = APIRouter(prefix="/api/v1", tags=["Agent"])
 ALLOWED_MODELS = settings.allowed_models
 DEFAULT_MODEL = settings.LLM_MODEL
 
+
+async def _find_task_queue(request: Request, task_id: str,
+                           agent_profile: str = "ADMIN_ASSISTANT"):
+    """只在指定Profile队列中定位任务，避免同名任务跨域命中。"""
+    queues = getattr(request.app.state, "task_queues", None)
+    if not queues:
+        queue = request.app.state.task_queue
+        return queue if await queue.get_status(task_id) else None
+    queue = queues.get(agent_profile)
+    return queue if queue and await queue.get_status(task_id) else None
+
 @router.post("/agent/query", response_model=AgentResponse,
              deprecated=True, summary="同步查询 Agent（已废弃）")
 async def handle_query(request: Request, body: AgentRequest):
@@ -35,6 +46,8 @@ async def handle_query(request: Request, body: AgentRequest):
     客户端发送请求后，等待 Agent 处理完成并返回完整结果
     适合耗时短（<5s）的场景
     """
+    if body.agent_profile != "ADMIN_ASSISTANT":
+        raise HTTPException(status_code=400, detail="用户Agent仅支持隔离的异步任务接口")
     logging.info(
         "Received query request: task_id=%s session_id=%s model=%s query_chars=%s",
         body.task_id, body.session_id, body.model or DEFAULT_MODEL, len(body.query))
@@ -60,6 +73,8 @@ async def stream_query(request: Request, body: AgentRequest):
     采用 SSE 协议逐块推送结果，前端可实现打字机效果
     Java 端可用 WebClient / OkHttp 流式消费
     """
+    if body.agent_profile != "ADMIN_ASSISTANT":
+        raise HTTPException(status_code=400, detail="用户Agent仅支持隔离的异步任务接口")
     logging.info(
         "Received stream query request: task_id=%s session_id=%s model=%s query_chars=%s",
         body.task_id, body.session_id, body.model or DEFAULT_MODEL, len(body.query))
@@ -109,7 +124,8 @@ async def submit_task(request: Request, body: AgentSubmitRequest):
     logging.info(
         "Received submit task request: task_id=%s session_id=%s model=%s query_chars=%s",
         body.task_id, body.session_id, body.model or DEFAULT_MODEL, len(body.query))
-    queue = request.app.state.task_queue
+    queues = getattr(request.app.state, "task_queues", None)
+    queue = (queues or {"ADMIN_ASSISTANT": request.app.state.task_queue})[body.agent_profile]
 
     model = body.model or DEFAULT_MODEL
     if model not in ALLOWED_MODELS:
@@ -121,8 +137,10 @@ async def submit_task(request: Request, body: AgentSubmitRequest):
         task = await queue.submit(
             task_id=body.task_id,
             trace_id=body.trace_id,
+            actor_id=body.resolved_actor_id,
+            actor_type=body.actor_type.value,
             actor_role=body.actor_role,
-            user_id=body.user_id,
+            agent_profile=body.agent_profile,
             session_id=body.session_id,
             query=body.query,
             context=body.context,
@@ -136,7 +154,8 @@ async def submit_task(request: Request, body: AgentSubmitRequest):
     # 构造 SSE 订阅地址，前端直接连接即可
     base_url = str(request.base_url).rstrip("/")
     task_id = task["task_id"]
-    stream_url = f"{base_url}/api/v1/agent/stream/{task_id}"
+    stream_url = (f"{base_url}/api/v1/agent/stream/{task_id}"
+                  f"?agent_profile={body.agent_profile}")
 
     return SubmitStreamResponse(
         task_id=task_id,
@@ -150,12 +169,17 @@ async def submit_task(request: Request, body: AgentSubmitRequest):
 
 @router.get("/agent/status/{task_id}", response_model=TaskStatusResponse,
             summary="查询任务状态")
-async def get_task_status(request: Request, task_id: str):
+async def get_task_status(
+        request: Request, task_id: str,
+        agent_profile: str = Query(default="ADMIN_ASSISTANT",
+                                   pattern="^(ADMIN|USER)_ASSISTANT$")):
     """
     异步任务状态轮询接口
     客户端拿到 task_id 后，定期调用此接口查询任务进度和结果
     """
-    queue = request.app.state.task_queue
+    queue = await _find_task_queue(request, task_id, agent_profile)
+    if queue is None:
+        raise HTTPException(status_code=404, detail="Task not found")
     task = await queue.get_status(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -168,7 +192,9 @@ async def stream_task_events(
         task_id: str,
         last_event_id_header: int = Header(
             default=0, alias="Last-Event-ID", ge=0),
-        last_event_id: int | None = Query(default=None, ge=0)):
+        last_event_id: int | None = Query(default=None, ge=0),
+        agent_profile: str = Query(default="ADMIN_ASSISTANT",
+                                   pattern="^(ADMIN|USER)_ASSISTANT$")):
     """
     SSE 端点：订阅指定任务的实时事件流。
 
@@ -180,7 +206,9 @@ async def stream_task_events(
       data: {"event": "token",      "data": "..."}\n\n
       data: {"event": "task_end",   "data": {...}}\n\n
     """
-    queue = request.app.state.task_queue
+    queue = await _find_task_queue(request, task_id, agent_profile)
+    if queue is None:
+        raise HTTPException(status_code=404, detail="Task not found")
 
     # 确认任务存在
     task = await queue.get_status(task_id)
@@ -211,20 +239,31 @@ async def stream_task_events(
 
 
 @router.get("/agent/tasks", summary="获取任务列表")
-async def list_tasks(request: Request, user_id: int = None):
+async def list_tasks(
+        request: Request, user_id: int = None,
+        agent_profile: str = Query(default="ADMIN_ASSISTANT",
+                                   pattern="^(ADMIN|USER)_ASSISTANT$")):
     """
     获取所有异步任务列表
     支持按 user_id 查询指定用户的任务
     """
-    queue = request.app.state.task_queue
-    tasks = await queue.list_tasks(user_id)
+    queues = getattr(request.app.state, "task_queues", None)
+    if not queues:
+        tasks = await request.app.state.task_queue.list_tasks(user_id)
+    else:
+        queue = queues[agent_profile]
+        tasks = await queue.list_tasks(user_id)
     return {"total": len(tasks), "tasks": tasks}
 
 
 @router.post("/agent/tasks/{task_id}/cancel", response_model=TaskStatusResponse,
              summary="取消异步任务")
-async def cancel_task(request: Request, task_id: str):
-    task = await request.app.state.task_queue.cancel(task_id)
+async def cancel_task(
+        request: Request, task_id: str,
+        agent_profile: str = Query(default="ADMIN_ASSISTANT",
+                                   pattern="^(ADMIN|USER)_ASSISTANT$")):
+    queue = await _find_task_queue(request, task_id, agent_profile)
+    task = await queue.cancel(task_id) if queue else None
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return TaskStatusResponse(**task)

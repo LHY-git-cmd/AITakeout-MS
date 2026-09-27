@@ -31,6 +31,7 @@ from app.knowledge.service import KnowledgeService
 from app.llm.metrics import llm_metrics
 from app.core.logging_config import configure_logging
 from app.core.trace import current_trace_id
+from app.user_agent.metrics import user_agent_metrics
 import uuid
 import time
 from collections import Counter
@@ -64,28 +65,39 @@ async def lifespan(app: FastAPI):
         settings.EMBEDDING_DIMENSION,
         settings.EMBEDDING_BATCH_SIZE,
     )
-    if settings.VECTOR_STORE == "memory":
-        vector_store = MemoryVectorStore()
-    else:
-        vector_store = QdrantVectorStore(
-            settings.QDRANT_URL,
-            settings.QDRANT_COLLECTION,
-            embedding.dimension,
-        )
-    knowledge_service = KnowledgeService(
-        embedding,
-        vector_store,
-        settings.KNOWLEDGE_STATE_DB,
-        settings.KNOWLEDGE_SOURCE_PATH,
-    )
-    await knowledge_service.start()
-    agent = PythonAgent(knowledge_service)
+    def vector_store(collection: str):
+        """为每个逻辑Agent创建独立向量存储实例。"""
+        if settings.VECTOR_STORE == "memory":
+            return MemoryVectorStore()
+        return QdrantVectorStore(settings.QDRANT_URL, collection, embedding.dimension)
+
+    admin_knowledge = KnowledgeService(
+        embedding, vector_store(settings.ADMIN_QDRANT_COLLECTION),
+        settings.ADMIN_KNOWLEDGE_STATE_DB, settings.ADMIN_KNOWLEDGE_SOURCE_PATH)
+    user_knowledge = KnowledgeService(
+        embedding, vector_store(settings.USER_QDRANT_COLLECTION),
+        settings.USER_KNOWLEDGE_STATE_DB, settings.USER_KNOWLEDGE_SOURCE_PATH)
+    await admin_knowledge.start()
+    await user_knowledge.start()
+    knowledge_services = {
+        "ADMIN_ASSISTANT": admin_knowledge,
+        "USER_ASSISTANT": user_knowledge,
+    }
+    agent = PythonAgent(admin_knowledge, knowledge_services)
     await agent.initialize()        # 初始化（加载模型、连接数据库等）
-    task_queue = TaskQueue(agent, settings.TASK_STATE_DB)
-    await task_queue.start()
+    task_queues = {
+        "ADMIN_ASSISTANT": TaskQueue(
+            agent, settings.ADMIN_TASK_STATE_DB, "ADMIN_ASSISTANT"),
+        "USER_ASSISTANT": TaskQueue(
+            agent, settings.USER_TASK_STATE_DB, "USER_ASSISTANT"),
+    }
+    for queue in task_queues.values():
+        await queue.start()
     app.state.agent = agent        # 将 Agent 存入 app.state，供路由层获取
-    app.state.task_queue = task_queue
-    app.state.knowledge_service = knowledge_service
+    app.state.task_queues = task_queues
+    app.state.task_queue = task_queues["ADMIN_ASSISTANT"]  # 兼容旧管理接口
+    app.state.knowledge_services = knowledge_services
+    app.state.knowledge_service = admin_knowledge
     app.state.settings = settings
     # 启动配置验证已经通过；readiness 不会为健康检查额外调用付费模型。
     app.state.llm_configured = True
@@ -100,8 +112,10 @@ async def lifespan(app: FastAPI):
     yield  # ---------- 运行阶段：服务正常对外提供 ----------
 
     # ---------- 关闭阶段 ----------
-    await task_queue.shutdown()
-    await knowledge_service.shutdown()
+    for queue in task_queues.values():
+        await queue.shutdown()
+    await admin_knowledge.shutdown()
+    await user_knowledge.shutdown()
     logging.getLogger(__name__).info("Agent service stopped")
 
 
@@ -273,18 +287,23 @@ async def llm_metrics_snapshot():
 async def agent_metrics_snapshot(request: Request):
     return {
         "llm": await llm_metrics.snapshot(),
-        "queue": await request.app.state.task_queue.metrics_snapshot(),
+        "user_agent": await user_agent_metrics.snapshot(),
+        "queues": {name: await queue.metrics_snapshot()
+                   for name, queue in request.app.state.task_queues.items()},
     }
 
 
 @app.get("/metrics", include_in_schema=False)
 async def prometheus_metrics(request: Request):
-    queue = await request.app.state.task_queue.metrics_snapshot()
+    queues = {name: await queue.metrics_snapshot()
+              for name, queue in request.app.state.task_queues.items()}
     payload = await llm_metrics.prometheus()
+    payload += await user_agent_metrics.prometheus()
     payload += "# TYPE sky_agent_tasks gauge\n"
-    payload += f'sky_agent_tasks{{status="running"}} {queue["running"]}\n'
-    payload += f'sky_agent_tasks{{status="queued"}} {queue["queued"]}\n'
-    payload += f'sky_agent_task_capacity {queue["capacity"]}\n'
+    for profile, queue in queues.items():
+        payload += f'sky_agent_tasks{{profile="{profile}",status="running"}} {queue["running"]}\n'
+        payload += f'sky_agent_tasks{{profile="{profile}",status="queued"}} {queue["queued"]}\n'
+        payload += f'sky_agent_task_capacity{{profile="{profile}"}} {queue["capacity"]}\n'
     payload += "# TYPE sky_agent_http_requests_total counter\n"
     for (method, status), count in http_requests.items():
         payload += f'sky_agent_http_requests_total{{method="{method}",status="{status}"}} {count}\n'

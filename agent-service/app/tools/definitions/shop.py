@@ -1,6 +1,6 @@
 from pydantic import Field
 
-from app.tools.models import EmptyArguments, ToolAccess, ToolArguments, ToolDefinition
+from app.tools.models import ActorRole, EmptyArguments, ToolAccess, ToolArguments, ToolDefinition
 
 
 class UpdateShopStatusArguments(ToolArguments):
@@ -8,7 +8,9 @@ class UpdateShopStatusArguments(ToolArguments):
 
 
 DEFINITIONS = (
-    ToolDefinition("get_shop_status", "查询店铺营业状态。", EmptyArguments, "shop.status.get"),
+    ToolDefinition("get_shop_status", "查询店铺营业状态。", EmptyArguments, "shop.status.get",
+                   allowed_roles=frozenset({ActorRole.SUPER_ADMIN, ActorRole.ADMIN,
+                                            ActorRole.CUSTOMER})),
     ToolDefinition(
         "update_shop_status", "修改店铺营业状态。执行前必须由管理员确认。",
         UpdateShopStatusArguments, "shop.status.update", ToolAccess.WRITE,

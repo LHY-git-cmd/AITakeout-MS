@@ -10,7 +10,7 @@ import java.util.List;
 /**
  * Agent知识库相关的MyBatis Mapper接口
  * <p>
- * 定义了对 `agent_knowledge_base`、`agent_knowledge_document` 和 `agent_knowledge_index_task`
+ * 定义了对 `admin_agent_knowledge_base`、`admin_agent_knowledge_document` 和 `admin_agent_knowledge_index_task`
  * 这三张核心表的数据库操作方法。
  * </p>
  */
@@ -23,7 +23,7 @@ public interface AgentKnowledgeMapper {
      * @param value 待插入的知识库实体。
      */
     @Insert("""
-            insert into agent_knowledge_base
+            insert into admin_agent_knowledge_base
                 (kb_id, name, description, embedding_model, chunk_strategy, status,
                  create_user, update_user, create_time, update_time)
             values
@@ -41,14 +41,14 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select *
-            from agent_knowledge_base
+            from admin_agent_knowledge_base
             where create_user = #{userId} and status <> 3
             order by update_time desc
             """
     )
     List<AgentKnowledgeBase> listBases(Long userId);
 
-    @Select("select * from agent_knowledge_base where status <> 3 order by update_time desc")
+    @Select("select * from admin_agent_knowledge_base where status <> 3 order by update_time desc")
     List<AgentKnowledgeBase> listAllBases();
 
     /**
@@ -60,7 +60,7 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select *
-            from agent_knowledge_base
+            from admin_agent_knowledge_base
             where kb_id = #{kbId} and create_user = #{userId} and status <> 3
             """
     )
@@ -72,7 +72,7 @@ public interface AgentKnowledgeMapper {
      * @param kbId 知识库ID。
      * @return 知识库实体。
      */
-    @Select("select * from agent_knowledge_base where kb_id = #{kbId} and status <> 3")
+    @Select("select * from admin_agent_knowledge_base where kb_id = #{kbId} and status <> 3")
     AgentKnowledgeBase getBase(String kbId);
 
     /**
@@ -82,7 +82,7 @@ public interface AgentKnowledgeMapper {
      * @return 成功更新的行数。
      */
     @Update("""
-            update agent_knowledge_base
+            update admin_agent_knowledge_base
             set name = #{name}, description = #{description}, embedding_model = #{embeddingModel},
                 chunk_strategy = #{chunkStrategy}, status = #{status}, update_user = #{updateUser},
                 update_time = now()
@@ -99,7 +99,7 @@ public interface AgentKnowledgeMapper {
      * @return 成功删除的行数。
      */
     @Update("""
-            update agent_knowledge_base
+            update admin_agent_knowledge_base
             set status = 3, update_user = #{userId}, update_time = now()
             where kb_id = #{kbId} and create_user = #{userId} and status <> 3
             """
@@ -112,7 +112,7 @@ public interface AgentKnowledgeMapper {
      * @param value 待插入的文档实体。
      */
     @Insert("""
-            insert into agent_knowledge_document
+            insert into admin_agent_knowledge_document
                 (document_id, kb_id, file_name, file_type, file_url, file_hash, version,
                  active_version, status, chunk_count, create_user, create_time, update_time)
             values
@@ -130,7 +130,7 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select *
-            from agent_knowledge_document
+            from admin_agent_knowledge_document
             where kb_id = #{kbId} and status <> 6
             order by create_time desc
             """
@@ -145,7 +145,7 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select *
-            from agent_knowledge_document
+            from admin_agent_knowledge_document
             where kb_id = #{kbId}
             order by document_id, version
             """
@@ -160,7 +160,7 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select *
-            from agent_knowledge_document
+            from admin_agent_knowledge_document
             where kb_id = #{kbId} and status = 3 and active_version = version
             """
     )
@@ -175,8 +175,8 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select d.*
-            from agent_knowledge_document d
-            join agent_knowledge_base k on k.kb_id = d.kb_id
+            from admin_agent_knowledge_document d
+            join admin_agent_knowledge_base k on k.kb_id = d.kb_id
             where d.document_id = #{documentId} and d.status <> 6
               and k.create_user = #{userId} and k.status <> 3
             order by d.version desc
@@ -194,7 +194,7 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select *
-            from agent_knowledge_document
+            from admin_agent_knowledge_document
             where document_id = #{documentId} and version = #{version}
             """
     )
@@ -206,7 +206,7 @@ public interface AgentKnowledgeMapper {
      * @param documentId 文档ID。
      * @return 最大的版本号，如果不存在则返回0。
      */
-    @Select("select coalesce(max(version), 0) from agent_knowledge_document where document_id = #{documentId}")
+    @Select("select coalesce(max(version), 0) from admin_agent_knowledge_document where document_id = #{documentId}")
     int getMaxVersion(String documentId);
 
     /**
@@ -218,7 +218,7 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select *
-            from agent_knowledge_document
+            from admin_agent_knowledge_document
             where kb_id = #{kbId} and file_hash = #{fileHash} and status <> 6
             limit 1
             """
@@ -232,7 +232,7 @@ public interface AgentKnowledgeMapper {
      * @return 成功更新的行数。
      */
     @Update("""
-            update agent_knowledge_document
+            update admin_agent_knowledge_document
             set status = #{status}, chunk_count = #{chunkCount}, error_msg = #{errorMsg},
                 active_version = #{activeVersion}, update_time = now()
             where document_id = #{documentId} and version = #{version}
@@ -249,7 +249,7 @@ public interface AgentKnowledgeMapper {
      * @return 成功更新的行数。
      */
     @Update("""
-            update agent_knowledge_document
+            update admin_agent_knowledge_document
             set active_version = #{version},
                 status = case when version = #{version} then 3 else status end,
                 chunk_count = case when version = #{version} then #{chunkCount} else chunk_count end,
@@ -268,7 +268,7 @@ public interface AgentKnowledgeMapper {
      * @param documentId 要删除的文档ID。
      * @return 成功删除的行数。
      */
-    @Update("update agent_knowledge_document set status = 6, update_time = now() where document_id = #{documentId}")
+    @Update("update admin_agent_knowledge_document set status = 6, update_time = now() where document_id = #{documentId}")
     int deleteDocument(String documentId);
 
     /**
@@ -277,7 +277,7 @@ public interface AgentKnowledgeMapper {
      * @param kbId 知识库ID。
      * @return 成功删除的行数。
      */
-    @Update("update agent_knowledge_document set status = 6, update_time = now() where kb_id = #{kbId}")
+    @Update("update admin_agent_knowledge_document set status = 6, update_time = now() where kb_id = #{kbId}")
     int deleteDocumentsByKb(String kbId);
 
     /**
@@ -286,7 +286,7 @@ public interface AgentKnowledgeMapper {
      * @param value 待插入的索引任务实体。
      */
     @Insert("""
-            insert into agent_knowledge_index_task
+            insert into admin_agent_knowledge_index_task
                 (task_id, document_id, document_version, status, progress,
                  request_hash, create_time, update_time)
             values
@@ -302,7 +302,7 @@ public interface AgentKnowledgeMapper {
      * @param taskId 任务ID。
      * @return 索引任务实体。
      */
-    @Select("select * from agent_knowledge_index_task where task_id = #{taskId}")
+    @Select("select * from admin_agent_knowledge_index_task where task_id = #{taskId}")
     AgentKnowledgeIndexTask getIndexTask(String taskId);
 
     /**
@@ -313,7 +313,7 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select count(*)
-            from agent_knowledge_index_task
+            from admin_agent_knowledge_index_task
             where document_id = #{documentId} and status in (0, 1, 2)
             """
     )
@@ -326,7 +326,7 @@ public interface AgentKnowledgeMapper {
      * @return 成功更新的行数。
      */
     @Update("""
-            update agent_knowledge_index_task
+            update admin_agent_knowledge_index_task
             set status = #{status}, progress = #{progress}, error_msg = #{errorMsg},
                 started_at = #{startedAt}, finished_at = #{finishedAt}, update_time = now()
             where task_id = #{taskId}
@@ -341,7 +341,7 @@ public interface AgentKnowledgeMapper {
      */
     @Select("""
             select *
-            from agent_knowledge_index_task
+            from admin_agent_knowledge_index_task
             where status in (0, 1, 2)
             order by create_time
             """

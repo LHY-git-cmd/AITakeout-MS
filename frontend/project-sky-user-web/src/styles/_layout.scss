@@ -797,6 +797,35 @@
   font-weight: 750;
 }
 
+/* 全局Agent入口保持在业务悬浮操作旁，并避开移动端底部导航。 */
+.agent-fab {
+  display: inline-flex;
+  position: fixed;
+  z-index: 46;
+  right: max(24px, calc((100vw - var(--content-width)) / 2));
+  bottom: 28px;
+  min-height: 52px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 17px;
+  border: 1px solid var(--color-gold-line);
+  border-radius: 999px;
+  color: #fff7ec;
+  background: var(--color-header-dark);
+  box-shadow: 0 10px 26px rgb(31 27 22 / 28%);
+  font-weight: 750;
+}
+
+.agent-fab:hover {
+  color: #fff;
+  background: var(--color-brand-dark);
+  transform: translateY(-2px);
+}
+
+.agent-fab:active {
+  transform: translateY(1px) !important;
+}
+
 @media (max-width: 767px) {
   .header-start {
     width: 100%;
@@ -818,5 +847,22 @@
     bottom: calc(var(--mobile-nav-height) + 18px + env(safe-area-inset-bottom));
     width: 56px;
     height: 56px;
+  }
+
+  .agent-fab {
+    right: 16px;
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 14px);
+    width: 54px;
+    min-height: 54px;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .agent-fab span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
   }
 }

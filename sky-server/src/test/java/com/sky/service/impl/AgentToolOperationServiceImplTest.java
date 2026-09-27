@@ -8,6 +8,7 @@ import com.sky.entity.AgentToolConfirmation;
 import com.sky.entity.Employee;
 import com.sky.enumeration.AdminPermission;
 import com.sky.enumeration.AdminRole;
+import com.sky.enumeration.AgentActorType;
 import com.sky.exception.AgentConfirmationConflictException;
 import com.sky.mapper.AgentKnowledgeMapper;
 import com.sky.mapper.AgentTaskMapper;
@@ -16,6 +17,7 @@ import com.sky.mapper.AgentToolConfirmationMapper;
 import com.sky.properties.AgentProperties;
 import com.sky.service.*;
 import com.sky.service.security.AdminAuthorizationService;
+import com.sky.service.agent.UserAgentToolExecutor;
 import com.sky.vo.AgentToolOperationResponse;
 import com.sky.vo.EmployeeToolVO;
 import com.sky.vo.OrderVO;
@@ -47,6 +49,7 @@ class AgentToolOperationServiceImplTest {
     private final RedisTemplate<String, Object> redisTemplate = mock(RedisTemplate.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentProperties agentProperties = new AgentProperties();
+    private final UserAgentToolExecutor userAgentToolExecutor = mock(UserAgentToolExecutor.class);
     private AgentToolOperationServiceImpl service;
 
     @BeforeEach
@@ -56,8 +59,28 @@ class AgentToolOperationServiceImplTest {
         service = new AgentToolOperationServiceImpl(taskMapper, auditMapper, confirmationMapper, knowledgeMapper,
                 authorizationService, employeeService, orderService, dishService, setmealService,
                 workspaceService, reportService, redisTemplate, agentProperties, objectMapper);
-        when(taskMapper.getByTaskId("task-1")).thenReturn(AgentTask.builder().taskId("task-1").userId(9L).build());
+        service.setUserAgentToolExecutor(userAgentToolExecutor);
+        when(taskMapper.getByTaskId("task-1")).thenReturn(AgentTask.builder()
+                .taskId("task-1").userId(9L).actorId(9L).actorType("ADMIN").build());
         when(authorizationService.resolveRole(9L)).thenReturn(AdminRole.ADMIN);
+    }
+
+    /** 普通用户主体在用户工具尚未开放前不得调用任何管理端原子操作。 */
+    @Test
+    void userActorCannotInvokeAdminOperation() throws Exception {
+        when(taskMapper.getByTaskId("task-1")).thenReturn(AgentTask.builder()
+                .taskId("task-1").actorId(17L).actorType(AgentActorType.USER.name())
+                .actorRole("CUSTOMER").build());
+        when(userAgentToolExecutor.execute(any(), eq(17L), anyString())).thenReturn(
+                AgentToolOperationResponse.error("call-1", "rejected",
+                        "TOOL_PERMISSION_DENIED", "当前用户无权调用该工具", "trace"));
+
+        AgentToolOperationResponse response = service.execute(
+                request("order.detail", "{\"order_id\":8}"));
+
+        assertEquals("rejected", response.status());
+        assertEquals("TOOL_PERMISSION_DENIED", response.error().get("code"));
+        verifyNoInteractions(authorizationService, orderService);
     }
 
     @Test
@@ -115,19 +138,22 @@ class AgentToolOperationServiceImplTest {
     void onlyOriginalTaskActorCanConfirmWrite() {
         AgentToolConfirmation confirmation = AgentToolConfirmation.builder()
                 .confirmationId("confirm-1").taskId("task-1").employeeId(9L)
+                .actorType("ADMIN").actorId(9L)
                 .operation("order.status.update").status("PENDING")
                 .expiresAt(LocalDateTime.now().plusMinutes(5)).build();
         when(confirmationMapper.getByConfirmationId("confirm-1")).thenReturn(confirmation);
 
         assertThrows(com.sky.exception.PermissionDeniedException.class,
                 () -> service.decideConfirmation("confirm-1", 10L, true));
-        verify(confirmationMapper, never()).transitionByActor(anyString(), anyLong(), anyString(), anyString());
+        verify(confirmationMapper, never()).transitionByActor(
+                anyString(), anyString(), anyLong(), anyString(), anyString());
     }
 
     @Test
     void expiredConfirmationReturnsBusinessConflict() {
         AgentToolConfirmation confirmation = AgentToolConfirmation.builder()
                 .confirmationId("confirm-expired").taskId("task-1").employeeId(9L)
+                .actorType("ADMIN").actorId(9L)
                 .operation("order.status.update").status("EXPIRED")
                 .expiresAt(LocalDateTime.now().minusSeconds(1)).build();
         when(confirmationMapper.getByConfirmationId("confirm-expired")).thenReturn(confirmation);
@@ -138,7 +164,7 @@ class AgentToolOperationServiceImplTest {
 
         assertTrue(exception.getMessage().contains("已过期"));
         verify(confirmationMapper).transitionByActor(
-                "confirm-expired", 9L, "PENDING", "CONFIRMED");
+                "confirm-expired", "ADMIN", 9L, "PENDING", "CONFIRMED");
     }
 
     @Test
@@ -150,7 +176,8 @@ class AgentToolOperationServiceImplTest {
         String version = sha256("8:2:1:2026-09-13T12:00:null");
         AgentToolConfirmation confirmation = AgentToolConfirmation.builder()
                 .confirmationId("confirm-2").taskId("task-1").toolCallId("call-2")
-                .employeeId(9L).operation("order.status.update")
+                .employeeId(9L).actorType("ADMIN").actorId(9L)
+                .operation("order.status.update")
                 .argumentsJson(arguments).argumentHash(sha256("{\"action\":\"confirm\",\"order_id\":8}"))
                 .resourceVersion(version).status("CONFIRMED")
                 .expiresAt(LocalDateTime.now().plusMinutes(5)).build();

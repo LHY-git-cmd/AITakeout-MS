@@ -16,6 +16,9 @@ import java.util.List;
  */
 public interface AgentService {
 
+    /** 创建属于当前JWT主体的空会话。 */
+    AgentSessionVO createSession(String title);
+
     /**
      * 提交任务（submit + SSE模式）
      * 创建会话或复用已有会话，调用Python Agent submit接口，记录task

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { Bell, CircleUserRound, History, House, ShoppingBag, UtensilsCrossed, X } from '@lucide/vue'
+import { Bell, Bot, CircleUserRound, History, House, ShoppingBag, UtensilsCrossed, X } from '@lucide/vue'
 import LoginDialog from '@/components/LoginDialog.vue'
 import CartPanel from '@/components/CartPanel.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -27,6 +27,7 @@ const navigation = [
 
 const pageTitle = computed(() => String(route.meta.title ?? '在线点餐'))
 const showFloatingCart = computed(() => String(route.name) === 'menu')
+const showAgentEntry = computed(() => String(route.name) !== 'assistant')
 const isActive = (names: string[]) => names.includes(String(route.name))
 
 function handleUnauthorized() {
@@ -42,11 +43,16 @@ function handleNotification() {
   void notificationStore.catchUp()
 }
 
+function handleCartChanged() {
+  if (authStore.isAuthenticated) void cartStore.loadRemote()
+}
+
 onMounted(() => {
   window.addEventListener('sky:unauthorized', handleUnauthorized)
   window.addEventListener('sky:session-refreshed', handleRefreshedSession)
   window.addEventListener('sky:notification', handleNotification)
   window.addEventListener('sky:socket-connected', handleNotification)
+  window.addEventListener('sky:cart-changed', handleCartChanged)
   void authStore.restoreSession()
   if (authStore.token) orderSocket.connect(authStore.token)
 })
@@ -56,6 +62,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('sky:session-refreshed', handleRefreshedSession)
   window.removeEventListener('sky:notification', handleNotification)
   window.removeEventListener('sky:socket-connected', handleNotification)
+  window.removeEventListener('sky:cart-changed', handleCartChanged)
   orderSocket.disconnect()
 })
 
@@ -125,6 +132,16 @@ watch(() => authStore.token, (token, previousToken) => {
       <ShoppingBag :size="26" aria-hidden="true" />
       <span v-if="cartStore.totalCount" class="floating-cart__count">{{ cartStore.totalCount }}</span>
     </button>
+
+    <RouterLink
+      v-if="showAgentEntry"
+      class="agent-fab"
+      :to="{ name: 'assistant', query: { from: route.fullPath } }"
+      aria-label="打开饱饱助手"
+    >
+      <Bot :size="25" aria-hidden="true" />
+      <span>问饱饱</span>
+    </RouterLink>
 
     <Transition name="drawer">
       <div v-if="uiStore.cartOpen" class="drawer-layer" role="presentation" @click.self="uiStore.closeCart">
