@@ -71,6 +71,8 @@ public class AgentProperties {
 
     private String knowledgeStoragePath = "data/knowledge";
     private long knowledgeMaxFileSize = 20L * 1024 * 1024;
+    /** 公共知识索引状态最长确认时间（秒）。 */
+    private int knowledgeIndexTimeoutSeconds = 1800;
     private boolean ragEnabled = true;
     private int ragTopK = 8;
     private double ragScoreThreshold = 0.35;
@@ -81,5 +83,12 @@ public class AgentProperties {
 
     /** AI写工具确认凭证有效期（秒）。 */
     private long toolConfirmationTtlSeconds = 300;
+
+    /** 第二阶段能力独立灰度开关；关闭只阻止新任务，不删除历史状态。 */
+    private boolean userAgentPublicRagEnabled = true;
+    private boolean userAgentReminderEnabled = true;
+    private boolean userAgentCancellationEnabled = true;
+    private boolean userAgentAfterSaleEnabled = true;
+    private boolean userAgentRedisRuntimeEnabled = false;
 
 }

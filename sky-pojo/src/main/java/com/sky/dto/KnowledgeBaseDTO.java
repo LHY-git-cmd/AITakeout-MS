@@ -25,4 +25,7 @@ public class KnowledgeBaseDTO implements Serializable {
 
     @Schema(description = "状态 (0:禁用, 1:启用)", defaultValue = "1")
     private Integer status;
+
+    @Schema(description = "公共知识分类；内部知识库可不传", defaultValue = "GENERAL")
+    private String category;
 }

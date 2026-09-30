@@ -309,18 +309,19 @@ class PythonAgent:
                 knowledge.get("document_versions", {}),
                 knowledge.get("top_k", 8),
                 knowledge.get("score_threshold", 0.2),
+                scope=knowledge,
             )
         except Exception:
             await llm_metrics.record_rag([], refusal=True, error=True)
             logger.exception(
-                "knowledge retrieval failed, kb_id=%s",
-                knowledge.get("kb_id"),
+                "knowledge retrieval failed, profile=%s",
+                agent_profile,
             )
             return None, [], "知识库服务暂时不可用，请稍后重试。"
         if not results:
             await llm_metrics.record_rag([], refusal=True)
             # 如果没有检索到任何结果，准备拒答
-            refusal = "所选知识库中没有足够信息回答这个问题。请补充问题或更换知识库。"
+            refusal = "当前已发布公共知识中没有足够信息支持回答，我不能凭常识补充。"
             return None, [], refusal
 
         await llm_metrics.record_rag(results)

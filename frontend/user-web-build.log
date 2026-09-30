@@ -1,0 +1,50 @@
+
+> project-sky-user-web@0.1.0 build
+> vue-tsc -b && vite build
+
+vite v7.3.6 building client environment for production...
+transforming...
+✓ 1981 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                                             0.58 kB │ gzip:  0.36 kB
+dist/assets/AgentView-BSrNOZHV.css                                         10.20 kB │ gzip:  2.19 kB
+dist/assets/index-DA7j795H.css                                             74.11 kB │ gzip: 12.70 kB
+dist/assets/check-BrvKJSen.js                                               0.12 kB │ gzip:  0.14 kB
+dist/assets/chevron-right-Cv_ZczBl.js                                       0.13 kB │ gzip:  0.14 kB
+dist/assets/clock-3-BKzCO4L0.js                                             0.17 kB │ gzip:  0.16 kB
+dist/assets/arrow-left-Bb3sGkqZ.js                                          0.17 kB │ gzip:  0.16 kB
+dist/assets/circle-check-BvgJQYri.js                                        0.17 kB │ gzip:  0.17 kB
+dist/assets/user-round-DADIpjGL.js                                          0.18 kB │ gzip:  0.18 kB
+dist/assets/rotate-ccw-DxXvF_uF.js                                          0.20 kB │ gzip:  0.18 kB
+dist/assets/circle-x-BDoxUYdr.js                                            0.20 kB │ gzip:  0.18 kB
+dist/assets/circle-alert-DboSvlCO.js                                        0.25 kB │ gzip:  0.19 kB
+dist/assets/map-pin-ByZLIZjr.js                                             0.26 kB │ gzip:  0.22 kB
+dist/assets/wallet-cards-CJBNGpSi.js                                        0.29 kB │ gzip:  0.23 kB
+dist/assets/shield-check-DOl69Y4D.js                                        0.32 kB │ gzip:  0.25 kB
+dist/assets/refresh-cw-CavoZpc6.js                                          0.32 kB │ gzip:  0.23 kB
+dist/assets/key-round-Dn6pIpJ1.js                                           0.35 kB │ gzip:  0.26 kB
+dist/assets/PageScaffold.vue_vue_type_script_setup_true_lang-CvuM1o6g.js    0.42 kB │ gzip:  0.29 kB
+dist/assets/NotFoundView-DAb-vtK4.js                                        0.47 kB │ gzip:  0.37 kB
+dist/assets/sparkles-BytWyas0.js                                            0.50 kB │ gzip:  0.28 kB
+dist/assets/profile-6GTyordB.js                                             0.54 kB │ gzip:  0.28 kB
+dist/assets/aftersale-CY88PnLb.js                                           0.55 kB │ gzip:  0.31 kB
+dist/assets/address-DSaoZb-w.js                                             0.56 kB │ gzip:  0.27 kB
+dist/assets/package-open-ClGPk37i.js                                        0.58 kB │ gzip:  0.33 kB
+dist/assets/payment-C2e0hUk2.js                                             0.80 kB │ gzip:  0.44 kB
+dist/assets/NotificationsView-BMwQWrL_.js                                   2.09 kB │ gzip:  1.20 kB
+dist/assets/AfterSaleView-Rhjuv_3v.js                                       2.38 kB │ gzip:  1.38 kB
+dist/assets/WalletView-CYDEW6ol.js                                          3.78 kB │ gzip:  1.85 kB
+dist/assets/ProfileEditView-CVSLzT1q.js                                     4.07 kB │ gzip:  2.00 kB
+dist/assets/order-KDxBnfOy.js                                               4.60 kB │ gzip:  2.20 kB
+dist/assets/ProfileView-DCrKI8db.js                                         5.19 kB │ gzip:  2.36 kB
+dist/assets/PaymentResultView-CGj_CCMc.js                                   5.37 kB │ gzip:  2.48 kB
+dist/assets/OrdersView-BrMyWJxn.js                                          6.09 kB │ gzip:  2.91 kB
+dist/assets/SecuritySettingsView-xYeV8Gr3.js                                7.77 kB │ gzip:  2.88 kB
+dist/assets/OrderDetailView-CRxUg7io.js                                     8.48 kB │ gzip:  3.67 kB
+dist/assets/CheckoutView-ChOiAmgi.js                                        9.64 kB │ gzip:  4.01 kB
+dist/assets/MenuView-CkRq-QXG.js                                           17.22 kB │ gzip:  6.41 kB
+dist/assets/AgentView-C8dp3cLn.js                                          17.89 kB │ gzip:  7.51 kB
+dist/assets/AddressesView-CTf6k9m9.js                                     101.03 kB │ gzip: 37.73 kB
+dist/assets/index-BL37EofF.js                                             190.30 kB │ gzip: 71.89 kB
+✓ built in 4.07s

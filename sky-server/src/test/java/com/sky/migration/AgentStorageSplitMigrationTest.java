@@ -43,6 +43,22 @@ class AgentStorageSplitMigrationTest {
             assertThat(count(connection, "agent_task_overview")).isEqualTo(1);
             assertThat(tableExists(connection, "agent_session")).isFalse();
             assertThat(tableExists(connection, "agent_task")).isFalse();
+            // 软删除记录保留审计，但不能阻止同一文件重新上传为新的逻辑文档。
+            connection.createStatement().execute("""
+                    insert into user_agent_knowledge_document
+                      (document_id,kb_id,file_name,file_type,file_url,file_hash,version,status,
+                       chunk_count,create_user,category,lifecycle_status,review_status)
+                    values ('deleted-doc','kb-1','a.txt','txt','deleted/a.txt','same-hash',1,6,
+                            0,1,'GENERAL','DELETED','APPROVED')
+                    """);
+            connection.createStatement().execute("""
+                    insert into user_agent_knowledge_document
+                      (document_id,kb_id,file_name,file_type,file_url,file_hash,version,status,
+                       chunk_count,create_user,category,lifecycle_status,review_status)
+                    values ('new-doc','kb-1','a.txt','txt','active/a.txt','same-hash',1,0,
+                            0,1,'GENERAL','DRAFT','APPROVED')
+                    """);
+            assertThat(count(connection, "user_agent_knowledge_document")).isEqualTo(2);
         }
     }
 

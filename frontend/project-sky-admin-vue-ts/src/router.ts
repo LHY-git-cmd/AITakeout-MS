@@ -131,6 +131,11 @@ const router = new Router({
           meta: { title: '知识库', icon: 'icon-category' },
         },
         {
+          path: 'public-knowledge',
+          component: () => import(/* webpackChunkName: "public-knowledge" */ '@/views/publicKnowledge/index.vue'),
+          meta: { title: '用户公共知识库', icon: 'icon-category' },
+        },
+        {
           path: 'user-account',
           component: () => import(/* webpackChunkName: "user-account" */ '@/views/userAccount/index.vue'),
           name: 'UserAccount',

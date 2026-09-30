@@ -16,7 +16,8 @@ from fastapi import APIRouter, File, Form, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from app.models.schemas import (
     AgentRequest, AgentSubmitRequest, AgentResponse, SubmitResponse,
-    TaskStatusResponse, SubmitStreamResponse, KnowledgeIndexRequest, KnowledgeSearchRequest
+    TaskStatusResponse, SubmitStreamResponse, KnowledgeIndexRequest, KnowledgeSearchRequest,
+    KnowledgeReleaseRequest
 )
 from app.core.config import settings
 from app.core.task_queue import TaskCapacityError
@@ -272,6 +273,8 @@ async def cancel_task(
 @router.post("/knowledge/index", summary="创建知识库索引任务")
 async def index_document(
         request: Request,
+        agent_profile: str = Form(default="ADMIN_ASSISTANT",
+                                  pattern="^(ADMIN|USER)_ASSISTANT$"),
         metadata: str = Form(...),
         file: UploadFile = File(...)):
     try:
@@ -281,7 +284,8 @@ async def index_document(
             raise HTTPException(status_code=400, detail="document file is empty")
         if len(content) > request.app.state.settings.KNOWLEDGE_MAX_FILE_SIZE:
             raise HTTPException(status_code=413, detail="document file is too large")
-        return await request.app.state.knowledge_service.submit(
+        service = request.app.state.knowledge_services[agent_profile]
+        return await service.submit(
             body.model_dump(), content)
     except TaskCapacityError as exc:
         raise HTTPException(status_code=429, detail={
@@ -291,8 +295,11 @@ async def index_document(
 
 
 @router.get("/knowledge/index/{task_id}", summary="查询索引任务")
-async def index_status(request: Request, task_id: str):
-    result = request.app.state.knowledge_service.status(task_id)
+async def index_status(
+        request: Request, task_id: str,
+        agent_profile: str = Query(default="ADMIN_ASSISTANT",
+                                   pattern="^(ADMIN|USER)_ASSISTANT$")):
+    result = request.app.state.knowledge_services[agent_profile].status(task_id)
     if not result:
         raise HTTPException(status_code=404, detail="Index task not found")
     return result
@@ -303,14 +310,34 @@ async def delete_document_vectors(
     request: Request,
     document_id: str,
     version: int | None = None,
+    agent_profile: str = Query(default="ADMIN_ASSISTANT",
+                               pattern="^(ADMIN|USER)_ASSISTANT$"),
 ):
-    await request.app.state.knowledge_service.delete_document(document_id, version)
+    await request.app.state.knowledge_services[agent_profile].delete_document(document_id, version)
     return {"status": "deleted"}
 
 
+@router.post("/knowledge/releases/{release_id}", summary="更新知识发布元数据")
+async def update_knowledge_release(
+        request: Request, release_id: str, body: KnowledgeReleaseRequest,
+        agent_profile: str = Query(default="USER_ASSISTANT",
+                                   pattern="^(ADMIN|USER)_ASSISTANT$")):
+    """发布或下线时更新向量载荷；接口只由可信 Java 控制面调用。"""
+    service = request.app.state.knowledge_services[agent_profile]
+    await service.update_release(
+        release_id,
+        [item.model_dump() for item in body.documents],
+        body.active,
+    )
+    return {"status": "updated", "release_id": release_id, "active": body.active}
+
+
 @router.post("/knowledge/search", summary="知识库检索诊断")
-async def search_knowledge(request: Request, body: KnowledgeSearchRequest):
-    results = await request.app.state.knowledge_service.search(
+async def search_knowledge(
+        request: Request, body: KnowledgeSearchRequest,
+        agent_profile: str = Query(default="ADMIN_ASSISTANT",
+                                   pattern="^(ADMIN|USER)_ASSISTANT$")):
+    results = await request.app.state.knowledge_services[agent_profile].search(
         body.kb_id,
         body.query,
         body.document_versions,

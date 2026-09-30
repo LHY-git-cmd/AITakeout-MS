@@ -38,6 +38,13 @@ function clientContext() {
   }
 }
 
+function citationLabel(value: unknown) {
+  const citation = value && typeof value === 'object' ? value as Record<string, unknown> : {}
+  const name = String(citation.file_name ?? '公共知识')
+  const version = citation.document_version == null ? '' : ` · v${citation.document_version}`
+  return `${name}${version}`
+}
+
 async function send(message = draft.value) {
   const value = message.trim()
   if (!value || !authStore.isAuthenticated || agentStore.running) return
@@ -129,6 +136,12 @@ watch(() => agentStore.blocks.map((block) => `${block.id}:${block.text ?? ''}`).
           <AgentRecommendationCards v-else-if="block.kind === 'recommendations'" :items="block.items ?? []" @add="addProduct" />
           <AgentCartChangeCard v-else-if="block.kind === 'cart'" :data="block.data" />
           <AgentOrderStatusCard v-else-if="block.kind === 'order'" :tool-name="block.toolName" :data="block.data" />
+          <section v-else-if="block.kind === 'citations'" class="agent-citations" aria-label="知识引用">
+            <strong>参考资料</strong>
+            <ul><li v-for="(citation, index) in (Array.isArray(block.data) ? block.data : [])" :key="index">
+              {{ citationLabel(citation) }}
+            </li></ul>
+          </section>
           <AgentFallback v-else-if="block.kind === 'fallback'" :message="block.text" @retry="send(lastUserMessage)" />
         </template>
 
@@ -175,6 +188,9 @@ watch(() => agentStore.blocks.map((block) => `${block.id}:${block.text ?? ''}`).
 .agent-message.is-user { align-self: flex-end; border-bottom-right-radius: 4px; color: #fff; background: var(--color-brand); }
 .agent-message.is-assistant { align-self: flex-start; border: 1px solid var(--color-line); border-bottom-left-radius: 4px; background: var(--color-surface); }
 .agent-progress { display: flex; width: fit-content; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 9px; color: var(--color-muted); background: var(--color-surface); font-size: 13px; }
+.agent-citations { align-self: flex-start; width: min(100%, 640px); padding: 10px 12px; border: 1px solid var(--color-line); border-radius: 9px; color: var(--color-muted); background: var(--color-surface); font-size: 12px; }
+.agent-citations strong { color: var(--color-ink); }
+.agent-citations ul { margin: 6px 0 0; padding-left: 18px; }
 .agent-composer { display: grid; grid-template-columns: minmax(0, 1fr) 48px; gap: 9px; padding: 14px 18px 10px; border-top: 1px solid var(--color-line); background: var(--color-surface); }
 .agent-composer textarea { min-height: 48px; max-height: 120px; resize: vertical; padding: 12px 13px; border: 1px solid var(--color-line); border-radius: 10px; color: var(--color-ink); background: #fffdf8; outline: none; }
 .agent-composer textarea:focus { border-color: var(--color-brand); box-shadow: 0 0 0 3px rgb(176 58 46 / 12%); }

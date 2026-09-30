@@ -1,5 +1,10 @@
 sky:
   agent:
+    user-agent-public-rag-enabled: ${USER_AGENT_PUBLIC_RAG_ENABLED:true}
+    user-agent-reminder-enabled: ${USER_AGENT_REMINDER_ENABLED:true}
+    user-agent-cancellation-enabled: ${USER_AGENT_CANCELLATION_ENABLED:true}
+    user-agent-after-sale-enabled: ${USER_AGENT_AFTER_SALE_ENABLED:true}
+    user-agent-redis-runtime-enabled: ${USER_AGENT_REDIS_RUNTIME_ENABLED:false}
     base-url: ${AGENT_BASE_URL:http://localhost:8000}
     connect-timeout: 5000 #建立 TCP 连接的超时时间（毫秒）
     read-timeout: 60000 #连接成功后，等待服务端响应数据的超时时间（毫秒）
@@ -14,6 +19,7 @@ sky:
     rag-top-k: ${RAG_TOP_K:8}
     rag-score-threshold: ${RAG_SCORE_THRESHOLD:0.35}
     embedding-model: ${EMBEDDING_MODEL:BAAI/bge-m3}
+    knowledge-index-timeout-seconds: ${PUBLIC_KB_INDEX_TIMEOUT_SECONDS:1800}
     internal-service-token: ${AGENT_INTERNAL_SERVICE_TOKEN:}
     tool-confirmation-ttl-seconds: ${TOOL_CONFIRMATION_TIMEOUT_SECONDS:300}
     recovery-enabled: true

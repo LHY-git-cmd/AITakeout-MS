@@ -30,6 +30,8 @@ class AdminAuthorizationServiceTest {
         service.require(AdminRole.ADMIN, AdminPermission.EMPLOYEE_READ);
         service.require(AdminRole.ADMIN, AdminPermission.KNOWLEDGE_READ);
         service.require(AdminRole.ADMIN, AdminPermission.ACCOUNT_READ);
+        service.require(AdminRole.ADMIN, AdminPermission.PUBLIC_KB_READ);
+        service.require(AdminRole.ADMIN, AdminPermission.PUBLIC_KB_EDIT);
 
         assertThrows(PermissionDeniedException.class,
                 () -> service.require(AdminRole.ADMIN, AdminPermission.EMPLOYEE_WRITE));
@@ -37,6 +39,10 @@ class AdminAuthorizationServiceTest {
                 () -> service.require(AdminRole.ADMIN, AdminPermission.KNOWLEDGE_WRITE));
         assertThrows(PermissionDeniedException.class,
                 () -> service.require(AdminRole.ADMIN, AdminPermission.ACCOUNT_ADJUST));
+        assertThrows(PermissionDeniedException.class,
+                () -> service.require(AdminRole.ADMIN, AdminPermission.PUBLIC_KB_REVIEW));
+        assertThrows(PermissionDeniedException.class,
+                () -> service.require(AdminRole.ADMIN, AdminPermission.PUBLIC_KB_PUBLISH));
     }
 
     @Test

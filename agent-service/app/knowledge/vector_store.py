@@ -1,4 +1,5 @@
 import httpx
+from datetime import datetime, timezone
 
 from app.core.trace import current_session_id, current_task_id, current_trace_id
 
@@ -36,11 +37,36 @@ class MemoryVectorStore:
             )
         }
 
-    async def search(self, vector, kb_id, versions, top_k):
+    async def update_release(self, release_id, documents, active=True):
+        """在内存向量载荷中原子维护发布ID集合。"""
+        targets = {(item["document_id"], item["document_version"]) for item in documents}
+        for point in self.points.values():
+            payload = point["payload"]
+            if (payload.get("document_id"), payload.get("document_version")) not in targets:
+                continue
+            release_ids = set(payload.get("release_ids") or [])
+            release_ids.add(release_id) if active else release_ids.discard(release_id)
+            payload["release_ids"] = sorted(release_ids)
+
+    async def search(self, vector, kb_id, versions, top_k, scope=None):
         found = []
+        scope = scope or {}
+        release_ids = set(scope.get("release_ids") or [])
+        categories = set(scope.get("categories") or [])
+        expires_at = scope.get("expires_at")
+        if expires_at:
+            try:
+                if datetime.fromisoformat(str(expires_at).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+                    return []
+            except ValueError:
+                return []
         for point in self.points.values():
             payload = point["payload"]
             if payload["kb_id"] != kb_id or not payload.get("enabled", True):
+                continue
+            if release_ids and not release_ids.intersection(payload.get("release_ids") or []):
+                continue
+            if categories and payload.get("category") not in categories:
                 continue
             if (
                 versions
@@ -127,7 +153,42 @@ class QdrantVectorStore:
             )
             response.raise_for_status()
 
-    async def search(self, vector, kb_id, versions, top_k):
+    async def update_release(self, release_id, documents, active=True):
+        """读取目标点当前载荷后写回发布ID数组，保留并行发布版本。"""
+        async with httpx.AsyncClient(timeout=30) as client:
+            for document in documents:
+                must = [
+                    {"key": "document_id", "match": {"value": document["document_id"]}},
+                    {"key": "document_version", "match": {"value": document["document_version"]}},
+                ]
+                offset = None
+                while True:
+                    payload = {
+                        "filter": {"must": must}, "limit": 256,
+                        "with_payload": True, "with_vector": False,
+                    }
+                    if offset is not None:
+                        payload["offset"] = offset
+                    response = await client.post(
+                        f"{self.base_url}/collections/{self.collection}/points/scroll",
+                        json=payload,
+                    )
+                    response.raise_for_status()
+                    result = response.json()["result"]
+                    for point in result.get("points", []):
+                        release_ids = set(point.get("payload", {}).get("release_ids") or [])
+                        release_ids.add(release_id) if active else release_ids.discard(release_id)
+                        updated = await client.post(
+                            f"{self.base_url}/collections/{self.collection}/points/payload?wait=true",
+                            json={"payload": {"release_ids": sorted(release_ids)},
+                                  "points": [point["id"]]},
+                        )
+                        updated.raise_for_status()
+                    offset = result.get("next_page_offset")
+                    if offset is None:
+                        break
+
+    async def search(self, vector, kb_id, versions, top_k, scope=None):
         """
         在集合中搜索与给定向量最相似的点。
 
@@ -142,6 +203,20 @@ class QdrantVectorStore:
             {"key": "kb_id", "match": {"value": kb_id}},
             {"key": "enabled", "match": {"value": True}}
         ]
+        scope = scope or {}
+        release_ids = list(scope.get("release_ids") or [])
+        categories = list(scope.get("categories") or [])
+        expires_at = scope.get("expires_at")
+        if expires_at:
+            try:
+                if datetime.fromisoformat(str(expires_at).replace("Z", "+00:00")) <= datetime.now(timezone.utc):
+                    return []
+            except ValueError:
+                return []
+        if release_ids:
+            must.append({"key": "release_ids", "match": {"any": release_ids}})
+        if categories:
+            must.append({"key": "category", "match": {"any": categories}})
         if versions:
             # 如果指定了版本，则只在这些版本的文档中搜索
             must.append({

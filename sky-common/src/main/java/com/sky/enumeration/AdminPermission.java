@@ -6,6 +6,10 @@ public enum AdminPermission {
     EMPLOYEE_WRITE, // 员工读写
     KNOWLEDGE_READ, // 知识库只读
     KNOWLEDGE_WRITE, // 知识库读写
+    PUBLIC_KB_READ, // 用户公共知识查看
+    PUBLIC_KB_EDIT, // 用户公共知识编辑
+    PUBLIC_KB_REVIEW, // 用户公共知识审核
+    PUBLIC_KB_PUBLISH, // 用户公共知识发布、下线和回滚
     ORDER_READ, // 订单只读
     ORDER_STATUS_WRITE, // 订单状态读写
     DISH_READ, // 菜品只读
