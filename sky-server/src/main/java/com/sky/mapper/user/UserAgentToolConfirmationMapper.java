@@ -22,6 +22,14 @@ public interface UserAgentToolConfirmationMapper {
             """)
     AgentToolConfirmation getByConfirmationId(String id);
 
+    @Select("""
+            select c.*, c.user_id as actor_id, 'USER' as actor_type, 'CUSTOMER' as actor_role
+            from user_agent_tool_confirmation c
+            where task_id = #{taskId} and tool_call_id = #{toolCallId}
+            """)
+    AgentToolConfirmation getByTaskAndCall(@Param("taskId") String taskId,
+                                           @Param("toolCallId") String toolCallId);
+
     @Update("""
             update user_agent_tool_confirmation
             set status = #{target},
@@ -32,4 +40,18 @@ public interface UserAgentToolConfirmationMapper {
             """)
     int transitionByUser(@Param("id") String id, @Param("userId") Long userId,
                          @Param("expected") String expected, @Param("target") String target);
+
+    @Update("""
+            update user_agent_tool_confirmation set status = #{target}, update_time = now()
+            where confirmation_id = #{id} and status = #{expected}
+            """)
+    int transition(@Param("id") String id, @Param("expected") String expected,
+                   @Param("target") String target);
+
+    @Update("""
+            update user_agent_tool_confirmation
+            set status = 'EXECUTED', executed_at = now(), update_time = now()
+            where confirmation_id = #{id} and status = 'EXECUTING'
+            """)
+    int markExecuted(@Param("id") String id);
 }

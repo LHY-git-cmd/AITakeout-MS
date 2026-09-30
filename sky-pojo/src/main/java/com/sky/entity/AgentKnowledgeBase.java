@@ -20,6 +20,10 @@ public class AgentKnowledgeBase {
     private String embeddingModel;      // Embedding模型名称
     private String chunkStrategy;       // 文档分块策略标识符
     private Integer status;             // 状态 (0:初始化, 1:可用, 2:索引中, 3:失败)
+    private String category;            // 公共知识分类
+    private String lifecycleStatus;     // DRAFT/INDEXING/PUBLISHED/OFFLINE
+    private LocalDateTime validFrom;
+    private LocalDateTime validUntil;
     private Long createUser;            // 创建用户ID
     private Long updateUser;            // 更新用户ID
     private LocalDateTime createTime;   // 创建时间

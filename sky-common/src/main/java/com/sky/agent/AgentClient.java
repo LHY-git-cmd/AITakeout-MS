@@ -57,6 +57,8 @@ public class AgentClient {
 
     private static final String KNOWLEDGE_INDEX_PATH = "/api/v1/knowledge/index";
     private static final String KNOWLEDGE_DOCUMENT_PATH = "/api/v1/knowledge/documents";
+    private static final String KNOWLEDGE_RELEASE_PATH = "/api/v1/knowledge/releases";
+    private static final String ADMIN_ASSISTANT = "ADMIN_ASSISTANT";
 
     private final RestTemplate restTemplate;
     private final AgentProperties agentProperties;
@@ -508,6 +510,12 @@ public class AgentClient {
      * 提交知识库文档索引任务。Python 接口仅受理任务，实际索引进度由状态接口轮询。
      */
     public Map<String, Object> indexKnowledge(Map<String, Object> request, Resource file) {
+        return indexKnowledge(request, file, ADMIN_ASSISTANT);
+    }
+
+    /** 在指定逻辑Agent的隔离集合中提交知识索引。 */
+    public Map<String, Object> indexKnowledge(Map<String, Object> request, Resource file,
+                                              String agentProfile) {
         Objects.requireNonNull(request, "知识库索引请求不能为空");
         Objects.requireNonNull(file, "知识库索引文件不能为空");
         URI uri = knowledgeUri(KNOWLEDGE_INDEX_PATH).build().encode().toUri();
@@ -521,6 +529,7 @@ public class AgentClient {
             throw new AgentClientException(AgentClientException.Reason.SERIALIZATION,
                     null, false, "提交知识库索引请求序列化失败", exception);
         }
+        parts.add("agent_profile", agentProfile);
         parts.add("file", file);
         return exchangeKnowledgeMultipart("提交知识库索引", uri, parts);
     }
@@ -564,8 +573,17 @@ public class AgentClient {
      */
     public Map<String, Object> getKnowledgeIndexStatus(String taskId) {
         requirePathValue(taskId, "taskId");
+        URI uri = knowledgeUri(KNOWLEDGE_INDEX_PATH).pathSegment(taskId)
+                .build().encode().toUri();
+        return exchangeKnowledge("查询知识库索引状态", uri, HttpMethod.GET, null, true);
+    }
+
+    /** 查询指定逻辑Agent的索引任务状态。 */
+    public Map<String, Object> getKnowledgeIndexStatus(String taskId, String agentProfile) {
+        requirePathValue(taskId, "taskId");
         URI uri = knowledgeUri(KNOWLEDGE_INDEX_PATH)
                 .pathSegment(taskId)
+                .queryParam("agent_profile", agentProfile)
                 .build()
                 .encode()
                 .toUri();
@@ -580,13 +598,38 @@ public class AgentClient {
         if (version != null && version <= 0) {
             throw new IllegalArgumentException("version必须大于0");
         }
+        UriComponentsBuilder builder = knowledgeUri(KNOWLEDGE_DOCUMENT_PATH).pathSegment(documentId);
+        if (version != null) builder.queryParam("version", version);
+        exchangeKnowledge("删除知识库文档向量", builder.build().encode().toUri(),
+                HttpMethod.DELETE, null, false);
+    }
+
+    /** 从指定逻辑Agent的向量集合中删除文档。 */
+    public void deleteKnowledgeDocument(String documentId, Integer version, String agentProfile) {
+        requirePathValue(documentId, "documentId");
+        if (version != null && version <= 0) {
+            throw new IllegalArgumentException("version必须大于0");
+        }
         UriComponentsBuilder builder = knowledgeUri(KNOWLEDGE_DOCUMENT_PATH)
-                .pathSegment(documentId);
+                .pathSegment(documentId)
+                .queryParam("agent_profile", agentProfile);
         if (version != null) {
             builder.queryParam("version", version);
         }
         exchangeKnowledge("删除知识库文档向量", builder.build().encode().toUri(),
                 HttpMethod.DELETE, null, false);
+    }
+
+    /** 发布或下线时同步用户公共知识向量的发布范围。 */
+    public void updateKnowledgeRelease(String releaseId, List<Map<String, Object>> documents,
+                                       boolean active) {
+        requirePathValue(releaseId, "releaseId");
+        URI uri = knowledgeUri(KNOWLEDGE_RELEASE_PATH)
+                .pathSegment(releaseId)
+                .queryParam("agent_profile", "USER_ASSISTANT")
+                .build().encode().toUri();
+        exchangeKnowledge("更新公共知识发布元数据", uri, HttpMethod.POST,
+                Map.of("documents", documents, "active", active), false);
     }
 
     private Map<String, Object> exchangeKnowledge(String operation, URI uri,
@@ -606,7 +649,11 @@ public class AgentClient {
         }
 
         try {
-            log.info("调用Agent知识库接口: operation={}, method={}, uri={}", operation, method, uri);
+            if ("查询知识库索引状态".equals(operation)) {
+                log.debug("调用Agent知识库接口: operation={}, method={}, uri={}", operation, method, uri);
+            } else {
+                log.info("调用Agent知识库接口: operation={}, method={}, uri={}", operation, method, uri);
+            }
             ResponseEntity<String> response = restTemplate.exchange(
                     uri, method, new HttpEntity<>(jsonBody, headers), String.class);
             String body = response.getBody();

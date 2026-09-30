@@ -52,7 +52,7 @@ class TaskQueue:
     """
 
     def __init__(self, agent: PythonAgent, state_path: Optional[str] = None,
-                 agent_profile: str = "ADMIN_ASSISTANT"):
+                 agent_profile: str = "ADMIN_ASSISTANT", redis_runtime=None):
         """
         初始化任务队列管理器。
 
@@ -61,6 +61,7 @@ class TaskQueue:
         """
         self.agent = agent
         self.agent_profile = agent_profile
+        self._redis_runtime = redis_runtime
         self._tasks: Dict[str, dict] = {}
         self._subscribers: Dict[str, Set[asyncio.Queue]] = {}
         self._events: Dict[str, list[dict]] = {}
@@ -210,6 +211,10 @@ class TaskQueue:
             self._events[task_id] = []
             self._persist_locked(task_id)
 
+        if self._redis_runtime is not None:
+            await self._redis_runtime.save_task(self._tasks[task_id])
+            await self._redis_runtime.enqueue_task(self._tasks[task_id])
+
         if actor_type == "USER":
             await user_agent_metrics.task_started(task_id)
         await self._start_worker(task_id)
@@ -345,6 +350,9 @@ class TaskQueue:
             # 获取当前所有订阅者的队列副本，以在锁外进行操作
             subs = list(self._subscribers.get(task_id, set()))
 
+        if self._redis_runtime is not None:
+            await self._redis_runtime.append_event(task_id, event)
+
         for q in subs:
             await q.put(event)
 
@@ -359,6 +367,11 @@ class TaskQueue:
           4. 在任务结束或失败时，发布 "task_end" 或 "task_error" 事件。
         """
         full_result = ""
+        lease_acquired = True
+        if self._redis_runtime is not None:
+            lease_acquired = await self._redis_runtime.acquire_lease(task_id)
+        if not lease_acquired:
+            return
         try:
             # pending 任务在此等待执行槽，因此队列长度有明确上限。
             async with self._execution_slots:
@@ -419,6 +432,8 @@ class TaskQueue:
             if self._tasks[task_id].get("actor_type") == "USER":
                 await user_agent_metrics.task_finished(task_id, "failed")
         finally:
+            if self._redis_runtime is not None:
+                await self._redis_runtime.release_lease(task_id)
             async with self._lock:
                 self._worker_tasks.pop(task_id, None)
 
@@ -427,6 +442,9 @@ class TaskQueue:
         try:
             rag_context, citations, refusal = (None, [], None)
             if execution.get("knowledge") and hasattr(self.agent, "prepare_rag"):
+                if execution.get("actor_type") == "USER":
+                    await self._publish(task_id, "knowledge_retrieval_started", {
+                        "release_ids": execution["knowledge"].get("release_ids", [])})
                 rag_context, citations, refusal = await self.agent.prepare_rag(
                     execution["query"], execution["context"], execution["knowledge"],
                     agent_profile=execution.get("agent_profile", self.agent_profile))
@@ -488,6 +506,8 @@ class TaskQueue:
             )
             if execution.get("actor_type") == "USER":
                 await user_agent_metrics.task_finished(task_id, "completed")
+            if execution.get("actor_type") == "USER" and citations:
+                await self._publish(task_id, "knowledge_citations", {"citations": citations})
             await self._publish(task_id, completed_event, {
                 "status": "completed",
                 "result": full_result,
@@ -511,6 +531,8 @@ class TaskQueue:
         }.get(output.event, output.event)
         await user_agent_metrics.event(task_id, event_name, output.data)
         await self._publish(task_id, event_name, output.data)
+        if output.event == "tool_confirmation_required":
+            await self._publish(task_id, "operation_preview", output.data)
 
         if output.event != "tool_result" or output.data.get("status") != "success":
             return
