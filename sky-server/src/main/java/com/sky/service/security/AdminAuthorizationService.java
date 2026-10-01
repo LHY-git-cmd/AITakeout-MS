@@ -26,6 +26,8 @@ public class AdminAuthorizationService {
     private static final Set<AdminPermission> ADMIN_PERMISSIONS = EnumSet.of(
             AdminPermission.EMPLOYEE_READ,
             AdminPermission.KNOWLEDGE_READ,
+            AdminPermission.PUBLIC_KB_READ,
+            AdminPermission.PUBLIC_KB_EDIT,
             AdminPermission.ORDER_READ,
             AdminPermission.ORDER_STATUS_WRITE,
             AdminPermission.DISH_READ,

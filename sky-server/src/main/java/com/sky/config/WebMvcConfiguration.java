@@ -118,10 +118,10 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
     public OpenAPI skyOpenApi() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("苍穹外卖项目接口文档")
+                        .title("饱饱点餐项目接口文档")
                         .version("3.0")
-                        .description("苍穹外卖项目管理端和用户端接口文档")
-                        .contact(new Contact().name("苍穹外卖开发团队")));
+                        .description("饱饱点餐项目管理端和用户端接口文档")
+                        .contact(new Contact().name("饱饱点餐开发团队")));
     }
 
     /**

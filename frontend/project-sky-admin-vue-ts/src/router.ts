@@ -28,12 +28,12 @@ const router = new Router({
     {
       path: '/login',
       component: () => import(/* webpackChunkName: "login" */ '@/views/login/index.vue'),
-      meta: { title: '苍穹外卖', hidden: true, notNeedAuth: true },
+      meta: { title: '饱饱点餐', hidden: true, notNeedAuth: true },
     },
     {
       path: '/404',
       component: () => import(/* webpackChunkName: "404" */ '@/views/404.vue'),
-      meta: { title: '苍穹外卖', hidden: true, notNeedAuth: true },
+      meta: { title: '饱饱点餐', hidden: true, notNeedAuth: true },
     },
     {
       path: '/',
@@ -129,6 +129,11 @@ const router = new Router({
           path: 'knowledge',
           component: () => import(/* webpackChunkName: "knowledge" */ '@/views/knowledge/index.vue'),
           meta: { title: '知识库', icon: 'icon-category' },
+        },
+        {
+          path: 'public-knowledge',
+          component: () => import(/* webpackChunkName: "public-knowledge" */ '@/views/publicKnowledge/index.vue'),
+          meta: { title: '用户公共知识库', icon: 'icon-category' },
         },
         {
           path: 'user-account',

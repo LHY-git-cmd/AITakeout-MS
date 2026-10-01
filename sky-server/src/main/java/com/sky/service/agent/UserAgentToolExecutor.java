@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sky.context.BaseContext;
 import com.sky.dto.AgentToolOperationRequest;
 import com.sky.dto.ShoppingCartDTO;
+import com.sky.dto.AfterSaleApplyDTO;
 import com.sky.entity.ShoppingCart;
 import com.sky.service.DishService;
 import com.sky.service.OrderService;
@@ -15,6 +16,8 @@ import com.sky.service.aftersale.AfterSaleService;
 import com.sky.service.catalog.ProductSearchService;
 import com.sky.service.order.OrderTimelineService;
 import com.sky.vo.AgentToolOperationResponse;
+import com.sky.properties.AgentProperties;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -23,6 +26,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 
 /**
  * 普通用户工具执行器。身份从已持久化任务读取，Python参数不能覆盖用户ID。
@@ -32,7 +38,10 @@ public class UserAgentToolExecutor {
     private static final Set<String> OPERATIONS = Set.of(
             "shop.status.get", "user.product.search", "user.product.detail",
             "user.cart.get", "user.cart.add", "user.order.list", "user.order.detail",
-            "user.order.timeline", "user.after_sale.status");
+            "user.order.timeline", "user.after_sale.status", "user.order.action.preview",
+            "user.order.remind", "user.order.cancel.request", "user.after_sale.submit");
+    private static final Set<String> CONFIRMED_OPERATIONS = Set.of(
+            "user.order.cancel.request", "user.after_sale.submit");
 
     private final ProductSearchService productSearchService;
     private final DishService dishService;
@@ -43,6 +52,7 @@ public class UserAgentToolExecutor {
     private final AfterSaleService afterSaleService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
+    private AgentProperties properties;
 
     /** 唯一构造器由Spring自动注入，避免多构造器导致Bean实例化歧义。 */
     public UserAgentToolExecutor(ProductSearchService productSearchService, DishService dishService,
@@ -65,6 +75,13 @@ public class UserAgentToolExecutor {
         return OPERATIONS.contains(operation);
     }
 
+    @Autowired
+    public void setProperties(AgentProperties properties) { this.properties = properties; }
+
+    public boolean requiresConfirmation(String operation) {
+        return CONFIRMED_OPERATIONS.contains(operation);
+    }
+
     /** 在用户上下文中执行经过白名单和参数边界验证的业务操作。 */
     public AgentToolOperationResponse execute(AgentToolOperationRequest request, long userId,
                                               String traceId) {
@@ -75,6 +92,14 @@ public class UserAgentToolExecutor {
         Long previousId = BaseContext.getCurrentId();
         String previousRole = BaseContext.getCurrentRole();
         try {
+            if (properties != null && !featureEnabled(request.operation())) {
+                return AgentToolOperationResponse.error(request.toolCallId(), "rejected",
+                        "FEATURE_DISABLED", "该用户端能力当前未开放", traceId);
+            }
+            if (requiresConfirmation(request.operation())) {
+                return AgentToolOperationResponse.error(request.toolCallId(), "confirmation_required",
+                        "CONFIRMATION_REQUIRED", "该操作必须先由用户确认", traceId);
+            }
             BaseContext.setCurrentId(userId);
             BaseContext.setCurrentRole(null);
             Object data = sanitize(dispatch(request, userId));
@@ -84,6 +109,15 @@ public class UserAgentToolExecutor {
             if (previousId != null) BaseContext.setCurrentId(previousId);
             if (previousRole != null) BaseContext.setCurrentRole(previousRole);
         }
+    }
+
+    private boolean featureEnabled(String operation) {
+        return switch (operation) {
+            case "user.order.remind" -> properties.isUserAgentReminderEnabled();
+            case "user.order.cancel.request" -> properties.isUserAgentCancellationEnabled();
+            case "user.after_sale.submit" -> properties.isUserAgentAfterSaleEnabled();
+            default -> true;
+        };
     }
 
     private Object dispatch(AgentToolOperationRequest request, long userId) {
@@ -101,8 +135,106 @@ public class UserAgentToolExecutor {
             case "user.order.detail" -> orderService.detailsForUser(requiredLong(args, "order_id"));
             case "user.order.timeline" -> timelineService.timeline(userId, requiredLong(args, "order_id"));
             case "user.after_sale.status" -> afterSaleService.getForUser(userId, requiredLong(args, "order_id"));
+            case "user.order.action.preview" -> previewOrderAction(args);
+            case "user.order.remind" -> remindOrder(request, args, userId);
             default -> throw new IllegalArgumentException("不支持的用户工具");
         };
+    }
+
+    /** 返回确认卡需要的影响范围以及稳定资源版本。 */
+    public Map<String, Object> previewConfirmedOperation(AgentToolOperationRequest request,
+                                                         long userId) {
+        if (!requiresConfirmation(request.operation())) {
+            throw new IllegalArgumentException("该用户操作不需要确认");
+        }
+        return withUser(userId, () -> {
+            JsonNode args = request.arguments();
+            long orderId = requiredLong(args, "order_id");
+            String reason = requiredText(args, "reason");
+            Object order = sanitize(orderService.detailsForUser(orderId));
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("order_id", orderId);
+            result.put("operation", request.operation());
+            result.put("reason", reason);
+            result.put("order", order);
+            result.put("resource_version", hash(order));
+            result.put("refund_expectation", "退款结果以业务服务实时校验为准");
+            return result;
+        });
+    }
+
+    /** 在确认后重新读取订单并执行，resourceVersion不一致时拒绝写入。 */
+    public AgentToolOperationResponse executeConfirmed(AgentToolOperationRequest request, long userId,
+                                                       String expectedVersion, String traceId) {
+        try {
+            Map<String, Object> preview = previewConfirmedOperation(request, userId);
+            if (!String.valueOf(preview.get("resource_version")).equals(expectedVersion)) {
+                return AgentToolOperationResponse.error(request.toolCallId(), "rejected",
+                        "STALE_RESOURCE", "订单状态已变化，请重新发起操作", traceId);
+            }
+            Object data = withUser(userId, () -> {
+                long orderId = requiredLong(request.arguments(), "order_id");
+                AfterSaleApplyDTO dto = new AfterSaleApplyDTO();
+                dto.setReason(requiredText(request.arguments(), "reason"));
+                return afterSaleService.apply(userId, orderId, dto,
+                        request.taskId() + ":" + request.toolCallId());
+            });
+            return AgentToolOperationResponse.success(request.toolCallId(), sanitize(data), traceId);
+        } catch (IllegalArgumentException exception) {
+            return AgentToolOperationResponse.error(request.toolCallId(), "rejected",
+                    "INVALID_ARGUMENT", exception.getMessage(), traceId);
+        }
+    }
+
+    private Object previewOrderAction(JsonNode args) {
+        long orderId = requiredLong(args, "order_id");
+        String action = requiredText(args, "action");
+        if (!Set.of("CANCELLATION", "AFTER_SALE").contains(action)) {
+            throw new IllegalArgumentException("action不受支持");
+        }
+        Object order = sanitize(orderService.detailsForUser(orderId));
+        return Map.of("order_id", orderId, "action", action, "order", order,
+                "resource_version", hash(order));
+    }
+
+    private Object remindOrder(AgentToolOperationRequest request, JsonNode args, long userId) {
+        long orderId = requiredLong(args, "order_id");
+        String key = "sky:user-agent:reminder:" + userId + ":" + orderId;
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
+                key, request.toolCallId(), Duration.ofMinutes(5));
+        if (Boolean.FALSE.equals(acquired)) {
+            return Map.of("accepted", true, "replayed", true, "cooldown_seconds", 300);
+        }
+        try {
+            orderService.reminder(orderId);
+            return Map.of("accepted", true, "replayed", false, "cooldown_seconds", 300);
+        } catch (RuntimeException exception) {
+            redisTemplate.delete(key);
+            throw exception;
+        }
+    }
+
+    private <T> T withUser(long userId, java.util.function.Supplier<T> action) {
+        Long previousId = BaseContext.getCurrentId();
+        String previousRole = BaseContext.getCurrentRole();
+        try {
+            BaseContext.setCurrentId(userId);
+            BaseContext.setCurrentRole(null);
+            return action.get();
+        } finally {
+            BaseContext.removeCurrentId();
+            if (previousId != null) BaseContext.setCurrentId(previousId);
+            if (previousRole != null) BaseContext.setCurrentRole(previousRole);
+        }
+    }
+
+    private String hash(Object value) {
+        try {
+            byte[] bytes = objectMapper.writeValueAsBytes(value);
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        } catch (Exception exception) {
+            throw new IllegalStateException("无法生成订单资源版本", exception);
+        }
     }
 
     private Object productDetail(JsonNode args) {

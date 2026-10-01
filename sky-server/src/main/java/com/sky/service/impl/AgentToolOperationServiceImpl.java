@@ -145,6 +145,15 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
         long started = System.nanoTime();
         String traceId = UUID.randomUUID().toString();
         AgentTask task = taskMapper.getByTaskId(request.taskId());
+        if (task == null && userTaskMapper != null) {
+            task = userTaskMapper.getByTaskId(request.taskId());
+            if (task != null) {
+                task.setActorType(AgentActorType.USER.name());
+                task.setActorId(task.getUserId());
+                task.setActorRole("CUSTOMER");
+                return prepareUserConfirmation(request, task, started, traceId);
+            }
+        }
         Operation operation = Operation.fromCode(request.operation());
         AdminRole role = null;
         AgentToolOperationResponse response;
@@ -266,6 +275,11 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
     public AgentToolOperationResponse executeConfirmed(String confirmationId) {
         long started = System.nanoTime();
         String traceId = UUID.randomUUID().toString();
+        AgentToolConfirmation userConfirmation = userConfirmationMapper == null ? null
+                : userConfirmationMapper.getByConfirmationId(confirmationId);
+        if (userConfirmation != null && AgentActorType.USER.name().equals(userConfirmation.getActorType())) {
+            return executeUserConfirmed(userConfirmation, traceId, started);
+        }
         AgentToolConfirmation confirmation = requiredConfirmation(confirmationId);
         AgentTask task = taskMapper.getByTaskId(confirmation.getTaskId());
         Operation operation = Operation.fromCode(confirmation.getOperation());
@@ -342,6 +356,101 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
             saveAudit(auditRequest, task, role, operation, response,
                     Duration.ofNanos(System.nanoTime() - started).toMillis(), traceId);
             return response;
+        }
+    }
+
+    /** 为普通用户创建高风险操作确认卡，不复用管理端权限和表。 */
+    private AgentToolOperationResponse prepareUserConfirmation(AgentToolOperationRequest request,
+                                                               AgentTask task, long started,
+                                                               String traceId) {
+        Operation operation = Operation.fromCode(request.operation());
+        if (operation == null || !Set.of("user.order.cancel.request", "user.after_sale.submit")
+                .contains(operation.code)) {
+            return error(request, "rejected", "UNKNOWN_OPERATION", "用户工具不支持该写操作", traceId);
+        }
+        try {
+            Map<String, Object> preview = userAgentToolExecutor.previewConfirmedOperation(
+                    request, task.getUserId());
+            AgentToolConfirmation existing = userConfirmationMapper.getByTaskAndCall(
+                    request.taskId(), request.toolCallId());
+            if (existing == null) {
+                String argumentsJson = objectMapper.writeValueAsString(request.arguments());
+                AgentToolConfirmation value = AgentToolConfirmation.builder()
+                        .confirmationId(UUID.randomUUID().toString().replace("-", ""))
+                        .taskId(request.taskId()).toolCallId(request.toolCallId())
+                        .actorType(AgentActorType.USER.name()).actorId(task.getUserId())
+                        .actorRole("CUSTOMER").operation(operation.code).argumentsJson(argumentsJson)
+                        .argumentHash(argumentHash(request.arguments()))
+                        .resourceVersion(String.valueOf(preview.get("resource_version")))
+                        .summary(operation.code.equals("user.order.cancel.request")
+                                ? "取消订单 " + request.arguments().path("order_id").asText()
+                                : "提交订单售后 " + request.arguments().path("order_id").asText())
+                        .status("PENDING")
+                        .expiresAt(LocalDateTime.now().plusSeconds(
+                                agentProperties.getToolConfirmationTtlSeconds())).build();
+                userConfirmationMapper.insertIgnore(value);
+                existing = userConfirmationMapper.getByTaskAndCall(request.taskId(), request.toolCallId());
+            }
+            if (!Objects.equals(existing.getArgumentHash(), argumentHash(request.arguments()))) {
+                throw new IllegalArgumentException("工具调用ID已用于其他参数");
+            }
+            if ("EXECUTED".equals(existing.getStatus())) {
+                return AgentToolOperationResponse.success(request.toolCallId(), preview, traceId);
+            }
+            Map<String, Object> data = new LinkedHashMap<>(preview);
+            data.put("confirmation_id", existing.getConfirmationId());
+            data.put("expires_at", existing.getExpiresAt());
+            AgentToolOperationResponse response = new AgentToolOperationResponse(
+                    request.toolCallId(), "confirmation_required", data,
+                    Map.of("code", "CONFIRMATION_REQUIRED", "message", "请确认后继续"), traceId);
+            saveAudit(request, task, null, operation, response,
+                    Duration.ofNanos(System.nanoTime() - started).toMillis(), traceId);
+            return response;
+        } catch (Exception exception) {
+            AgentToolOperationResponse response = error(request, "rejected", "PREPARE_FAILED",
+                    exception.getMessage(), traceId);
+            saveAudit(request, task, null, operation, response,
+                    Duration.ofNanos(System.nanoTime() - started).toMillis(), traceId);
+            return response;
+        }
+    }
+
+    private AgentToolOperationResponse executeUserConfirmed(AgentToolConfirmation confirmation,
+                                                             String traceId, long started) {
+        AgentTask task = userTaskMapper.getByTaskId(confirmation.getTaskId());
+        AgentToolOperationRequest request;
+        try {
+            request = new AgentToolOperationRequest(confirmation.getConfirmationId(),
+                    confirmation.getTaskId(), confirmation.getToolCallId(), confirmation.getOperation(),
+                    objectMapper.readTree(confirmation.getArgumentsJson()));
+            if (task == null || !Objects.equals(task.getUserId(), confirmation.getActorId())) {
+                throw new PermissionDeniedException("只能确认本人发起的AI操作");
+            }
+            AgentToolConfirmation current = userConfirmationMapper.getByConfirmationId(
+                    confirmation.getConfirmationId());
+            if (current.getExpiresAt() != null && current.getExpiresAt().isBefore(LocalDateTime.now())) {
+                userConfirmationMapper.transition(confirmation.getConfirmationId(), "PENDING", "EXPIRED");
+                return error(request, "rejected", "CONFIRMATION_EXPIRED", "操作确认已过期", traceId);
+            }
+            if ("EXECUTED".equals(current.getStatus())) {
+                return AgentToolOperationResponse.success(request.toolCallId(), Map.of("replayed", true), traceId);
+            }
+            if (!"CONFIRMED".equals(current.getStatus())) {
+                return error(request, "rejected", "CONFIRMATION_REQUIRED", "操作尚未确认", traceId);
+            }
+            if (userConfirmationMapper.transition(confirmation.getConfirmationId(), "CONFIRMED", "EXECUTING") == 0) {
+                return error(request, "rejected", "CONFIRMATION_USED", "确认凭证已被使用", traceId);
+            }
+            AgentToolOperationResponse result = userAgentToolExecutor.executeConfirmed(
+                    request, task.getUserId(), current.getResourceVersion(), traceId);
+            if ("success".equals(result.status())) userConfirmationMapper.markExecuted(
+                    confirmation.getConfirmationId());
+            return result;
+        } catch (Exception exception) {
+            return error(new AgentToolOperationRequest(confirmation.getConfirmationId(),
+                    confirmation.getTaskId(), confirmation.getToolCallId(), confirmation.getOperation(),
+                    objectMapper.createObjectNode()), "failed", "EXECUTE_FAILED",
+                    "用户操作执行失败", traceId);
         }
     }
 
@@ -943,6 +1052,10 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
         SETMEAL_UPDATE("setmeal.update", AdminPermission.SETMEAL_WRITE, true, false, "setmeal_id", "name", "category_id", "price", "image", "description", "status"),
         SHOP_STATUS_GET("shop.status.get", AdminPermission.SHOP_READ, false, false),
         SHOP_STATUS_UPDATE("shop.status.update", AdminPermission.SHOP_STATUS_WRITE, true, false, "status"),
+        USER_ORDER_ACTION_PREVIEW("user.order.action.preview", AdminPermission.ORDER_READ, false, false, "order_id", "action"),
+        USER_ORDER_REMIND("user.order.remind", AdminPermission.ORDER_READ, false, false, "order_id"),
+        USER_ORDER_CANCEL_REQUEST("user.order.cancel.request", AdminPermission.ORDER_READ, true, false, "order_id", "reason"),
+        USER_AFTER_SALE_SUBMIT("user.after_sale.submit", AdminPermission.ORDER_READ, true, false, "order_id", "reason"),
         WORKSPACE_OVERVIEW("workspace.overview", AdminPermission.WORKSPACE_READ, false, false),
         REPORT_QUERY("report.query", AdminPermission.REPORT_READ, false, false, "begin_time", "end_time");
 

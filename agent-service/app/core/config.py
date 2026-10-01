@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     TOOL_MAX_CALLS_PER_ROUND: int = 4
     TOOL_CONFIRMATION_TIMEOUT_SECONDS: float = 300.0
     TOOL_CONFIRMATION_POLL_SECONDS: float = 3.0
+    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_RUNTIME_ENABLED: bool = False
+    REDIS_CONSUMER_GROUP: str = "sky-user-agent-workers"
+    REDIS_CONSUMER_NAME: str = "agent-worker"
+    REDIS_LEASE_SECONDS: int = 30
 
     # 所有 OpenAI 兼容供应商统一使用以下四个变量。
     LLM_PROVIDER: str = ""
@@ -100,6 +105,8 @@ class Settings(BaseSettings):
         if (self.TOOL_CONFIRMATION_TIMEOUT_SECONDS <= 0
                 or self.TOOL_CONFIRMATION_POLL_SECONDS <= 0):
             errors.append("tool confirmation timeouts must be positive")
+        if self.REDIS_LEASE_SECONDS <= 0:
+            errors.append("REDIS_LEASE_SECONDS must be positive")
         if (self.LLM_TOTAL_TIMEOUT_SECONDS <= 0
                 or self.LLM_CONNECT_TIMEOUT_SECONDS <= 0
                 or self.LLM_FIRST_TOKEN_TIMEOUT_SECONDS <= 0

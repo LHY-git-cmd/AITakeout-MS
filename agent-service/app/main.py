@@ -85,16 +85,22 @@ async def lifespan(app: FastAPI):
     }
     agent = PythonAgent(admin_knowledge, knowledge_services)
     await agent.initialize()        # 初始化（加载模型、连接数据库等）
+    redis_runtime = None
+    if settings.REDIS_RUNTIME_ENABLED:
+        from app.core.redis_runtime import RedisRuntime
+        redis_runtime = RedisRuntime(settings.REDIS_URL, settings.REDIS_LEASE_SECONDS,
+                                     settings.REDIS_CONSUMER_NAME)
     task_queues = {
         "ADMIN_ASSISTANT": TaskQueue(
-            agent, settings.ADMIN_TASK_STATE_DB, "ADMIN_ASSISTANT"),
+            agent, settings.ADMIN_TASK_STATE_DB, "ADMIN_ASSISTANT", redis_runtime),
         "USER_ASSISTANT": TaskQueue(
-            agent, settings.USER_TASK_STATE_DB, "USER_ASSISTANT"),
+            agent, settings.USER_TASK_STATE_DB, "USER_ASSISTANT", redis_runtime),
     }
     for queue in task_queues.values():
         await queue.start()
     app.state.agent = agent        # 将 Agent 存入 app.state，供路由层获取
     app.state.task_queues = task_queues
+    app.state.redis_runtime = redis_runtime
     app.state.task_queue = task_queues["ADMIN_ASSISTANT"]  # 兼容旧管理接口
     app.state.knowledge_services = knowledge_services
     app.state.knowledge_service = admin_knowledge
@@ -116,6 +122,8 @@ async def lifespan(app: FastAPI):
         await queue.shutdown()
     await admin_knowledge.shutdown()
     await user_knowledge.shutdown()
+    if redis_runtime is not None:
+        await redis_runtime.close()
     logging.getLogger(__name__).info("Agent service stopped")
 
 
@@ -220,6 +228,14 @@ async def readiness(request: Request):
             except httpx.HTTPError:
                 dependencies[name] = DependencyHealth(
                     status="unavailable", error_type=f"{name.upper()}_UNAVAILABLE")
+    if settings.REDIS_RUNTIME_ENABLED:
+        runtime = getattr(request.app.state, "redis_runtime", None)
+        try:
+            if runtime is None or not await runtime.redis.ping():
+                raise RuntimeError("redis unavailable")
+            dependencies["redis"] = DependencyHealth(status="healthy")
+        except Exception:
+            dependencies["redis"] = DependencyHealth(status="unavailable", error_type="REDIS_UNAVAILABLE")
 
     agent_ready = getattr(request.app.state, "agent", None) is not None
     dependencies["agent"] = DependencyHealth(

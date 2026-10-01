@@ -4,6 +4,7 @@ import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { Bell, Bot, CircleUserRound, History, House, ShoppingBag, UtensilsCrossed, X } from '@lucide/vue'
 import LoginDialog from '@/components/LoginDialog.vue'
 import CartPanel from '@/components/CartPanel.vue'
+import CartFloatingWidget from '@/components/CartFloatingWidget.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 import { useUiStore } from '@/stores/ui'
@@ -27,6 +28,7 @@ const navigation = [
 
 const pageTitle = computed(() => String(route.meta.title ?? '在线点餐'))
 const showFloatingCart = computed(() => String(route.name) === 'menu')
+const showFloatingCartWidget = computed(() => String(route.name) === 'assistant')
 const showAgentEntry = computed(() => String(route.name) !== 'assistant')
 const isActive = (names: string[]) => names.includes(String(route.name))
 
@@ -132,6 +134,8 @@ watch(() => authStore.token, (token, previousToken) => {
       <ShoppingBag :size="26" aria-hidden="true" />
       <span v-if="cartStore.totalCount" class="floating-cart__count">{{ cartStore.totalCount }}</span>
     </button>
+
+    <CartFloatingWidget v-if="showFloatingCartWidget" />
 
     <RouterLink
       v-if="showAgentEntry"

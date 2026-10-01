@@ -2,6 +2,8 @@ package com.sky.agent.model;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -21,5 +23,14 @@ public record AgentKnowledgeScope(
         @JsonProperty("kb_id") String kbId,
         @JsonProperty("document_versions") Map<String, Integer> documentVersions,
         @JsonProperty("top_k") Integer topK,
-        @JsonProperty("score_threshold") Double scoreThreshold) {
+        @JsonProperty("score_threshold") Double scoreThreshold,
+        @JsonProperty("release_ids") List<String> releaseIds,
+        @JsonProperty("categories") List<String> categories,
+        @JsonProperty("expires_at") OffsetDateTime expiresAt) {
+
+    /** 兼容管理端历史协议；新用户协议应使用发布版本范围。 */
+    public AgentKnowledgeScope(String kbId, Map<String, Integer> documentVersions,
+                               Integer topK, Double scoreThreshold) {
+        this(kbId, documentVersions, topK, scoreThreshold, List.of(), List.of(), null);
+    }
 }

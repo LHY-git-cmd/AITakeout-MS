@@ -24,7 +24,7 @@ export interface AgentProductCard {
 
 export interface AgentChatBlock {
   id: string
-  kind: 'message' | 'recommendations' | 'cart' | 'order' | 'confirmation' | 'fallback'
+  kind: 'message' | 'recommendations' | 'cart' | 'order' | 'confirmation' | 'citations' | 'fallback'
   role?: 'user' | 'assistant'
   text?: string
   taskId?: string
@@ -172,10 +172,29 @@ export const useAgentStore = defineStore('agent', {
           window.dispatchEvent(new CustomEvent('sky:cart-changed'))
           break
         case 'confirmation_required':
+          {
+            const confirmationId = String(data.confirmation_id ?? '')
+            const existing = this.blocks.find((block) => block.kind === 'confirmation'
+              && block.confirmationId === confirmationId)
+            if (existing) existing.data = data
+            else this.blocks.push({ id, kind: 'confirmation', taskId: event.task_id, data,
+              confirmationId, status: 'pending' })
+          }
+          break
+        case 'operation_preview':
           this.blocks.push({
             id, kind: 'confirmation', taskId: event.task_id, data,
             confirmationId: String(data.confirmation_id ?? ''), status: 'pending',
           })
+          break
+        case 'clarification_required':
+          this.blocks.push({
+            id, kind: 'fallback', taskId: event.task_id,
+            text: String(data.question ?? data.message ?? '请补充必要信息'),
+          })
+          break
+        case 'knowledge_citations':
+          this.blocks.push({ id, kind: 'citations', taskId: event.task_id, data: data.citations ?? data })
           break
         case 'task_completed':
           this.running = false

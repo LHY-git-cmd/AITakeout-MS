@@ -28,6 +28,14 @@ class OrderIdArguments(ToolArguments):
     order_id: int = Field(gt=0)
 
 
+class OrderActionArguments(OrderIdArguments):
+    reason: str = Field(min_length=1, max_length=255)
+
+
+class PreviewOrderActionArguments(OrderIdArguments):
+    action: Literal["CANCELLATION", "AFTER_SALE"]
+
+
 class AddCartItemArguments(ToolArguments):
     dish_id: int | None = Field(default=None, gt=0)
     setmeal_id: int | None = Field(default=None, gt=0)
@@ -56,6 +64,18 @@ DEFINITIONS = (
                    "user.order.timeline", allowed_roles=CUSTOMER_ONLY),
     ToolDefinition("get_after_sale_status", "查询当前用户订单的最新售后状态。", OrderIdArguments,
                    "user.after_sale.status", allowed_roles=CUSTOMER_ONLY),
+    ToolDefinition("preview_order_action", "预览取消订单或售后申请的影响和当前状态。",
+                   PreviewOrderActionArguments, "user.order.action.preview",
+                   allowed_roles=CUSTOMER_ONLY),
+    ToolDefinition("remind_order", "催促商家处理当前用户本人待接单订单。", OrderIdArguments,
+                   "user.order.remind", ToolAccess.WRITE, allowed_roles=CUSTOMER_ONLY,
+                   requires_confirmation=False),
+    ToolDefinition("request_order_cancellation", "为当前用户本人订单提交取消申请；必须界面确认。",
+                   OrderActionArguments, "user.order.cancel.request", ToolAccess.WRITE,
+                   allowed_roles=CUSTOMER_ONLY, requires_confirmation=True),
+    ToolDefinition("submit_after_sale", "为当前用户本人订单提交售后申请；必须界面确认。",
+                   OrderActionArguments, "user.after_sale.submit", ToolAccess.WRITE,
+                   allowed_roles=CUSTOMER_ONLY, requires_confirmation=True),
     ToolDefinition("add_cart_item", "将明确指定的菜品或套餐加入当前用户购物车。",
                    AddCartItemArguments, "user.cart.add", ToolAccess.WRITE,
                    allowed_roles=CUSTOMER_ONLY, requires_confirmation=False),
