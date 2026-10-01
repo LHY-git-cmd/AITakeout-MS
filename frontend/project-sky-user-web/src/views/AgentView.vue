@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { Bot, LoaderCircle, RotateCcw, Send, Sparkles } from '@lucide/vue'
 import AgentCartChangeCard from '@/components/agent/AgentCartChangeCard.vue'
 import AgentConfirmationDialog from '@/components/agent/AgentConfirmationDialog.vue'
@@ -14,7 +14,7 @@ import { useUiStore } from '@/stores/ui'
 import type { MenuProduct } from '@/api/menu'
 
 const route = useRoute()
-const router = useRouter()
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 const agentStore = useAgentStore()
 const authStore = useAuthStore()
 const cartStore = useCartStore()
@@ -32,8 +32,8 @@ const lastUserMessage = computed(() =>
 
 function clientContext() {
   return {
-    page: 'assistant',
-    source_path: String(route.query.from ?? '/assistant'),
+    page: props.embedded ? 'menu' : 'assistant',
+    source_path: props.embedded ? route.fullPath : String(route.query.from ?? '/assistant'),
     locale: navigator.language,
   }
 }
@@ -104,8 +104,8 @@ watch(() => agentStore.blocks.map((block) => `${block.id}:${block.text ?? ''}`).
 </script>
 
 <template>
-  <section class="agent-page">
-    <header class="agent-page__header">
+  <section :class="['agent-page', { 'is-embedded': embedded }]">
+    <header v-if="!embedded" class="agent-page__header">
       <span><Sparkles :size="21" aria-hidden="true" /></span>
       <div><h1>饱饱助手</h1><p>菜品推荐、购物车和本人订单查询</p></div>
       <button v-if="agentStore.blocks.length" type="button" title="新建对话" @click="agentStore.resetConversation">
@@ -201,5 +201,21 @@ watch(() => agentStore.blocks.map((block) => `${block.id}:${block.text ?? ''}`).
 .agent-auth-state h2 { margin: 12px 0 5px; }
 .agent-auth-state p { margin: 0; color: var(--color-muted); }
 .agent-auth-state button { min-height: 46px; margin-top: 20px; padding: 0 22px; border: 0; border-radius: 9px; color: #fff; background: var(--color-brand); font-weight: 750; cursor: pointer; }
+.agent-page.is-embedded { width: 100%; height: 100%; min-height: 0; margin: 0; grid-template-rows: minmax(0, 1fr) auto; border: 0; border-radius: 0; box-shadow: none; }
+.agent-page.is-embedded .agent-feed { padding: 14px 12px; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.agent-page.is-embedded .agent-welcome { align-content: center; padding: 12px 0; }
+.agent-page.is-embedded .agent-welcome > span { width: 48px; height: 48px; border-radius: 13px; }
+.agent-page.is-embedded .agent-welcome h2 { margin-top: 10px; font-size: 17px; }
+.agent-page.is-embedded .agent-welcome p { font-size: 12px; }
+.agent-page.is-embedded .agent-welcome > div { margin-top: 14px; }
+.agent-page.is-embedded .agent-welcome button { font-size: 12px; }
+.agent-page.is-embedded .agent-message { max-width: 90%; font-size: 13px; }
+.agent-page.is-embedded .agent-composer { grid-template-columns: minmax(0, 1fr) 44px; padding: 10px; }
+.agent-page.is-embedded .agent-composer textarea { min-height: 44px; padding: 10px 11px; font-size: 13px; resize: none; }
+.agent-page.is-embedded .agent-composer > button { width: 44px; height: 44px; }
+.agent-page.is-embedded .agent-composer small { font-size: 10px; }
+.agent-page.is-embedded .agent-auth-state { grid-row: 1 / -1; padding: 20px; }
+.agent-page.is-embedded .agent-auth-state h2 { font-size: 18px; }
+.agent-page.is-embedded .agent-auth-state p { font-size: 12px; }
 @media (max-width: 767px) { .agent-page { width: calc(100% + 32px); height: calc(100dvh - 54px - var(--mobile-nav-height) - 14px); min-height: 0; margin: -14px -16px 0; border-width: 0; border-radius: 0; } .agent-page__header { padding: 12px 16px; } .agent-page__header button { width: 44px; padding: 0; justify-content: center; font-size: 0; } .agent-feed { padding: 16px; } .agent-message { max-width: 88%; } .agent-composer { padding: 10px 12px calc(8px + env(safe-area-inset-bottom)); } }
 </style>
