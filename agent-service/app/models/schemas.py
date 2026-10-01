@@ -4,7 +4,7 @@
 FastAPI 会自动根据这些模型生成 Swagger 文档和进行参数校验
 """
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, Dict, Any, Literal
+from typing import Optional, Dict, Any, Literal, List
 from datetime import datetime
 from app.tools.models import ActorRole, ActorType
 
@@ -158,6 +158,19 @@ class KnowledgeIndexRequest(BaseModel):
     file_type: str
     embedding_model: str
     request_hash: str
+    category: str = Field(default="GENERAL", min_length=1, max_length=64)
+
+
+class KnowledgeReleaseDocument(BaseModel):
+    """发布版本中一个不可变的文档版本引用。"""
+    document_id: str = Field(min_length=1, max_length=64)
+    document_version: int = Field(gt=0)
+
+
+class KnowledgeReleaseRequest(BaseModel):
+    """为已建立索引的文档版本增加或移除发布范围。"""
+    documents: List[KnowledgeReleaseDocument] = Field(min_length=1)
+    active: bool = True
 
 
 class KnowledgeSearchRequest(BaseModel):

@@ -105,7 +105,7 @@ onBeforeUnmount(() => {
           <LogIn v-if="mode === 'login'" :size="24" aria-hidden="true" />
           <UserPlus v-else :size="24" aria-hidden="true" />
         </div>
-        <h2 id="login-dialog-title">{{ mode === 'login' ? '登录苍穹外卖' : '注册正式账号' }}</h2>
+        <h2 id="login-dialog-title">{{ mode === 'login' ? '登录饱饱点餐' : '注册正式账号' }}</h2>
         <p>{{ mode === 'login' ? '使用手机号和密码继续点餐' : '验证码确认手机号，由你设置安全密码' }}</p>
 
         <div class="auth-mode-switch" role="tablist" aria-label="账号入口">

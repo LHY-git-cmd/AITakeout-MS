@@ -70,6 +70,62 @@ class KnowledgeServiceTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await self.service.submit({**request, "request_hash": "b"}, path.read_bytes())
 
+    async def test_release_metadata_controls_user_scope_without_overwriting_other_release(self):
+        """同一文档可属于多个发布版本，下线其中一个不会影响另一个。"""
+        await self.store.upsert([{
+            "id": "chunk-1",
+            "vector": [1.0, 0.0],
+            "payload": {
+                "kb_id": "kb", "document_id": "doc", "document_version": 1,
+                "enabled": True, "category": "GENERAL", "release_ids": [],
+            },
+        }])
+        documents = [{"document_id": "doc", "document_version": 1}]
+        await self.service.update_release("release-a", documents, True)
+        await self.service.update_release("release-b", documents, True)
+
+        found = await self.store.search(
+            [1.0, 0.0], "kb", {"doc": 1}, 8,
+            scope={"release_ids": ["release-a"], "categories": ["GENERAL"]},
+        )
+        self.assertEqual(1, len(found))
+        await self.service.update_release("release-a", documents, False)
+        self.assertEqual([], await self.store.search(
+            [1.0, 0.0], "kb", {"doc": 1}, 8,
+            scope={"release_ids": ["release-a"]},
+        ))
+        self.assertEqual(1, len(await self.store.search(
+            [1.0, 0.0], "kb", {"doc": 1}, 8,
+            scope={"release_ids": ["release-b"]},
+        )))
+
+    async def test_upload_index_publish_search_and_offline_lifecycle(self):
+        """覆盖公共文档从上传索引到发布可检索、下线不可检索的完整链路。"""
+        request = {
+            "task_id": "public-lifecycle", "request_hash": "public-hash",
+            "kb_id": "public-kb", "document_id": "public-doc", "document_version": 1,
+            "file_name": "refund.md", "file_type": "md",
+            "embedding_model": "hash-384", "category": "AFTER_SALE",
+        }
+        await self.service.submit(request, "退款申请需要审核。".encode("utf-8"))
+        for _ in range(50):
+            if self.service.status("public-lifecycle")["status"] == "completed":
+                break
+            await asyncio.sleep(0.01)
+
+        scope = {"release_ids": ["release-public-1"], "categories": ["AFTER_SALE"]}
+        self.assertEqual([], await self.service.search(
+            "public-kb", "退款审核", {"public-doc": 1}, 8, -1, scope=scope))
+
+        documents = [{"document_id": "public-doc", "document_version": 1}]
+        await self.service.update_release("release-public-1", documents, True)
+        self.assertEqual(1, len(await self.service.search(
+            "public-kb", "退款审核", {"public-doc": 1}, 8, -1, scope=scope)))
+
+        await self.service.update_release("release-public-1", documents, False)
+        self.assertEqual([], await self.service.search(
+            "public-kb", "退款审核", {"public-doc": 1}, 8, -1, scope=scope))
+
     def test_chunk_id_is_stable(self):
         chunker = StructureChunker(target_chars=10, overlap_chars=2)
         section = [

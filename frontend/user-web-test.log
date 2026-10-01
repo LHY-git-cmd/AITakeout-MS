@@ -1,0 +1,13 @@
+
+> project-sky-user-web@0.1.0 test
+> vitest run tests
+
+
+ RUN  v5.0.1 E:/code/web-sky-project/skyproject/sky-take-out/frontend/project-sky-user-web
+
+
+ Test Files  14 passed (14)
+      Tests  23 passed (23)
+   Start at  01:05:20
+   Duration  6.43s (environment 82%, transform 8%, import 8%, tests 1%)
+

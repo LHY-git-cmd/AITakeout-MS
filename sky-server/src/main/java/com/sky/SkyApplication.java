@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 /**
- * 苍穹外卖项目启动类
+ * 饱饱点餐项目启动类
  * 作为Spring Boot应用的入口，启动时会自动扫描并装配所有组件
  */
 @SpringBootApplication

@@ -23,6 +23,12 @@ public class AgentKnowledgeDocument {
     private Integer version;        // 文档版本号
     private Integer activeVersion;  // 当前在线版本号
     private Integer status;         // 索引状态 (0:待索引, 1:索引中, 2:已完成, 3:失败)
+    private String category;        // 公共知识分类
+    private String lifecycleStatus; // DRAFT/REVIEW_PENDING/PUBLISHED/OFFLINE
+    private String contentHash;     // 内容哈希
+    private String reviewStatus;    // PENDING/APPROVED/REJECTED
+    private Long reviewedBy;
+    private LocalDateTime reviewedAt;
     private Integer chunkCount;     // 文档分块数量
     private String errorMsg;        // 索引失败错误信息
     private Long createUser;        // 创建用户ID

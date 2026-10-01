@@ -5,6 +5,7 @@ import com.github.pagehelper.PageHelper;
 import com.sky.agent.AgentClient;
 import com.sky.agent.model.AgentHistoryMessage;
 import com.sky.agent.model.AgentSubmitRequest;
+import com.sky.agent.model.AgentKnowledgeScope;
 import com.sky.agent.model.AgentTaskStatusResponse;
 import com.sky.context.BaseContext;
 import com.sky.dto.*;
@@ -36,6 +37,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.stream.Collectors;
 
 /** 用户端Agent业务实现；所有业务读写均限定在user_agent_*表族。 */
@@ -56,6 +61,7 @@ public class UserAgentServiceImpl implements UserAgentService {
     private final UserAgentEventStreamCoordinator coordinator;
     private final UserAgentMessageCacheService cacheService;
     private final UserAgentSummaryService summaryService;
+    private final UserAgentKnowledgeMapper knowledgeMapper;
 
     @Override
     @Transactional
@@ -117,7 +123,7 @@ public class UserAgentServiceImpl implements UserAgentService {
         AgentSubmitRequest request = new AgentSubmitRequest(
                 task.getTaskId(), sessionId, userId, dto.getQuery(), model,
                 properties.getDefaultTemperature(), context(history, dto.getClientContext()),
-                null, traceId, "USER", "CUSTOMER", "USER_ASSISTANT");
+                buildPublicKnowledgeScope(), traceId, "USER", "CUSTOMER", "USER_ASSISTANT");
         try {
             agentClient.submit(request);
         } catch (RuntimeException exception) {
@@ -136,6 +142,33 @@ public class UserAgentServiceImpl implements UserAgentService {
         startAfterCommit(task.getTaskId());
         summarizeAfterCommit(sessionId);
         return submitVO(task);
+    }
+
+    /**
+     * 根据服务端当前有效绑定生成只读知识范围；用户DTO和模型都无法指定kb_id。
+     */
+    private AgentKnowledgeScope buildPublicKnowledgeScope() {
+        if (!properties.isUserAgentPublicRagEnabled()) return null;
+        UserAgentKnowledgeBinding binding = knowledgeMapper.getActiveBinding("USER_CHAT");
+        if (binding == null || binding.getReleaseId() == null) return null;
+        UserAgentKnowledgeRelease release = knowledgeMapper.getRelease(binding.getReleaseId());
+        if (release == null || !"PUBLISHED".equals(release.getStatus())) return null;
+        LocalDateTime now = LocalDateTime.now();
+        if ((release.getEffectiveFrom() != null && release.getEffectiveFrom().isAfter(now))
+                || (release.getEffectiveUntil() != null && !release.getEffectiveUntil().isAfter(now))
+                || knowledgeMapper.getPublishedBase(release.getKbId()) == null) {
+            return null;
+        }
+        List<AgentKnowledgeDocument> documents = knowledgeMapper.listReleaseDocuments(binding.getReleaseId());
+        Map<String, Integer> versions = documents.stream().collect(Collectors.toMap(
+                AgentKnowledgeDocument::getDocumentId, AgentKnowledgeDocument::getVersion,
+                (left, right) -> right));
+        List<String> categories = documents.stream().map(AgentKnowledgeDocument::getCategory)
+                .filter(value -> value != null && !value.isBlank()).distinct().toList();
+        OffsetDateTime expires = release.getEffectiveUntil() == null ? null
+                : release.getEffectiveUntil().atOffset(ZoneOffset.UTC);
+        return new AgentKnowledgeScope(release.getKbId(), versions, 8, 0.2,
+                List.of(release.getReleaseId()), categories, expires);
     }
 
     @Override

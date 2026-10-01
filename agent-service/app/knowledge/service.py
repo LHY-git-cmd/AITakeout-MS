@@ -165,7 +165,13 @@ class KnowledgeService:
         """
         await self.vector_store.delete_document(document_id, version)
 
-    async def search(self, kb_id, query, versions=None, top_k=8, threshold=0.2):
+    async def update_release(self, release_id, documents, active=True):
+        """为指定文档版本增删发布ID，保证检索只能命中已发布范围。"""
+        if not release_id or not documents:
+            raise ValueError("release_id and documents are required")
+        await self.vector_store.update_release(release_id, documents, active)
+
+    async def search(self, kb_id, query, versions=None, top_k=8, threshold=0.2, scope=None):
         """
         在知识库中搜索相关内容。
 
@@ -185,11 +191,7 @@ class KnowledgeService:
         # 同时保留 BGE 作为主要召回信号。
         candidate_k = min(12, max(top_k * 4, 8))
         results = await self.vector_store.search(
-            vector,
-            kb_id,
-            versions,
-            candidate_k,
-        )
+            vector, kb_id, versions, candidate_k, scope=scope)
         for item in results:
             item["rerank_score"] = (
                 item["score"] * 0.75
@@ -259,6 +261,11 @@ class KnowledgeService:
                     "file_name",
                 )
             }
+            metadata["enabled"] = True
+            metadata["release_ids"] = []
+            for key in ("category",):
+                if request.get(key) is not None:
+                    metadata[key] = request[key]
             chunks = self.chunker.split(sections, metadata)
             if not chunks:
                 raise ValueError("document contains no indexable text")

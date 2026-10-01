@@ -14,10 +14,13 @@ class UserAgentState(TypedDict, total=False):
     query: str
     context: dict[str, Any]
     intent: UserIntent
+    confidence: float
     slots: dict[str, Any]
+    missing_slots: list[str]
+    retrieval_plan: str
+    tool_plan: list[str]
     page_context: dict[str, Any]
     pending_confirmation: dict[str, Any] | None
     response_blocks: list[dict[str, Any]]
     system_instruction: str
     error: dict[str, Any] | None
-

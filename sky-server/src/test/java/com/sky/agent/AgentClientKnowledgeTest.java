@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -79,6 +80,28 @@ class AgentClientKnowledgeTest {
         assertEquals("DELETE", deleteRequest.method());
         assertEquals("/api/v1/knowledge/documents/doc%2F1", deleteRequest.path());
         assertEquals("version=2", deleteRequest.query());
+    }
+
+    @Test
+    void userKnowledgeMethodsAlwaysSelectIsolatedProfileAndReleaseMetadataRoute() {
+        client.indexKnowledge(Map.of("task_id", "user-task"), file("a.txt", "public"),
+                "USER_ASSISTANT");
+        assertFalse(lastRequest.get().body().isBlank());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                lastRequest.get().body().contains("USER_ASSISTANT"));
+
+        client.getKnowledgeIndexStatus("user-task", "USER_ASSISTANT");
+        assertEquals("agent_profile=USER_ASSISTANT", lastRequest.get().query());
+
+        client.deleteKnowledgeDocument("doc-1", 1, "USER_ASSISTANT");
+        org.junit.jupiter.api.Assertions.assertTrue(
+                lastRequest.get().query().contains("agent_profile=USER_ASSISTANT"));
+
+        client.updateKnowledgeRelease("release-1",
+                List.of(Map.of("documentId", "doc-1", "documentVersion", 1)), true);
+        assertEquals("/api/v1/knowledge/releases/release-1", lastRequest.get().path());
+        assertEquals("agent_profile=USER_ASSISTANT", lastRequest.get().query());
+        org.junit.jupiter.api.Assertions.assertTrue(lastRequest.get().body().contains("documents"));
     }
 
     /**

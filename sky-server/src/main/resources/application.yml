@@ -64,7 +64,6 @@ spring:
       vector-store:
         similarity-top-k: 5
         similarity-score-threshold: 0.7
-    agent:
       client:
         enabled: true # Assuming this is how to enable multipart AgentClient
     openai:
