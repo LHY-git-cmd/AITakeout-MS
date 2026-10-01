@@ -53,40 +53,37 @@ export const getday = () => {
 
 // 获取近7日
 export const past7Day = () => {
-  let toData = new Date(new Date().toLocaleDateString()).getTime();
-  let past7daysStart = toData - 7 * 3600 * 24 * 1000;
-  let past7daysEnd = toData - 1;
+  const today = new Date();
+  const past7daysStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6);
   let days7Start = dateFormat("YYYY-mm-dd", past7daysStart);
-  let days7End = dateFormat("YYYY-mm-dd", past7daysEnd);
+  let days7End = dateFormat("YYYY-mm-dd", today);
   return [days7Start, days7End];
 };
 
 // 获取近30日
 export const past30Day = () => {
-  let toData = new Date(new Date().toLocaleDateString()).getTime();
-  let past30daysStart = toData - 30 * 3600 * 24 * 1000;
-  let past30daysEnd = toData - 1;
+  const today = new Date();
+  const past30daysStart = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29);
   let days30Start = dateFormat("YYYY-mm-dd", past30daysStart);
-  let days30End = dateFormat("YYYY-mm-dd", past30daysEnd);
+  let days30End = dateFormat("YYYY-mm-dd", today);
   return [days30Start, days30End];
 };
 // 获取本周
 export const pastWeek = () => {
-  let toData = new Date(new Date().toLocaleDateString()).getTime();
-  var nowDayOfWeek = new Date().getDay();
-  const weekStartData = toData - (nowDayOfWeek - 1) * 24 * 60 * 60 * 1000;
-  const weekEndData = toData + (7 - nowDayOfWeek) * 24 * 60 * 60 * 1000;
+  const today = new Date();
+  const dayFromMonday = (today.getDay() + 6) % 7;
+  const weekStartData = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayFromMonday);
   let weekStart = dateFormat("YYYY-mm-dd", weekStartData);
-  let weekEnd = dateFormat("YYYY-mm-dd", weekEndData);
+  let weekEnd = dateFormat("YYYY-mm-dd", today);
   return [weekStart, weekEnd];
 };
 // 获取本月
 export const pastMonth = () => {
-  let year = new Date().getFullYear()
-  let month =new Date().getMonth()
+  const today = new Date()
+  let year = today.getFullYear()
+  let month = today.getMonth()
   const monthStartData = new Date(year, month, 1).getTime()
-  const monthEndData = new Date(year, month + 1, 0).getTime() + 24 * 60 * 60 * 1000 - 1
   let monthStart = dateFormat("YYYY-mm-dd", monthStartData);
-  let monthEnd = dateFormat("YYYY-mm-dd", monthEndData);
+  let monthEnd = dateFormat("YYYY-mm-dd", today);
   return [monthStart, monthEnd];
 };

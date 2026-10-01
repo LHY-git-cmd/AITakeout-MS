@@ -2744,53 +2744,12 @@
   cursor: pointer;
 }
 
-/* 中式餐厅风格：AI 面板空态提示（原为空占位） */
+/* 菜单页内嵌 AI 对话区域。 */
 .ai-chat-panel__content {
-  display: grid;
-  place-content: center;
-  padding: 0 24px;
-  text-align: center;
-}
-
-.ai-chat-panel__content p {
-  margin: 0;
-  color: var(--color-muted);
-  font-family: var(--font-serif);
-  font-size: 13px;
-  letter-spacing: .5px;
-}
-
-.ai-chat-panel__content {
-  gap: 10px;
-  justify-items: center;
-}
-
-.ai-chat-panel__content > strong {
-  font-family: var(--font-serif);
-  font-size: 17px;
-}
-
-.ai-chat-panel__mark {
-  display: grid;
-  width: 52px;
-  height: 52px;
-  place-items: center;
-  border-radius: 14px;
-  color: var(--color-brand-dark);
-  background: var(--color-brand-soft);
-}
-
-.ai-chat-panel__content > a {
-  display: inline-flex;
-  min-height: 44px;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  padding: 0 15px;
-  border-radius: 9px;
-  color: #fff;
-  background: var(--color-brand);
-  font-weight: 750;
+  display: flex;
+  min-height: 0;
+  padding: 0;
+  text-align: left;
 }
 
 .menu-page {
@@ -2904,6 +2863,51 @@
 
 .ai-chat-panel header svg {
   color: var(--color-gold);
+}
+
+/* AI 对话保持在独立视口中，消息滚动不再拉长或带走菜单页面。 */
+@media (min-width: 901px) {
+  .ai-chat-panel {
+    position: sticky;
+    top: calc(var(--header-height) + 24px);
+    align-self: start;
+    height: clamp(520px, calc(100dvh - var(--header-height) - 80px), 780px);
+    min-height: 0;
+    max-height: calc(100dvh - var(--header-height) - 48px);
+    overflow: hidden;
+  }
+
+  .ai-chat-panel__content {
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 900px) {
+  .ai-chat-panel {
+    align-self: start;
+    height: min(70dvh, 620px);
+    min-height: 420px;
+    max-height: 620px;
+    overflow: hidden;
+  }
+
+  .ai-chat-panel__content {
+    overflow: hidden;
+  }
+}
+
+.ai-chat-panel header button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  margin-left: auto;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--color-gold-line);
+  border-radius: 8px;
+  color: var(--color-brand-dark);
+  background: var(--color-surface);
+  cursor: pointer;
 }
 
 .ai-chat-panel__content {

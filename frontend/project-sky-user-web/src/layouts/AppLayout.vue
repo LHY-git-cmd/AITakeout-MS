@@ -21,6 +21,7 @@ const notificationStore = useNotificationStore()
 
 const navigation = [
   { label: '点餐', to: '/', icon: House, match: ['menu', 'checkout', 'payment-result'] },
+  { label: '饱饱点餐', to: '/assistant', icon: Bot, match: ['assistant'] },
   { label: '订单', to: '/orders', icon: History, match: ['orders', 'order-detail'] },
   { label: '通知', to: '/notifications', icon: Bell, match: ['notifications', 'after-sales'] },
   { label: '我的', to: '/profile', icon: CircleUserRound, match: ['profile', 'addresses', 'wallet'] },
@@ -29,7 +30,7 @@ const navigation = [
 const pageTitle = computed(() => String(route.meta.title ?? '在线点餐'))
 const showFloatingCart = computed(() => String(route.name) === 'menu')
 const showFloatingCartWidget = computed(() => String(route.name) === 'assistant')
-const showAgentEntry = computed(() => String(route.name) !== 'assistant')
+const showAgentEntry = computed(() => !['menu', 'assistant'].includes(String(route.name)))
 const isActive = (names: string[]) => names.includes(String(route.name))
 
 function handleUnauthorized() {
@@ -92,24 +93,15 @@ watch(() => authStore.token, (token, previousToken) => {
         </RouterLink>
 
         <nav class="desktop-nav" aria-label="主导航">
-          <template v-for="(item, index) in navigation" :key="item.to">
-            <RouterLink
-              :to="item.to"
-              :class="['desktop-nav__link', { 'is-active': isActive(item.match) }]"
-            >
-              {{ item.label }}
-              <span v-if="item.to === '/notifications' && notificationStore.unreadCount" class="nav-badge" :aria-label="`${notificationStore.unreadCount} 条未读通知`">{{ Math.min(notificationStore.unreadCount, 99) }}</span>
-            </RouterLink>
-            <button
-              v-if="index === 0"
-              class="desktop-nav__link desktop-nav__link--disabled"
-              type="button"
-              aria-label="分类功能暂未开放"
-              disabled
-            >
-              <span>分类</span>
-            </button>
-          </template>
+          <RouterLink
+            v-for="item in navigation"
+            :key="item.to"
+            :to="item.to"
+            :class="['desktop-nav__link', { 'is-active': isActive(item.match) }]"
+          >
+            {{ item.label }}
+            <span v-if="item.to === '/notifications' && notificationStore.unreadCount" class="nav-badge" :aria-label="`${notificationStore.unreadCount} 条未读通知`">{{ Math.min(notificationStore.unreadCount, 99) }}</span>
+          </RouterLink>
         </nav>
 
         <div aria-hidden="true" />

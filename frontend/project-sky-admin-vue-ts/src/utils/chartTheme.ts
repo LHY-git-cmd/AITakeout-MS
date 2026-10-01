@@ -15,19 +15,30 @@ const FALLBACK = {
   tooltipBg: 'rgba(35, 43, 74, 0.96)',
 }
 
+/** 图表监听此事件，在应用主题切换后重新读取配色并绘制。 */
+export const CHART_THEME_CHANGE_EVENT = 'sky:chart-theme-change'
+
+/** 通知当前页面中的 ECharts 实例重新应用主题色。 */
+export function notifyChartThemeChange() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(CHART_THEME_CHANGE_EVENT))
+  }
+}
+
 function readVar(name: string, fallback: string): string {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return fallback
   }
+  // 当前主题变量挂在 #app 上，必须先于 :root 读取，避免白天模式误用深色默认值。
+  const app = document.getElementById('app')
+  if (app) {
+    const appValue = getComputedStyle(app).getPropertyValue(name).trim()
+    if (appValue) return appValue
+  }
   const value = getComputedStyle(document.documentElement)
     .getPropertyValue(name)
     .trim()
-  if (value) return value
-  // 变量挂在 #app 上（如 .theme-light），再兜一层
-  const app = document.getElementById('app')
-  if (!app) return fallback
-  const appValue = getComputedStyle(app).getPropertyValue(name).trim()
-  return appValue || fallback
+  return value || fallback
 }
 
 /** 当前主题下的图表色板 */
@@ -35,9 +46,9 @@ export function chartPalette() {
   return {
     // 文字
     title: readVar('--text-1', FALLBACK.text1),
-    label: readVar('--text-2', FALLBACK.text2),
-    axisLabel: readVar('--text-2', FALLBACK.text2),
-    legend: readVar('--text-3', FALLBACK.text3),
+    label: readVar('--chart-text', FALLBACK.text2),
+    axisLabel: readVar('--chart-text', FALLBACK.text2),
+    legend: readVar('--chart-text', FALLBACK.text3),
     // 线与网格
     axis: readVar('--field-border', FALLBACK.axis),
     split: readVar('--border-strong', FALLBACK.split),

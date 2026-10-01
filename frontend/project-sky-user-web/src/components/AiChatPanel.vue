@@ -1,11 +1,14 @@
 <script setup lang="ts">
-/** 菜单页的Agent快捷入口；完整对话在独立页面中进行。 */
+/** 菜单页内嵌 Agent 对话面板，并保留可拖拽调整宽度能力。 */
 import { onBeforeUnmount } from 'vue'
-import { ArrowRight, Sparkles } from '@lucide/vue'
+import { RotateCcw, Sparkles } from '@lucide/vue'
+import AgentView from '@/views/AgentView.vue'
+import { useAgentStore } from '@/stores/agent'
 import { clampAiPanelWidth } from '@/utils/menuLayout'
 
 const props = defineProps<{ width: number }>()
 const emit = defineEmits<{ 'update:width': [width: number] }>()
+const agentStore = useAgentStore()
 
 const MIN_WIDTH = 260
 const MAX_WIDTH = 520
@@ -56,14 +59,21 @@ onBeforeUnmount(stopResize)
       @pointerdown.prevent="startResize"
       @keydown="handleResizeKey"
     />
-    <header><Sparkles :size="20" aria-hidden="true" /><strong>AI 助手</strong></header>
+    <header>
+      <Sparkles :size="20" aria-hidden="true" />
+      <strong>AI 助手</strong>
+      <button
+        v-if="agentStore.blocks.length"
+        type="button"
+        title="新建对话"
+        aria-label="新建对话"
+        @click="agentStore.resetConversation"
+      >
+        <RotateCcw :size="17" aria-hidden="true" />
+      </button>
+    </header>
     <div class="ai-chat-panel__content">
-      <span class="ai-chat-panel__mark"><Sparkles :size="25" aria-hidden="true" /></span>
-      <strong>不知道吃什么？问饱饱</strong>
-      <p>按人数、预算和口味推荐实时可售菜品，也能查询你的订单进度。</p>
-      <RouterLink :to="{ name: 'assistant', query: { from: '/' } }">
-        开始对话 <ArrowRight :size="17" aria-hidden="true" />
-      </RouterLink>
+      <AgentView embedded />
     </div>
   </aside>
 </template>

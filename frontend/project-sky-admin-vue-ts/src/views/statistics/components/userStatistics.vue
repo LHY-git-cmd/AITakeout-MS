@@ -12,7 +12,7 @@
 </template>
 
 <script lang="ts">
-import { chartPalette, splitLineStyle } from '@/utils/chartTheme'
+import { CHART_THEME_CHANGE_EVENT, chartPalette, splitLineStyle } from '@/utils/chartTheme'
 import { Component, Vue, Prop, Watch } from 'vue-property-decorator'
 import * as echarts from 'echarts'
 @Component({
@@ -20,6 +20,18 @@ import * as echarts from 'echarts'
 })
 export default class extends Vue {
   @Prop() private userdata!: any
+
+  mounted() {
+    window.addEventListener(CHART_THEME_CHANGE_EVENT, this.handleThemeChange)
+  }
+
+  beforeDestroy() {
+    window.removeEventListener(CHART_THEME_CHANGE_EVENT, this.handleThemeChange)
+  }
+
+  /** 主题切换后重新读取图表色板。 */
+  private handleThemeChange = () => this.initChart()
+
   @Watch('userdata')
   getData() {
     this.$nextTick(() => {
@@ -29,7 +41,7 @@ export default class extends Vue {
   initChart() {
     type EChartsOption = echarts.EChartsOption
     const chartDom = document.getElementById('usermain') as any
-    const myChart = echarts.init(chartDom)
+    const myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom)
     const palette = chartPalette()
     var option: any
     option = {
@@ -43,10 +55,11 @@ export default class extends Vue {
       // },
       tooltip: {
         trigger: 'axis',
-        backgroundColor: 'transparent', // 深色主题：透明，露出卡片底色
+        backgroundColor: palette.tooltipBg,
+        borderColor: palette.tooltipBorder,
         borderRadius: 2, //边框圆角
         textStyle: {
-          color: palette.title, // 深色主题：白色字体
+          color: palette.tooltipText,
           fontSize: 12, //字体大小
           fontWeight: 300,
         },
@@ -147,7 +160,7 @@ export default class extends Vue {
         },
       ],
     }
-    option && myChart.setOption(option)
+    option && myChart.setOption(option, true)
   }
 }
 </script>
