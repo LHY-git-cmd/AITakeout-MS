@@ -93,6 +93,11 @@ logging:
         controller: info
 
 sky:
+  diet:
+    recommendation-enabled: ${DIET_RECOMMENDATION_ENABLED:true}
+    profile-enabled: ${DIET_PROFILE_ENABLED:true}
+    medical-scenarios-enabled: ${DIET_MEDICAL_SCENARIOS_ENABLED:true}
+    allow-simulated-data: ${DIET_ALLOW_SIMULATED_DATA:false}
   auth:
     refresh-cookie-secure: ${REFRESH_COOKIE_SECURE:true}
   avatar:

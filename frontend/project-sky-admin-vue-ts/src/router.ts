@@ -136,6 +136,11 @@ const router = new Router({
           meta: { title: '用户公共知识库', icon: 'icon-category' },
         },
         {
+          path: 'diet',
+          component: () => import(/* webpackChunkName: "diet" */ '@/views/diet/index.vue'),
+          meta: { title: '饮食推荐管理', icon: 'icon-category' },
+        },
+        {
           path: 'user-account',
           component: () => import(/* webpackChunkName: "user-account" */ '@/views/userAccount/index.vue'),
           name: 'UserAccount',

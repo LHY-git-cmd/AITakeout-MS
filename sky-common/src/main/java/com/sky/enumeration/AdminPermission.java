@@ -10,6 +10,13 @@ public enum AdminPermission {
     PUBLIC_KB_EDIT, // 用户公共知识编辑
     PUBLIC_KB_REVIEW, // 用户公共知识审核
     PUBLIC_KB_PUBLISH, // 用户公共知识发布、下线和回滚
+    DIET_DATA_READ, // 饮食营养数据查看
+    DIET_DATA_EDIT, // 饮食营养数据编辑
+    DIET_DATA_VERIFY, // 饮食营养数据审核
+    DIET_RULE_READ, // 食养规则查看
+    DIET_RULE_EDIT, // 食养规则编辑
+    DIET_RULE_PUBLISH, // 食养规则发布、下线和回滚
+    DIET_AUDIT_READ, // 饮食推荐审计查看
     ORDER_READ, // 订单只读
     ORDER_STATUS_WRITE, // 订单状态读写
     DISH_READ, // 菜品只读
