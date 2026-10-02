@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { Bell, KeyRound, LogIn, LogOut, MapPin, Pencil, Phone, RotateCcw, ShieldOff, UserRound, WalletCards } from '@lucide/vue'
+import { Bell, HeartPulse, KeyRound, LogIn, LogOut, MapPin, Pencil, Phone, RotateCcw, ShieldOff, UserRound, WalletCards } from '@lucide/vue'
 import { RouterLink } from 'vue-router'
 import PageScaffold from '@/components/PageScaffold.vue'
 import { useAccountStore } from '@/stores/account'
@@ -70,6 +70,10 @@ watch(() => authStore.isAuthenticated, (authenticated) => {
     <RouterLink v-if="authStore.isAuthenticated" class="profile-menu-link" to="/profile/security">
       <KeyRound :size="20" aria-hidden="true" />
       <span><strong>账号与安全</strong><small>换绑手机号或修改密码</small></span>
+    </RouterLink>
+    <RouterLink v-if="authStore.isAuthenticated" class="profile-menu-link" to="/profile/diet">
+      <HeartPulse :size="20" aria-hidden="true" />
+      <span><strong>饮食档案</strong><small>管理过敏、忌口和日常饮食目标</small></span>
     </RouterLink>
     <div v-else class="profile-guest">
       <div><UserRound :size="30" aria-hidden="true" /></div>

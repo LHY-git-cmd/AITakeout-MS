@@ -35,6 +35,27 @@ class UserAgentWorkflowTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("order", result["intent"])
         self.assertEqual(1024, result["slots"]["order_id"])
 
+    async def test_routes_health_goal_to_structured_diet_recommendation(self):
+        result = await UserAgentWorkflow().run(
+            task_id="task-4", session_id="session-4",
+            query="我有高血压，想吃低钠高蛋白的晚饭", context=None,
+        )
+
+        self.assertEqual("diet_recommendation", result["intent"])
+        self.assertIn("HYPERTENSION", result["slots"]["conditions"])
+        self.assertIn("LOW_SODIUM", result["slots"]["goals"])
+        self.assertIn("recommend_personalized_meals", result["system_instruction"])
+
+    async def test_high_risk_medical_request_does_not_plan_recommendation(self):
+        result = await UserAgentWorkflow().run(
+            task_id="task-5", session_id=None,
+            query="我呼吸困难，能不能靠吃东西缓解", context=None,
+        )
+
+        self.assertEqual("medical_risk", result["intent"])
+        self.assertEqual("NONE", result["retrieval_plan"])
+        self.assertIn("不要诊断", result["system_instruction"])
+
 
 if __name__ == "__main__":
     unittest.main()

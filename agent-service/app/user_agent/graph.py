@@ -77,7 +77,9 @@ class UserAgentWorkflow:
             ("after_sale", ("售后", "退款", "退单", "取消订单")),
             ("order", ("订单", "配送进度", "送到", "进度", "催单")),
             ("cart", ("购物车", "加购", "加入", "来一份", "来一个")),
-            ("recommendation", ("推荐", "预算", "几个人", "人吃", "人份", "清淡", "辣", "低脂", "不甜", "忌口", "吃什么")),
+            ("medical_risk", ("胸痛", "呼吸困难", "昏迷", "休克", "严重过敏", "肾衰竭", "透析", "药物冲突")),
+            ("diet_recommendation", ("减脂", "减肥", "高蛋白", "低钠", "低糖", "高血压", "糖尿病", "高血脂", "肥胖", "过敏", "忌口", "时令", "当季", "生病")),
+            ("recommendation", ("推荐", "预算", "几个人", "人吃", "人份", "清淡", "辣", "低脂", "不甜", "吃什么")),
             ("knowledge", ("规则", "营业", "配送费", "过敏", "食材", "优惠")),
         )
         for intent, terms in groups:
@@ -106,6 +108,21 @@ class UserAgentWorkflow:
         for preference in ("清淡", "微辣", "辣", "素食", "低脂", "不甜"):
             if preference in query:
                 slots.setdefault("preferences", []).append(preference)
+        controlled_terms = {
+            "花生": ("allergens", "PEANUT"), "坚果": ("allergens", "TREE_NUT"),
+            "牛奶": ("allergens", "MILK"), "乳制品": ("allergens", "MILK"),
+            "鸡蛋": ("allergens", "EGG"), "小麦": ("allergens", "WHEAT"),
+            "大豆": ("allergens", "SOY"), "海鲜": ("allergens", "SHELLFISH"),
+            "芝麻": ("allergens", "SESAME"),
+            "减脂": ("goals", "WEIGHT_LOSS"), "减肥": ("goals", "WEIGHT_LOSS"),
+            "高蛋白": ("goals", "HIGH_PROTEIN"), "低钠": ("goals", "LOW_SODIUM"),
+            "低糖": ("goals", "LOW_SUGAR"), "低脂": ("goals", "LOW_FAT"),
+            "高血压": ("conditions", "HYPERTENSION"), "糖尿病": ("conditions", "DIABETES"),
+            "高血脂": ("conditions", "HYPERLIPIDEMIA"), "肥胖": ("conditions", "OBESITY"),
+        }
+        for term, (slot, code) in controlled_terms.items():
+            if term in query:
+                slots.setdefault(slot, []).append(code)
         missing = []
         intent = state.get("intent")
         if intent in {"order", "after_sale"} and "order_id" not in slots:
@@ -118,6 +135,8 @@ class UserAgentWorkflow:
         intent = state.get("intent", "unknown")
         instruction = {
             "recommendation": "先调用search_products取得实时可售候选，再基于预算、人数和偏好解释推荐；不要编造价格。",
+            "diet_recommendation": "先调用recommend_personalized_meals，由Java执行营养计算和安全过滤。只能推荐工具返回的商品，不得补造营养、食材、健康功效或额外菜品；信息不足时只追问一个关键问题。",
+            "medical_risk": "这是高风险医疗请求。不要诊断、不要给治疗性饮食方案、不要调用推荐工具；建议用户及时联系医生或急救服务。",
             "cart": "涉及购物车时先确认商品与规格；用户已明确商品和数量时可调用add_cart_item。",
             "order": "订单事实必须调用list_my_orders、get_my_order_detail或get_order_timeline，并且只能访问本人订单。",
             "after_sale": "先查询本人订单和售后状态；原因缺失时只追问原因，提交售后必须由用户确认。",
@@ -125,6 +144,8 @@ class UserAgentWorkflow:
             "unknown": "无法确定意图时只追问一个最关键的问题，不执行写操作。",
         }[intent]
         plan = "PUBLIC_RAG" if intent == "knowledge" else "REALTIME_TOOL"
+        if intent == "diet_recommendation": plan = "HYBRID"
+        if intent == "medical_risk": plan = "NONE"
         if intent == "after_sale": plan = "HYBRID"
         clarification = ""
         if state.get("missing_slots"):

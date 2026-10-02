@@ -543,6 +543,26 @@ class TaskQueue:
             await self._publish(task_id, "recommendation_cards", {
                 "items": items if isinstance(items, list) else [],
             })
+        elif tool_name == "recommend_personalized_meals":
+            value = result if isinstance(result, dict) else {}
+            items = value.get("items", [])
+            normalized = []
+            for item in items if isinstance(items, list) else []:
+                if not isinstance(item, dict):
+                    continue
+                normalized.append({
+                    **item,
+                    "id": item.get("productId", item.get("product_id")),
+                    "productType": item.get("productType", item.get("product_type", "dish")),
+                    "description": "、".join(item.get("matchReasons", [])) or "符合本次结构化筛选条件",
+                })
+            await self._publish(task_id, "recommendation_cards", {
+                "items": normalized,
+                "recommendation_id": value.get("recommendationId"),
+                "risk_level": value.get("riskLevel"),
+                "status": value.get("status"),
+                "notices": value.get("notices", []),
+            })
         elif tool_name == "add_cart_item":
             value = result if isinstance(result, dict) else {}
             await self._publish(task_id, "business_state_changed", {
