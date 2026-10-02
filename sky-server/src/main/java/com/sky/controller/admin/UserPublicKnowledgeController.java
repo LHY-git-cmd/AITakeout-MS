@@ -1,5 +1,14 @@
 package com.sky.controller.admin;
 
+import com.sky.annotation.RequireAdminPermission;
+import com.sky.dto.KnowledgeBaseDTO;
+import com.sky.entity.AgentKnowledgeBase;
+import com.sky.entity.AgentKnowledgeDocument;
+import com.sky.entity.AgentKnowledgeIndexTask;
+import com.sky.entity.UserAgentKnowledgeRelease;
+import com.sky.enumeration.AdminPermission;
+import com.sky.result.Result;
+import com.sky.service.UserPublicKnowledgeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
