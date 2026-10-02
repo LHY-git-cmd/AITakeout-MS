@@ -136,6 +136,12 @@ public class UserController {
         return Result.success();
     }
 
+    /**
+     * 构建客户端上下文（IP、User-Agent、设备ID），用于安全审计
+     *
+     * @param request HTTP请求
+     * @return 客户端上下文
+     */
     private AuthClientContext client(HttpServletRequest request) {
         return new AuthClientContext(request.getRemoteAddr(), request.getHeader("User-Agent"),
                 request.getHeader("X-Device-Id"));
