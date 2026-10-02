@@ -1,0 +1,12 @@
+source_id,source_type,title,url,applies_to,review_status,notes
+MENU_DB,INTERNAL_MENU,当前菜单数据库,,菜名/描述/套餐组成,DRAFT,只能证明数据库明确记录的食材
+NHC_GUIDE_NOTICE_2023,OFFICIAL_GUIDE,国家卫生健康委成人高血压/糖尿病/高脂血症食养指南通知,https://www.nhc.gov.cn/sps/c100088/202301/f01895a06c5349ef999f25da833c166d.shtml,慢病食养原则,REVIEWED,运行规则仍需专业人员审核
+NHC_HYPERTENSION_2023,OFFICIAL_GUIDE,成人高血压食养指南（2023年版）,https://www.nhc.gov.cn/cms-search/downFiles/63f752a17cfd4b4781f744477561866f.pdf,高血压食养知识,REVIEWED,不替代个体化医疗方案
+NHC_DIABETES_2023,OFFICIAL_GUIDE,成人糖尿病食养指南（2023年版）,https://www.nhc.gov.cn/cms-search/downFiles/4fcbecd2c18e46baaf291bf46c2b79cd.pdf,糖尿病食养知识,REVIEWED,用药和血糖方案需医生指导
+NHC_LIPID_2023,OFFICIAL_GUIDE,成人高脂血症食养指南（2023年版）,https://www.nhc.gov.cn/cms-search/downFiles/252e7bd69d064fc5a00f02fbc64b5e23.pdf,高脂血症食养知识,REVIEWED,需结合具体分型
+NHC_OBESITY_2024,OFFICIAL_GUIDE,成人肥胖食养指南（2024年版）,https://www.nhc.gov.cn/wjw/c100378/202402/afd5dda4bd6745fda10aad8d43a16369.shtml,成人肥胖食养知识,REVIEWED,不用于未成年人或孕产妇
+NHC_HEALTH_LITERACY_2024,OFFICIAL_GUIDE,中国公民健康素养——基本知识与技能（2024年版）,https://www.nhc.gov.cn/xcs/c100123/202405/73a4927142f34152abed875634a3c13b.shtml,一般健康饮食原则,REVIEWED,适合作为一般科普依据
+FDA_ALLERGEN,OFFICIAL_GUIDE,FDA Food Allergies,https://www.fda.gov/food/nutrition-food-labeling-and-critical-foods/food-allergies,过敏原风险与标签原则,REVIEWED,中国实际经营仍须遵守本地法规和供应商声明
+WHO_HEALTHY_DIET,OFFICIAL_GUIDE,WHO Healthy Diet,https://www.who.int/news-room/fact-sheets/detail/healthy-diet,健康饮食一般原则,REVIEWED,用于一般原则而非疾病处方
+WHO_SODIUM,OFFICIAL_GUIDE,WHO Sodium reduction,https://www.who.int/news-room/fact-sheets/detail/sodium-reduction,盐钠换算和减钠一般原则,REVIEWED,用于模拟量级校验
+SIM_MENU_V1,SIMULATION,一人份开发模拟方法,data/diet-seed/SIMULATION_METHODOLOGY.md,24道菜模拟营养和过敏原,SIMULATED,不得用于生产医疗或严重过敏决策
