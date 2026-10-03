@@ -11,7 +11,7 @@
 </template>
 
 <script lang="ts">
-import { chartPalette, splitLineStyle } from '@/utils/chartTheme'
+import { CHART_THEME_CHANGE_EVENT, chartPalette, splitLineStyle } from '@/utils/chartTheme'
 import { Component, Vue, Prop, Watch } from 'vue-property-decorator'
 import * as echarts from 'echarts'
 @Component({
@@ -19,6 +19,18 @@ import * as echarts from 'echarts'
 })
 export default class extends Vue {
   @Prop() private turnoverdata!: any
+
+  mounted() {
+    window.addEventListener(CHART_THEME_CHANGE_EVENT, this.handleThemeChange)
+  }
+
+  beforeDestroy() {
+    window.removeEventListener(CHART_THEME_CHANGE_EVENT, this.handleThemeChange)
+  }
+
+  /** 主题切换后重新读取图表色板。 */
+  private handleThemeChange = () => this.initChart()
+
   @Watch('turnoverdata')
   getData() {
     this.$nextTick(() => {
@@ -28,7 +40,7 @@ export default class extends Vue {
   initChart() {
     type EChartsOption = echarts.EChartsOption
     const chartDom = document.getElementById('main') as any
-    const myChart = echarts.init(chartDom)
+    const myChart = echarts.getInstanceByDom(chartDom) || echarts.init(chartDom)
 
     const palette = chartPalette()
 
@@ -46,6 +58,11 @@ export default class extends Vue {
       // },
       tooltip: {
         trigger: 'axis',
+        backgroundColor: palette.tooltipBg,
+        borderColor: palette.tooltipBorder,
+        textStyle: {
+          color: palette.tooltipText,
+        },
       },
       grid: {
         top: '5%',
@@ -117,7 +134,7 @@ export default class extends Vue {
         },
       ],
     }
-    option && myChart.setOption(option)
+    option && myChart.setOption(option, true)
   }
 }
 </script>

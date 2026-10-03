@@ -1,0 +1,17 @@
+dish_id,dish_name,recipe_version,allergen_code,declaration_status,source_reference,confidence,review_status
+50,馒头,1,WHEAT,CONTAINS,菜单描述明确为小麦面粉,HIGH,DRAFT
+51,老坛酸菜鱼,1,FISH,CONTAINS,菜单描述明确含草鱼,HIGH,DRAFT
+52,经典酸菜鮰鱼,1,FISH,CONTAINS,菜单描述明确含鱼类,HIGH,DRAFT
+53,蜀味水煮草鱼,1,FISH,CONTAINS,菜单描述明确含草鱼,HIGH,DRAFT
+58,清蒸鲈鱼,1,FISH,CONTAINS,菜单描述明确含鲈鱼,HIGH,DRAFT
+61,剁椒鱼头,1,FISH,CONTAINS,菜单描述明确含鲢鱼,HIGH,DRAFT
+64,馋嘴牛蛙,1,SOY,CONTAINS,菜单描述明确含黄豆芽,HIGH,DRAFT
+65,草鱼2斤,1,FISH,CONTAINS,菜单描述明确含草鱼,HIGH,DRAFT
+65,草鱼2斤,1,SOY,CONTAINS,菜单描述明确含黄豆芽,HIGH,DRAFT
+66,江团鱼2斤,1,FISH,CONTAINS,菜单描述明确含江团鱼,HIGH,DRAFT
+66,江团鱼2斤,1,SOY,CONTAINS,菜单描述明确含黄豆芽,HIGH,DRAFT
+67,鮰鱼2斤,1,FISH,CONTAINS,菜单描述明确含鮰鱼,HIGH,DRAFT
+67,鮰鱼2斤,1,SOY,CONTAINS,菜单描述明确含黄豆芽,HIGH,DRAFT
+68,鸡蛋汤,1,EGG,CONTAINS,菜单描述明确含鸡蛋,HIGH,DRAFT
+69,平菇豆腐汤,1,SOY,CONTAINS,菜单描述明确含豆腐,HIGH,DRAFT
+

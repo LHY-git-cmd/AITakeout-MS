@@ -76,6 +76,12 @@ const router = createRouter({
           meta: { title: '账号与安全' },
         },
         {
+          path: 'profile/diet',
+          name: 'diet-profile',
+          component: () => import('@/views/DietProfileView.vue'),
+          meta: { title: '饮食档案' },
+        },
+        {
           path: 'notifications',
           name: 'notifications',
           component: () => import('@/views/NotificationsView.vue'),

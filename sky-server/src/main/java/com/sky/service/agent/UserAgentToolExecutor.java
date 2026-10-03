@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sky.context.BaseContext;
 import com.sky.dto.AgentToolOperationRequest;
 import com.sky.dto.ShoppingCartDTO;
+import com.sky.dto.DietRecommendationDTO;
 import com.sky.dto.AfterSaleApplyDTO;
 import com.sky.entity.ShoppingCart;
 import com.sky.service.DishService;
@@ -14,6 +15,7 @@ import com.sky.service.SetmealService;
 import com.sky.service.ShoppingCartService;
 import com.sky.service.aftersale.AfterSaleService;
 import com.sky.service.catalog.ProductSearchService;
+import com.sky.service.diet.DietRecommendationService;
 import com.sky.service.order.OrderTimelineService;
 import com.sky.vo.AgentToolOperationResponse;
 import com.sky.properties.AgentProperties;
@@ -39,7 +41,8 @@ public class UserAgentToolExecutor {
             "shop.status.get", "user.product.search", "user.product.detail",
             "user.cart.get", "user.cart.add", "user.order.list", "user.order.detail",
             "user.order.timeline", "user.after_sale.status", "user.order.action.preview",
-            "user.order.remind", "user.order.cancel.request", "user.after_sale.submit");
+            "user.order.remind", "user.order.cancel.request", "user.after_sale.submit",
+            "user.diet.profile.get", "user.diet.recommend");
     private static final Set<String> CONFIRMED_OPERATIONS = Set.of(
             "user.order.cancel.request", "user.after_sale.submit");
 
@@ -53,6 +56,7 @@ public class UserAgentToolExecutor {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private AgentProperties properties;
+    private DietRecommendationService dietRecommendationService;
 
     /** 唯一构造器由Spring自动注入，避免多构造器导致Bean实例化歧义。 */
     public UserAgentToolExecutor(ProductSearchService productSearchService, DishService dishService,
@@ -77,6 +81,11 @@ public class UserAgentToolExecutor {
 
     @Autowired
     public void setProperties(AgentProperties properties) { this.properties = properties; }
+
+    @Autowired
+    public void setDietRecommendationService(DietRecommendationService value) {
+        this.dietRecommendationService = value;
+    }
 
     public boolean requiresConfirmation(String operation) {
         return CONFIRMED_OPERATIONS.contains(operation);
@@ -137,8 +146,36 @@ public class UserAgentToolExecutor {
             case "user.after_sale.status" -> afterSaleService.getForUser(userId, requiredLong(args, "order_id"));
             case "user.order.action.preview" -> previewOrderAction(args);
             case "user.order.remind" -> remindOrder(request, args, userId);
+            case "user.diet.profile.get" -> dietRecommendationService.getProfile(userId);
+            case "user.diet.recommend" -> recommendDiet(request, args, userId);
             default -> throw new IllegalArgumentException("不支持的用户工具");
         };
+    }
+
+    /** 将模型参数收敛为受控 DTO，再交给确定性推荐服务处理。 */
+    private Object recommendDiet(AgentToolOperationRequest request, JsonNode args, long userId) {
+        DietRecommendationDTO dto = new DietRecommendationDTO();
+        dto.setScene(requiredText(args, "scene"));
+        dto.setPeopleCount(optionalInt(args, "people_count", 1, 1, 20));
+        if (args != null && args.hasNonNull("budget")) {
+            dto.setBudget(args.get("budget").decimalValue());
+        }
+        dto.setMealType(optionalText(args, "meal_type"));
+        dto.setRegionCode(optionalText(args, "region_code"));
+        dto.setUseSavedProfile(args == null || !args.has("use_saved_profile")
+                || args.get("use_saved_profile").asBoolean());
+        dto.setAllergens(stringList(args, "allergens"));
+        dto.setExcludedIngredients(stringList(args, "excluded_ingredients"));
+        dto.setGoals(stringList(args, "goals"));
+        dto.setConditions(stringList(args, "conditions"));
+        dto.setPreferences(stringList(args, "preferences"));
+        dto.setHardConstraints(stringList(args, "hard_constraints"));
+        dto.setSoftPreferences(stringList(args, "soft_preferences"));
+        dto.setSeason(optionalText(args, "season"));
+        if (args != null && args.hasNonNull("confidence")) dto.setConfidence(args.get("confidence").decimalValue());
+        dto.setLimit(optionalInt(args, "limit", 5, 1, 20));
+        String idempotencyKey = hash(request.taskId() + ":" + request.toolCallId());
+        return dietRecommendationService.recommend(userId, idempotencyKey, dto, null);
     }
 
     /** 返回确认卡需要的影响范围以及稳定资源版本。 */
@@ -344,5 +381,17 @@ public class UserAgentToolExecutor {
         int parsed = value.asInt();
         if (parsed < min || parsed > max) throw new IllegalArgumentException(name + "超出允许范围");
         return parsed;
+    }
+
+    private List<String> stringList(JsonNode args, String name) {
+        JsonNode value = args == null ? null : args.get(name);
+        if (value == null || value.isNull()) return List.of();
+        if (!value.isArray()) throw new IllegalArgumentException(name + "必须是数组");
+        List<String> result = new java.util.ArrayList<>();
+        value.forEach(item -> {
+            String text = item.asText().trim();
+            if (!text.isEmpty()) result.add(text);
+        });
+        return result;
     }
 }

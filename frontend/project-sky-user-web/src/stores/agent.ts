@@ -29,6 +29,8 @@ export interface AgentChatBlock {
   text?: string
   taskId?: string
   items?: Record<string, unknown>[]
+  notices?: string[]
+  excludedItems?: Record<string, unknown>[]
   toolName?: string
   data?: unknown
   confirmationId?: string
@@ -150,6 +152,8 @@ export const useAgentStore = defineStore('agent', {
           this.blocks.push({
             id, kind: 'recommendations', taskId: event.task_id,
             items: Array.isArray(data.items) ? data.items as Record<string, unknown>[] : [],
+            notices: Array.isArray(data.notices) ? data.notices.map(String) : [],
+            excludedItems: Array.isArray(data.excluded_items) ? data.excluded_items as Record<string, unknown>[] : [],
           })
           break
         case 'tool_started':

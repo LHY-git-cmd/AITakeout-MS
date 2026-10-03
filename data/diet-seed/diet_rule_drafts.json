@@ -1,0 +1,50 @@
+[
+  {
+    "rule_code": "HYPERTENSION",
+    "name": "成人高血压食养规则草稿",
+    "applicable_population": "已确诊成人；仅辅助点餐，不替代医生或临床营养师",
+    "rules": [
+      {"target_field":"SODIUM_MG","operator":"UNKNOWN","action":"REQUIRE_CLARIFICATION","priority":10,"reason_code":"SODIUM_DATA_MISSING","message":"缺少每份钠数据，不能生成确定性结论"},
+      {"target_field":"SODIUM_MG","operator":"GTE","comparison_value":"0","action":"WARN","priority":100,"reason_code":"SODIUM_ATTENTION","message":"高血压饮食需要关注钠和全天膳食结构"}
+    ],
+    "sources": [
+      {"source_title":"成人高血压食养指南（2023年版）","source_url":"https://www.nhc.gov.cn/cms-search/downFiles/63f752a17cfd4b4781f744477561866f.pdf","source_section":"食养原则和建议","published_date":"2023-01-18","review_due_date":"2027-10-01"}
+    ]
+  },
+  {
+    "rule_code": "DIABETES",
+    "name": "成人糖尿病食养规则草稿",
+    "applicable_population": "已确诊成人；仅辅助点餐，不用于计算用药或胰岛素剂量",
+    "rules": [
+      {"target_field":"SUGAR_G","operator":"UNKNOWN","action":"REQUIRE_CLARIFICATION","priority":10,"reason_code":"SUGAR_DATA_MISSING","message":"缺少每份糖数据，不能生成确定性结论"},
+      {"target_field":"SUGAR_G","operator":"GTE","comparison_value":"0","action":"WARN","priority":100,"reason_code":"SUGAR_AND_PORTION_ATTENTION","message":"糖尿病饮食需要同时关注能量、糖、碳水化合物和主食份量"}
+    ],
+    "sources": [
+      {"source_title":"成人糖尿病食养指南（2023年版）","source_url":"https://www.nhc.gov.cn/cms-search/downFiles/4fcbecd2c18e46baaf291bf46c2b79cd.pdf","source_section":"食养原则和建议","published_date":"2023-01-18","review_due_date":"2027-10-01"}
+    ]
+  },
+  {
+    "rule_code": "HYPERLIPIDEMIA",
+    "name": "成人高脂血症食养规则草稿",
+    "applicable_population": "已确诊成人；需要结合血脂异常类型和医生建议",
+    "rules": [
+      {"target_field":"FAT_G","operator":"UNKNOWN","action":"REQUIRE_CLARIFICATION","priority":10,"reason_code":"FAT_DATA_MISSING","message":"缺少每份脂肪数据，不能生成确定性结论"},
+      {"target_field":"FAT_G","operator":"GTE","comparison_value":"0","action":"WARN","priority":100,"reason_code":"FAT_ATTENTION","message":"高脂血症饮食需要关注总脂肪、饱和脂肪、反式脂肪和烹饪方式"}
+    ],
+    "sources": [
+      {"source_title":"成人高脂血症食养指南（2023年版）","source_url":"https://www.nhc.gov.cn/cms-search/downFiles/252e7bd69d064fc5a00f02fbc64b5e23.pdf","source_section":"食养原则和建议","published_date":"2023-01-18","review_due_date":"2027-10-01"}
+    ]
+  },
+  {
+    "rule_code": "OBESITY",
+    "name": "成人肥胖食养规则草稿",
+    "applicable_population": "成人体重管理；不适用于未成年人、孕产妇或进食障碍",
+    "rules": [
+      {"target_field":"ENERGY_KCAL","operator":"UNKNOWN","action":"REQUIRE_CLARIFICATION","priority":10,"reason_code":"ENERGY_DATA_MISSING","message":"缺少每份能量数据，不能生成确定性结论"},
+      {"target_field":"ENERGY_KCAL","operator":"GTE","comparison_value":"0","action":"WARN","priority":100,"reason_code":"ENERGY_ATTENTION","message":"体重管理需要结合本餐能量、份量和全天膳食结构"}
+    ],
+    "sources": [
+      {"source_title":"成人肥胖食养指南（2024年版）","source_url":"https://www.nhc.gov.cn/wjw/c100378/202402/afd5dda4bd6745fda10aad8d43a16369.shtml","source_section":"食养原则和建议","published_date":"2024-02-08","review_due_date":"2027-10-01"}
+    ]
+  }
+]

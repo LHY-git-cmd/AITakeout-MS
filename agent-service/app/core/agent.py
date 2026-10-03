@@ -207,14 +207,33 @@ class PythonAgent:
                 "role": "system",
                 "content": workflow["system_instruction"],
             })
+            intent = workflow.get("intent")
+            if workflow.get("missing_slots"):
+                allowed_tools = frozenset({"__CLARIFICATION_ONLY__"})
+                scene, risk = "CLARIFICATION", "L1"
+            elif intent in {"common_cold", "seasonal_regional", "diet_recommendation"}:
+                allowed_tools = frozenset({"get_diet_profile", "recommend_personalized_meals"})
+                scene = {"common_cold": "COMMON_COLD", "seasonal_regional": "SEASONAL_REGIONAL"}.get(
+                    intent, "GOAL_BASED")
+                risk = "L1" if intent != "diet_recommendation" else "L2"
+            elif intent == "medical_risk":
+                allowed_tools = frozenset({"__NO_PRODUCT_TOOLS__"})
+                scene, risk = "HIGH_RISK_MEDICAL", "L4"
+            else:
+                allowed_tools = frozenset()
+                scene, risk = "GENERAL_MEAL", "L0"
             yield AgentOutput("workflow_routed", {
                 "intent": workflow.get("intent"),
                 "slots": workflow.get("slots", {}),
             })
+        else:
+            allowed_tools = frozenset()
+            scene, risk = "GENERAL_MEAL", "L0"
         if task_id and trace_id and actor_id and actor_role:
             tool_context = ToolContext(
                 task_id=task_id, trace_id=trace_id,
-                actor_id=actor_id, actor_type=actor_type, actor_role=actor_role)
+                actor_id=actor_id, actor_type=actor_type, actor_role=actor_role,
+                scene=scene, risk_level=risk, allowed_tools=allowed_tools)
             orchestrator = self.tool_orchestrators[agent_profile]
             async for output in orchestrator.run(
                     messages, context=tool_context, model=model,
