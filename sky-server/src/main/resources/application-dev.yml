@@ -65,6 +65,8 @@ sky:
   avatar:
     local-enabled: true
     local-root: ${AVATAR_LOCAL_ROOT:data/uploads}
+  product-image:
+    local-root: ${PRODUCT_IMAGE_LOCAL_ROOT:data/uploads/products}
   delivery:
     map-provider: ${DELIVERY_MAP_PROVIDER:mock}
     shop-address: ${SHOP_ADDRESS:北京市海淀区上地十街10号}

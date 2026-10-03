@@ -35,13 +35,12 @@
 
 <script lang="ts">
 import { Vue, Component, Prop, Watch } from 'vue-property-decorator'
-import { baseUrl } from '@/config.json'
 import { getToken } from '@/utils/cookies'
 @Component({
   name: 'UploadImage'
 })
 export default class extends Vue {
-  @Prop({ default: '.jpg,.jpeg,.png' }) type: string
+  @Prop({ default: '.jpg,.jpeg,.png,.webp' }) type: string
   @Prop({ default: 2 }) size: number
   @Prop({ default: '' }) propImageUrl: string
 
@@ -65,11 +64,11 @@ export default class extends Vue {
   }
 
   handleAvatarSuccess(response: any, file: any, fileList: any) {
-    // this.imageUrl = response.data
-    // this.imageUrl = `http://172.17.2.120:8080/common/download?name=${response.data}`
+    if (String(response?.code) !== '1' || !response?.data) {
+      this.$message.error(response?.msg || '图片上传失败')
+      return
+    }
     this.imageUrl = `${response.data}`
-    // this.imageUrl = `${baseUrl}/common/download?name=${response.data}`
-
     this.$emit('imageChange', this.imageUrl)
   }
 
@@ -78,6 +77,11 @@ export default class extends Vue {
     this.$emit('imageChange', this.imageUrl)
   }
   beforeAvatarUpload(file) {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      this.$message.error('仅支持JPG、PNG和WEBP图片')
+      return false
+    }
     const isLt2M = file.size / 1024 / 1024 < this.size
     if (!isLt2M) {
       this.$message({
