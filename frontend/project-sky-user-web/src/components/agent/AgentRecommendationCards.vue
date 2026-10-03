@@ -2,7 +2,7 @@
 import { Plus, Utensils } from '@lucide/vue'
 import ProductImage from '@/components/ProductImage.vue'
 
-defineProps<{ items: Record<string, unknown>[], notices?: string[] }>()
+defineProps<{ items: Record<string, unknown>[], notices?: string[], excludedItems?: Record<string, unknown>[] }>()
 const emit = defineEmits<{ add: [item: Record<string, unknown>] }>()
 
 function price(item: Record<string, unknown>) {
@@ -12,6 +12,9 @@ function price(item: Record<string, unknown>) {
 const reasonLabels: Record<string, string> = {
   HIGH_PROTEIN: '蛋白质匹配', ENERGY_FRIENDLY: '能量相对合适', LOWER_FAT: '脂肪相对较低',
   LOWER_SUGAR: '糖相对较低', LOWER_SODIUM: '钠相对较低', SEASONAL_INGREDIENT: '含当季食材',
+  WARM: '温热', LIGHT: '清淡', EASY_TO_DIGEST: '相对易消化',
+  NO_SPICY: '辛辣度较高', NO_HIGH_OIL: '油脂偏高', NO_HIGH_SODIUM_PICKLED: '高盐或腌制',
+  NO_ALCOHOL: '含酒精', ADAPTATION_DATA_UNKNOWN: '适配数据不足',
 }
 
 function list(item: Record<string, unknown>, field: string) {
@@ -57,6 +60,10 @@ function nutrition(item: Record<string, unknown>) {
         </button>
       </article>
     </div>
+    <details v-if="excludedItems?.length" class="agent-card-group__excluded">
+      <summary>查看已排除的 {{ excludedItems.length }} 个商品</summary>
+      <ul><li v-for="item in excludedItems.slice(0, 8)" :key="`${item.productType}-${item.productId}`">{{ item.name }}：{{ list(item, 'reasonCodes').map(reasonText).join('、') }}</li></ul>
+    </details>
   </section>
 </template>
 
@@ -77,5 +84,6 @@ function nutrition(item: Record<string, unknown>) {
 .agent-product-card button { display: inline-flex; min-height: 44px; align-items: center; gap: 4px; padding: 0 10px; border: 0; border-radius: 8px; color: #fff; background: var(--color-brand); font-weight: 700; cursor: pointer; }
 .agent-card-group__empty { margin: 0; color: var(--color-muted); font-size: 13px; }
 .agent-card-group__notice { margin: 0 0 8px; padding: 7px 9px; border-radius: 8px; color: #74571b; background: #fff8df; font-size: 12px; }
+.agent-card-group__excluded { margin-top: 10px; color: var(--color-muted); font-size: 12px; }.agent-card-group__excluded summary { cursor: pointer; }.agent-card-group__excluded ul { margin: 7px 0 0; padding-left: 20px; }
 @media (max-width: 520px) { .agent-product-card { grid-template-columns: 54px minmax(0, 1fr); } .agent-product-card button { grid-column: 1 / -1; justify-content: center; } }
 </style>

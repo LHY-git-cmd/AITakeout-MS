@@ -139,6 +139,33 @@ class DietRecommendationServiceTest {
         assertThat(result.getItems()).isEmpty();
     }
 
+    @Test
+    void commonColdExcludesSpicyOilyPickledAndAlcoholCandidates() {
+        DietRecommendationDTO request = request();
+        request.setScene("COMMON_COLD");
+        request.setHardConstraints(new ArrayList<>(List.of(
+                "NO_ALCOHOL", "NO_SPICY", "NO_HIGH_OIL", "NO_HIGH_SODIUM_PICKLED")));
+        Map<String, Object> soup = candidate(68L); soup.put("name", "鸡蛋汤");
+        Map<String, Object> fish = candidate(51L); fish.put("name", "老坛酸菜鱼");
+        Map<String, Object> beer = candidate(48L); beer.put("name", "雪花啤酒");
+        when(mapper.listRecommendationCandidates(any(), anyBoolean())).thenReturn(List.of(soup, fish, beer));
+        when(mapper.listCandidateAllergens(List.of(68L, 51L, 48L))).thenReturn(List.of());
+        when(mapper.listCandidateIngredients(List.of(68L, 51L, 48L))).thenReturn(List.of());
+        when(mapper.listCandidateAdaptations(List.of(68L, 51L, 48L))).thenReturn(List.of(
+                adaptation(68L, 0, 1, 1, "WARM", "EASY", "NONE", "FALSE", "LIGHT"),
+                adaptation(51L, 3, 4, 5, "WARM", "HARD", "NONE", "TRUE", "RICH"),
+                adaptation(48L, 0, 0, 0, "COLD", "EASY", "CONTAINS", "FALSE", "LIGHT")));
+        when(mapper.listSeasonalMatches(any(), any(), anyInt())).thenReturn(List.of());
+        when(mapper.listActiveRuleSets()).thenReturn(List.of());
+
+        DietRecommendationVO result = service.recommend(7L, "diet-test-cold", request, "trace-cold");
+
+        assertThat(result.getItems()).extracting(DietRecommendationVO.Item::getName)
+                .containsExactly("鸡蛋汤");
+        assertThat(result.getExcludedItems()).extracting(DietRecommendationVO.ExcludedItem::getName)
+                .containsExactlyInAnyOrder("老坛酸菜鱼", "雪花啤酒");
+    }
+
     private DietRecommendationDTO request() {
         DietRecommendationDTO request = new DietRecommendationDTO();
         request.setScene("GENERAL");
@@ -155,5 +182,14 @@ class DietRecommendationServiceTest {
         value.put("dietaryFiberG", new BigDecimal("6")); value.put("sugarG", new BigDecimal("3"));
         value.put("sodiumMg", new BigDecimal("420"));
         return value;
+    }
+
+    private Map<String, Object> adaptation(long id, int spicy, int oil, int salt,
+                                           String temperature, String digestibility,
+                                           String alcohol, String pickled, String soupBase) {
+        return Map.of("dishId", id, "spicyLevel", spicy, "oilLevel", oil,
+                "saltLevel", salt, "temperatureType", temperature,
+                "digestibility", digestibility, "alcoholContent", alcohol,
+                "pickledFood", pickled, "soupBaseType", soupBase);
     }
 }

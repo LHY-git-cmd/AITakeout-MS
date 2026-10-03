@@ -170,6 +170,8 @@ public interface DietMapper {
                                                             @Param("allowSimulated") boolean allowSimulated);
     List<Map<String, Object>> listCandidateAllergens(@Param("dishIds") List<Long> dishIds);
     List<Map<String, Object>> listCandidateIngredients(@Param("dishIds") List<Long> dishIds);
+
+    List<Map<String, Object>> listCandidateAdaptations(@Param("dishIds") List<Long> dishIds);
     List<Map<String, Object>> listSeasonalMatches(@Param("dishIds") List<Long> dishIds,
                                                   @Param("regionCode") String regionCode,
                                                   @Param("month") int month);

@@ -30,6 +30,11 @@ public class DietRecommendationDTO {
     private List<String> goals = new ArrayList<>();
     private List<String> conditions = new ArrayList<>();
     private List<String> preferences = new ArrayList<>();
+    private List<String> hardConstraints = new ArrayList<>();
+    private List<String> softPreferences = new ArrayList<>();
+    private String season;
+    @DecimalMin("0")
+    private BigDecimal confidence = new BigDecimal("0.95");
     @Min(1) @Max(20)
     private int limit = 5;
 }

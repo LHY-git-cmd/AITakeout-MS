@@ -51,7 +51,7 @@ class AddCartItemArguments(ToolArguments):
 
 class RecommendMealsArguments(ToolArguments):
     """结构化推荐参数；疾病名称仅接受服务端支持的受控编码。"""
-    scene: Literal["GENERAL", "GOAL_BASED", "SEASONAL_REGIONAL", "CONDITION_AWARE"] = "GENERAL"
+    scene: Literal["GENERAL", "GOAL_BASED", "SEASONAL_REGIONAL", "CONDITION_AWARE", "COMMON_COLD"] = "GENERAL"
     people_count: int = Field(default=1, ge=1, le=20)
     budget: float | None = Field(default=None, ge=0)
     meal_type: str | None = Field(default=None, max_length=32)
@@ -62,6 +62,10 @@ class RecommendMealsArguments(ToolArguments):
     goals: list[Literal["WEIGHT_LOSS", "HIGH_PROTEIN", "LOW_SODIUM", "LOW_SUGAR", "LOW_FAT", "LIGHT"]] = Field(default_factory=list)
     conditions: list[Literal["HYPERTENSION", "DIABETES", "HYPERLIPIDEMIA", "OBESITY"]] = Field(default_factory=list)
     preferences: list[str] = Field(default_factory=list, max_length=20)
+    hard_constraints: list[str] = Field(default_factory=list, max_length=30)
+    soft_preferences: list[str] = Field(default_factory=list, max_length=30)
+    season: str | None = Field(default=None, max_length=16)
+    confidence: float = Field(default=0.95, ge=0, le=1)
     limit: int = Field(default=5, ge=1, le=20)
 
 
