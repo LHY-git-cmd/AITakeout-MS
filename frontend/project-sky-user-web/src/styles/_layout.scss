@@ -94,20 +94,6 @@
   color: #f6efe2;
 }
 
-.desktop-nav__link--disabled {
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-family: var(--font-serif);
-  letter-spacing: 1px;
-  cursor: default;
-}
-
-.desktop-nav__link--disabled:disabled {
-  color: rgb(246 239 226 / 42%);
-  opacity: 1;
-}
-
 .header-actions {
   display: flex;
   justify-content: flex-end;
@@ -666,7 +652,7 @@
     right: 0;
     bottom: 0;
     left: 0;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     padding-bottom: env(safe-area-inset-bottom);
     border-top: 1px solid var(--color-gold-line);

@@ -1,4 +1,7 @@
 sky:
+  diet:
+    # 本地演示可使用明确标记为SIMULATED的数据；生产配置默认关闭。
+    allow-simulated-data: ${DIET_ALLOW_SIMULATED_DATA:true}
   agent:
     user-agent-public-rag-enabled: ${USER_AGENT_PUBLIC_RAG_ENABLED:true}
     user-agent-reminder-enabled: ${USER_AGENT_REMINDER_ENABLED:true}

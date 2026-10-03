@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sky.mapper.diet.DietMapper">
+    <!-- 只选择已审核且当前有效的营养版本，健康推荐不得使用草稿数据。 -->
+    <select id="listRecommendationCandidates" resultType="map">
+        select 'dish' productType,d.id productId,d.name,d.price,d.image,
+               n.profile_version profileVersion,n.recipe_version recipeVersion,
+               n.energy_kcal energyKcal,n.protein_g proteinG,n.fat_g fatG,
+               n.carbohydrate_g carbohydrateG,n.dietary_fiber_g dietaryFiberG,
+               n.sugar_g sugarG,n.sodium_mg sodiumMg,n.purine_mg purineMg,
+               n.data_completeness dataCompleteness
+        from dish d
+        join dish_nutrition_profile n on n.id=(
+            select n2.id from dish_nutrition_profile n2
+            where n2.dish_id=d.id and (n2.verification_status='VERIFIED'
+              or (#{allowSimulated}=true and n2.verification_status='SIMULATED'))
+              and (n2.effective_from is null or n2.effective_from&lt;=now())
+              and (n2.effective_until is null or n2.effective_until&gt;now())
+            order by n2.profile_version desc limit 1)
+        where d.status=1
+        <if test="budget != null">and d.price &lt;= #{budget}</if>
+        union all
+        select 'setmeal' productType,s.id productId,s.name,s.price,s.image,
+               n.snapshot_version profileVersion,0 recipeVersion,
+               n.energy_kcal energyKcal,n.protein_g proteinG,n.fat_g fatG,
+               n.carbohydrate_g carbohydrateG,n.dietary_fiber_g dietaryFiberG,
+               n.sugar_g sugarG,n.sodium_mg sodiumMg,null purineMg,
+               100 dataCompleteness
+        from setmeal s
+        join setmeal_nutrition_snapshot n on n.id=(
+            select n2.id from setmeal_nutrition_snapshot n2
+            where n2.setmeal_id=s.id and (n2.verification_status='VERIFIED'
+              or (#{allowSimulated}=true and n2.verification_status='SIMULATED'))
+            order by n2.snapshot_version desc limit 1)
+        where s.status=1
+        <if test="budget != null">and s.price &lt;= #{budget}</if>
+        order by productType,productId
+    </select>
+
+    <select id="listCandidateAllergens" resultType="map">
+        select dish_id dishId,allergen_code allergenCode,declaration_status declarationStatus
+        from dish_allergen_declaration
+        where dish_id in
+        <foreach collection="dishIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="listCandidateIngredients" resultType="map">
+        select di.dish_id dishId,fi.ingredient_code ingredientCode,fi.name ingredientName
+        from dish_ingredient di join food_ingredient fi on fi.id=di.ingredient_id
+        where di.dish_id in
+        <foreach collection="dishIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="listCandidateAdaptations" resultType="map">
+        select dish_id dishId,spicy_level spicyLevel,oil_level oilLevel,salt_level saltLevel,
+               temperature_type temperatureType,digestibility,alcohol_content alcoholContent,
+               pickled_food pickledFood,soup_base_type soupBaseType,
+               simulation_version simulationVersion,verification_status verificationStatus
+        from dish_diet_adaptation_profile
+        where dish_id in
+        <foreach collection="dishIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+          and verification_status in ('VERIFIED','SIMULATED')
+        order by profile_version desc
+    </select>
+
+    <select id="listSeasonalMatches" resultType="map">
+        select distinct di.dish_id dishId,s.weight
+        from dish_ingredient di
+        join seasonal_ingredient_rule s on s.ingredient_id=di.ingredient_id and s.status=1
+        where di.dish_id in
+        <foreach collection="dishIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        and (s.region_code=#{regionCode} or s.region_code='CN')
+        and ((s.start_month&lt;=s.end_month and #{month} between s.start_month and s.end_month)
+          or (s.start_month&gt;s.end_month and (#{month}&gt;=s.start_month or #{month}&lt;=s.end_month)))
+    </select>
+</mapper>

@@ -19,12 +19,25 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserPaymentController {
     private final PaymentApplicationService paymentService;
 
+    /**
+     * 为指定订单创建支付单，支持幂等性防重复创建
+     *
+     * @param id             订单ID
+     * @param idempotencyKey 幂等性键，防止重复创建支付单
+     * @return 支付单信息（含支付参数）
+     */
     @PostMapping("/orders/{id}/payments")
     public Result<PaymentView> create(@PathVariable Long id,
                                       @RequestHeader("Idempotency-Key") String idempotencyKey) {
         return Result.success(paymentService.create(BaseContext.getCurrentId(), id, idempotencyKey));
     }
 
+    /**
+     * 查询支付单的可信状态（以服务端记录为准，而非客户端状态）
+     *
+     * @param paymentNo 支付单号
+     * @return 支付单详情（含支付状态）
+     */
     @GetMapping("/payments/{paymentNo}")
     public Result<PaymentView> query(@PathVariable String paymentNo) {
         return Result.success(paymentService.query(BaseContext.getCurrentId(), paymentNo));

@@ -1,0 +1,16 @@
+{
+  "knowledge_base_name": "个性化健康饮食权威知识",
+  "category": "GENERAL",
+  "intended_scene": "USER_CHAT",
+  "review_required": true,
+  "documents": [
+    {"file":"00-使用边界与来源说明.md","category":"GENERAL","audience":"ALL_ADULTS"},
+    {"file":"01-一般健康饮食与日常推荐.md","category":"GENERAL","audience":"ALL_ADULTS"},
+    {"file":"02-成人高血压食养说明.md","category":"GENERAL","audience":"HYPERTENSION"},
+    {"file":"03-成人糖尿病食养说明.md","category":"GENERAL","audience":"DIABETES"},
+    {"file":"04-成人高脂血症食养说明.md","category":"GENERAL","audience":"HYPERLIPIDEMIA"},
+    {"file":"05-成人肥胖与减脂食养说明.md","category":"GENERAL","audience":"OBESITY"},
+    {"file":"06-食物过敏与交叉接触安全说明.md","category":"GENERAL","audience":"FOOD_ALLERGY"},
+    {"file":"07-地域与时令推荐说明.md","category":"GENERAL","audience":"SEASONAL_REGIONAL"}
+  ]
+}

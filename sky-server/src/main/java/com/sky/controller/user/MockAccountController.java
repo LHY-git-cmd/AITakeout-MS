@@ -18,16 +18,32 @@ import org.springframework.web.bind.annotation.RestController;
 public class MockAccountController {
     private final AccountService accountService;
 
+    /**
+     * 查询当前用户的模拟账户信息（余额、赠金等）
+     *
+     * @return 用户账户信息
+     */
     @GetMapping
     public Result<?> account() {
         return Result.success(accountService.getUserAccount(BaseContext.getCurrentId()));
     }
 
+    /**
+     * 领取模拟赠金，支持幂等性防重复领取
+     *
+     * @param idempotencyKey 幂等性键，防止重复领取
+     * @return 领取结果（含赠金金额）
+     */
     @PostMapping("/grants")
     public Result<?> grant(@RequestParam String idempotencyKey) {
         return Result.success(accountService.grant(BaseContext.getCurrentId(), idempotencyKey));
     }
 
+    /**
+     * 查询当前用户的账户账本（收支明细）
+     *
+     * @return 账本流水列表
+     */
     @GetMapping("/ledger")
     public Result<?> ledger() {
         return Result.success(accountService.ledger(BaseContext.getCurrentId()));

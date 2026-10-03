@@ -75,6 +75,22 @@ class RecommendationAgent(StructuredOutputAgent):
         yield AgentOutput("token", {"content": "为你找到一道菜。"})
 
 
+class DuplicateRecommendationAgent(StructuredOutputAgent):
+    """模拟模型错误地连续返回普通搜索和健康推荐。"""
+    async def stream_process(self, *args, **kwargs):
+        yield AgentOutput("workflow_routed", {"intent": "common_cold"})
+        yield AgentOutput("tool_result", {
+            "tool_call_id": "call-1", "tool_name": "search_products",
+            "status": "success", "error": None,
+            "data": {"items": [{"id": 51, "name": "老坛酸菜鱼"}]},
+        })
+        yield AgentOutput("tool_result", {
+            "tool_call_id": "call-2", "tool_name": "recommend_personalized_meals",
+            "status": "success", "error": None,
+            "data": {"items": [{"productId": 68, "name": "鸡蛋汤"}]},
+        })
+
+
 class TaskQueueTest(unittest.IsolatedAsyncioTestCase):
     # 测试已完成的任务是否能按顺序重放事件
     # 这个测试验证了当一个任务完成后，订阅该任务的客户端可以接收到所有按正确顺序排列的事件
@@ -197,6 +213,15 @@ class TaskQueueTest(unittest.IsolatedAsyncioTestCase):
             names,
         )
         self.assertEqual("清蒸鱼", cards["data"]["items"][0]["name"])
+
+    async def test_one_task_publishes_only_one_recommendation_card_group(self):
+        queue = TaskQueue(DuplicateRecommendationAgent(), agent_profile="USER_ASSISTANT")
+        await queue.submit(task_id="task-one-card", actor_id=7, actor_type="USER",
+                           actor_role="CUSTOMER", agent_profile="USER_ASSISTANT", query="感冒吃什么")
+        events = [event async for event in queue.subscribe("task-one-card")]
+        cards = [event for event in events if event["event"] == "recommendation_cards"]
+        self.assertEqual(1, len(cards))
+        self.assertEqual("鸡蛋汤", cards[0]["data"]["items"][0]["name"])
 
     # 测试取消任务是否能停止工作进程并发布终止事件
     # 这个测试验证了当一个正在运行的任务被取消时，

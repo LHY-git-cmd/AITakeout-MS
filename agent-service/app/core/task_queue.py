@@ -69,6 +69,8 @@ class TaskQueue:
         self._lock = asyncio.Lock()
         self._store = TaskStore(state_path) if state_path else None
         self._shutting_down = False
+        self._recommendation_published: set[str] = set()
+        self._task_intents: dict[str, str] = {}
         self._execution_slots = asyncio.Semaphore(settings.LLM_MAX_CONCURRENCY)
         if self._store:
             # 如果配置了持久化，则在启动时加载所有历史任务和事件。
@@ -523,6 +525,8 @@ class TaskQueue:
 
     async def _publish_user_output(self, task_id: str, output: AgentOutput) -> None:
         """把内部兼容事件转换为用户端稳定协议，并派生业务卡片事件。"""
+        if output.event == "workflow_routed":
+            self._task_intents[task_id] = str(output.data.get("intent") or "")
         event_name = {
             "token": "message_delta",
             "tool_start": "tool_started",
@@ -539,10 +543,40 @@ class TaskQueue:
         tool_name = output.data.get("tool_name")
         result = output.data.get("data")
         if tool_name == "search_products":
+            if self._task_intents.get(task_id) in {"common_cold", "seasonal_regional", "diet_recommendation", "medical_risk"}:
+                return
+            if task_id in self._recommendation_published:
+                return
             items = result.get("items", []) if isinstance(result, dict) else result
             await self._publish(task_id, "recommendation_cards", {
                 "items": items if isinstance(items, list) else [],
             })
+            self._recommendation_published.add(task_id)
+        elif tool_name == "recommend_personalized_meals":
+            if task_id in self._recommendation_published:
+                return
+            value = result if isinstance(result, dict) else {}
+            items = value.get("items", [])
+            normalized = []
+            for item in items if isinstance(items, list) else []:
+                if not isinstance(item, dict):
+                    continue
+                normalized.append({
+                    **item,
+                    "id": item.get("productId", item.get("product_id")),
+                    "productType": item.get("productType", item.get("product_type", "dish")),
+                    "description": "、".join(item.get("matchReasons", [])) or "符合本次结构化筛选条件",
+                })
+            await self._publish(task_id, "recommendation_cards", {
+                "items": normalized,
+                "recommendation_id": value.get("recommendationId"),
+                "risk_level": value.get("riskLevel"),
+                "status": value.get("status"),
+                "notices": value.get("notices", []),
+                "scene": value.get("scene"),
+                "excluded_items": value.get("excludedItems", value.get("excluded_items", [])),
+            })
+            self._recommendation_published.add(task_id)
         elif tool_name == "add_cart_item":
             value = result if isinstance(result, dict) else {}
             await self._publish(task_id, "business_state_changed", {

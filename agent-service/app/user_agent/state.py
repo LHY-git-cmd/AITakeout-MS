@@ -3,7 +3,8 @@ from typing import Any, Literal, TypedDict
 
 
 UserIntent = Literal[
-    "knowledge", "recommendation", "cart", "order", "after_sale", "unknown"
+    "knowledge", "recommendation", "diet_recommendation", "common_cold", "seasonal_regional", "medical_risk",
+    "cart", "order", "after_sale", "unknown"
 ]
 
 

@@ -1,5 +1,6 @@
 """一次工具编排任务的可信上下文。"""
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from typing import FrozenSet
 
 from app.tools.models import ActorRole, ActorType
 
@@ -12,6 +13,9 @@ class ToolContext(BaseModel):
     actor_id: int = Field(gt=0, validation_alias=AliasChoices("actor_id", "employee_id"))
     actor_type: ActorType = ActorType.ADMIN
     actor_role: ActorRole
+    scene: str = "GENERAL_MEAL"
+    risk_level: str = "L0"
+    allowed_tools: FrozenSet[str] = frozenset()
 
     @property
     def employee_id(self) -> int:
