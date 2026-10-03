@@ -48,6 +48,18 @@
 
 不要提交真实密钥、数据库密码或生产令牌。
 
+### 菜品图片存储
+
+菜品和套餐图片当前使用本地相对目录，不依赖OSS：
+
+```text
+物理目录：data/uploads/products
+数据库地址：/api/uploads/products/{id}?ext=png
+配置项：PRODUCT_IMAGE_LOCAL_ROOT=data/uploads/products
+```
+
+Docker部署时该目录位于已挂载的 `server-data` 数据卷中。备份数据库时应同时备份图片目录；旧OSS地址不会自动迁移，需要在管理端重新上传或单独执行资源迁移。
+
 ## 质量验证
 
 ```powershell
