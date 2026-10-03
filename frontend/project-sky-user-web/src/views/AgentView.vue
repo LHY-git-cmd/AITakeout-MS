@@ -133,7 +133,7 @@ watch(() => agentStore.blocks.map((block) => `${block.id}:${block.text ?? ''}`).
 
         <template v-for="block in agentStore.blocks" :key="block.id">
           <p v-if="block.kind === 'message'" :class="['agent-message', `is-${block.role}`]">{{ block.text }}</p>
-          <AgentRecommendationCards v-else-if="block.kind === 'recommendations'" :items="block.items ?? []" :notices="block.notices" @add="addProduct" />
+          <AgentRecommendationCards v-else-if="block.kind === 'recommendations'" :items="block.items ?? []" :notices="block.notices" :excluded-items="block.excludedItems" @add="addProduct" />
           <AgentCartChangeCard v-else-if="block.kind === 'cart'" :data="block.data" />
           <AgentOrderStatusCard v-else-if="block.kind === 'order'" :tool-name="block.toolName" :data="block.data" />
           <section v-else-if="block.kind === 'citations'" class="agent-citations" aria-label="知识引用">

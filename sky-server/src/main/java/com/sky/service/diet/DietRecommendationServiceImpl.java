@@ -212,11 +212,17 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
         Set<String> goals = normalizedSet(request.getGoals());
         if (request.isUseSavedProfile()) mergeProfile(userId, allergens, excludedIngredients, goals);
         Set<String> conditions = normalizedSet(request.getConditions());
+        Set<String> hardConstraints = normalizedSet(request.getHardConstraints());
+        if ("COMMON_COLD".equals(normalize(request.getScene()))) {
+            hardConstraints.addAll(Set.of("NO_ALCOHOL", "NO_SPICY", "NO_HIGH_OIL", "NO_HIGH_SODIUM_PICKLED"));
+        }
         if (!conditions.isEmpty() && !medicalScenariosEnabled) {
             return persistEmpty(userId, idempotencyKey, request, traceId, "L3", "FEATURE_DISABLED",
                     List.of("健康情况推荐当前未开放，可改用普通口味和预算推荐"));
         }
-        String riskLevel = riskLevel(allergens, goals, conditions);
+        String riskLevel = "COMMON_COLD".equals(normalize(request.getScene()))
+                || "SEASONAL_REGIONAL".equals(normalize(request.getScene()))
+                ? "L1" : riskLevel(allergens, goals, conditions);
         List<String> unsupported = conditions.stream()
                 .filter(value -> !SUPPORTED_CONDITIONS.contains(value)).toList();
         if (!unsupported.isEmpty()) {
@@ -243,6 +249,7 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
                 .map(item -> number(item.get("productId")).longValue()).toList();
         Map<Long, Map<String, String>> declarations = allergenDeclarations(dishIds);
         Map<Long, Set<String>> ingredients = candidateIngredients(dishIds);
+        Map<Long, Map<String, Object>> adaptations = candidateAdaptations(dishIds);
         Set<Long> seasonal = seasonalMatches(dishIds, request.getRegionCode());
         List<Map<String, Object>> activeRuleSets = mapper.listActiveRuleSets().stream()
                 .filter(rule -> applicableRules.stream().anyMatch(item ->
@@ -250,6 +257,7 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
                 .toList();
         String recommendationId = UUID.randomUUID().toString().replace("-", "");
         List<ScoredCandidate> scored = new ArrayList<>();
+        List<DietRecommendationVO.ExcludedItem> excluded = new ArrayList<>();
 
         for (Map<String, Object> candidate : candidates) {
             long dishId = number(candidate.get("productId")).longValue();
@@ -257,9 +265,14 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
             Evaluation evaluation = evaluate(candidate, allergens, excludedIngredients,
                     goals, setmeal ? Map.of() : declarations.getOrDefault(dishId, Map.of()),
                     setmeal ? Set.of() : ingredients.getOrDefault(dishId, Set.of()),
-                    !setmeal && seasonal.contains(dishId), applicableRules, setmeal);
+                    !setmeal && seasonal.contains(dishId), applicableRules, setmeal,
+                    request.getScene(), adaptations.getOrDefault(dishId, Map.of()), hardConstraints);
             persistCandidate(recommendationId, candidate, evaluation);
             if (!evaluation.eligible()) {
+                excluded.add(DietRecommendationVO.ExcludedItem.builder()
+                        .productType(text(candidate.get("productType")))
+                        .productId(number(candidate.get("productId")).longValue())
+                        .name(text(candidate.get("name"))).reasonCodes(evaluation.reasons()).build());
                 increment("diet_candidates_excluded_total", "reason",
                         evaluation.reasons().isEmpty() ? "unknown" : evaluation.reasons().getFirst().split(":")[0]);
             }
@@ -267,6 +280,7 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
         }
         scored.sort(Comparator.comparing((ScoredCandidate value) -> value.evaluation().score()).reversed()
                 .thenComparing(value -> number(value.candidate().get("productId")).longValue()));
+        validateResultConsistency(scored, excluded);
 
         Map<String, Object> session = sessionValue(userId, idempotencyKey, request, traceId,
                 recommendationId, riskLevel, scored.isEmpty() ? "NO_MATCH" : "COMPLETED", activeRuleSets);
@@ -279,8 +293,9 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
         if (!conditions.isEmpty()) notices.add("结果仅用于辅助点餐，不能替代医生或临床营养师的个体化方案");
         if (allowSimulatedData) notices.add("当前使用开发模拟营养数据，不能用于真实医疗或严重过敏决策");
         return DietRecommendationVO.builder().recommendationId(recommendationId)
-                .riskLevel(riskLevel).status(items.isEmpty() ? "NO_MATCH" : "COMPLETED")
-                .notices(notices).items(items).build();
+                .scene(normalize(request.getScene())).riskLevel(riskLevel)
+                .status(items.isEmpty() ? "NO_MATCH" : "COMPLETED")
+                .notices(notices).items(items).excludedItems(excluded).build();
     }
 
     @Override
@@ -303,7 +318,8 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
     private Evaluation evaluate(Map<String, Object> candidate, Set<String> allergens,
                                 Set<String> excludedIngredients, Set<String> goals,
                                 Map<String, String> declarations, Set<String> ingredients,
-                                boolean seasonal, List<Map<String, Object>> rules, boolean setmeal) {
+                                boolean seasonal, List<Map<String, Object>> rules, boolean setmeal,
+                                String scene, Map<String, Object> adaptation, Set<String> hardConstraints) {
         List<String> reasons = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
         for (String allergen : allergens) {
@@ -324,8 +340,51 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
             reasons.add("INGREDIENT_DATA_UNKNOWN");
             return new Evaluation(false, BigDecimal.ZERO, reasons, warnings, Map.of());
         }
+        if ("COMMON_COLD".equals(normalize(scene))) {
+            if (setmeal || adaptation.isEmpty()) {
+                reasons.add("ADAPTATION_DATA_UNKNOWN");
+                return new Evaluation(false, BigDecimal.ZERO, reasons, warnings, Map.of());
+            }
+            if (hardConstraints.contains("NO_SPICY") && numberOrNull(adaptation.get("spicyLevel"), 0) >= 2) {
+                reasons.add("NO_SPICY");
+                return new Evaluation(false, BigDecimal.ZERO, reasons, warnings, Map.of());
+            }
+            if (hardConstraints.contains("NO_HIGH_OIL") && numberOrNull(adaptation.get("oilLevel"), 0) >= 3) {
+                reasons.add("NO_HIGH_OIL");
+                return new Evaluation(false, BigDecimal.ZERO, reasons, warnings, Map.of());
+            }
+            if (hardConstraints.contains("NO_HIGH_SODIUM_PICKLED") && (numberOrNull(adaptation.get("saltLevel"), 0) >= 4
+                    || "TRUE".equals(codeOrUnknown(adaptation.get("pickledFood"))))) {
+                reasons.add("NO_HIGH_SODIUM_PICKLED");
+                return new Evaluation(false, BigDecimal.ZERO, reasons, warnings, Map.of());
+            }
+            if (hardConstraints.contains("NO_ALCOHOL") && Set.of("CONTAINS", "POSSIBLE").contains(codeOrUnknown(adaptation.get("alcoholContent")))) {
+                reasons.add("NO_ALCOHOL");
+                return new Evaluation(false, BigDecimal.ZERO, reasons, warnings, Map.of());
+            }
+            if ("WARM".equals(codeOrUnknown(adaptation.get("temperatureType")))) reasons.add("WARM");
+            if ("LIGHT".equals(codeOrUnknown(adaptation.get("soupBaseType")))) reasons.add("LIGHT");
+            if ("EASY".equals(codeOrUnknown(adaptation.get("digestibility")))) reasons.add("EASY_TO_DIGEST");
+        }
         BigDecimal score = new BigDecimal("50");
         Map<String, BigDecimal> details = new LinkedHashMap<>();
+        if ("COMMON_COLD".equals(normalize(scene)) && !adaptation.isEmpty()) {
+            if ("WARM".equals(codeOrUnknown(adaptation.get("temperatureType")))) {
+                score = score.add(new BigDecimal("8")); details.put("warm", new BigDecimal("8"));
+            }
+            if ("LIGHT".equals(codeOrUnknown(adaptation.get("soupBaseType")))) {
+                score = score.add(new BigDecimal("8")); details.put("light", new BigDecimal("8"));
+            }
+            if ("EASY".equals(codeOrUnknown(adaptation.get("digestibility")))) {
+                score = score.add(new BigDecimal("8")); details.put("digestibility", new BigDecimal("8"));
+            }
+            BigDecimal oilPreference = BigDecimal.valueOf(Math.max(0,
+                    5 - numberOrNull(adaptation.get("oilLevel"), 5))).multiply(new BigDecimal("2"));
+            BigDecimal saltPreference = BigDecimal.valueOf(Math.max(0,
+                    5 - numberOrNull(adaptation.get("saltLevel"), 5)));
+            score = score.add(oilPreference).add(saltPreference);
+            details.put("lowerOil", oilPreference); details.put("lowerSalt", saltPreference);
+        }
         if (seasonal) { score = score.add(new BigDecimal("8")); details.put("seasonal", new BigDecimal("8")); reasons.add("SEASONAL_INGREDIENT"); }
         BigDecimal energy = decimal(candidate.get("energyKcal"));
         BigDecimal protein = decimal(candidate.get("proteinG"));
@@ -393,6 +452,21 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
         return score.add(delta);
     }
 
+    /** 返回前验证推荐与排除集合互斥且不重复，冲突时整次事务回滚。 */
+    private void validateResultConsistency(List<ScoredCandidate> scored,
+                                           List<DietRecommendationVO.ExcludedItem> excluded) {
+        Set<String> recommended = new HashSet<>();
+        for (ScoredCandidate value : scored) {
+            String key = text(value.candidate().get("productType")) + ":"
+                    + number(value.candidate().get("productId")).longValue();
+            if (!recommended.add(key)) throw new AgentBusinessException("RESULT_CONFLICT: 推荐商品重复");
+        }
+        for (DietRecommendationVO.ExcludedItem value : excluded) {
+            String key = value.getProductType() + ":" + value.getProductId();
+            if (recommended.contains(key)) throw new AgentBusinessException("RESULT_CONFLICT: 排除商品进入推荐列表");
+        }
+    }
+
     private BigDecimal addPositive(BigDecimal score, Map<String, BigDecimal> details, String key,
                                    BigDecimal value, BigDecimal target, BigDecimal max,
                                    List<String> reasons, String reason) {
@@ -455,7 +529,7 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
         String id = UUID.randomUUID().toString().replace("-", "");
         mapper.insertRecommendationSession(sessionValue(userId, key, request, traceId, id, risk, status, List.of()));
         return DietRecommendationVO.builder().recommendationId(id).riskLevel(risk).status(status)
-                .notices(notices).items(List.of()).build();
+                .notices(notices).items(List.of()).excludedItems(List.of()).build();
     }
 
     private Map<String, Object> sessionValue(long userId, String key, DietRecommendationDTO request,
@@ -498,6 +572,14 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
             values.add(normalize(text(item.get("ingredientCode"))));
             values.add(normalizeIngredient(text(item.get("ingredientName"))));
         });
+        return result;
+    }
+
+    private Map<Long, Map<String, Object>> candidateAdaptations(List<Long> ids) {
+        if (ids.isEmpty()) return Map.of();
+        Map<Long, Map<String, Object>> result = new HashMap<>();
+        mapper.listCandidateAdaptations(ids).forEach(item ->
+                result.putIfAbsent(number(item.get("dishId")).longValue(), item));
         return result;
     }
 
@@ -586,6 +668,10 @@ public class DietRecommendationServiceImpl implements DietRecommendationService 
     private String text(Object value) { return value == null ? null : String.valueOf(value); }
     private Number number(Object value) { return value instanceof Number number ? number : new BigDecimal(String.valueOf(value)); }
     private BigDecimal decimal(Object value) { return value == null ? null : value instanceof BigDecimal decimal ? decimal : new BigDecimal(String.valueOf(value)); }
+    private int numberOrNull(Object value, int fallback) { return value == null ? fallback : number(value).intValue(); }
+    private String codeOrUnknown(Object value) {
+        return value == null || String.valueOf(value).isBlank() ? "UNKNOWN" : normalize(String.valueOf(value));
+    }
     private void put(Map<String, BigDecimal> result, String key, Object value) { BigDecimal parsed = decimal(value); if (parsed != null) result.put(key, parsed); }
     private String json(Object value) { try { return objectMapper.writeValueAsString(value); } catch (Exception exception) { throw new IllegalStateException("无法序列化饮食推荐数据", exception); } }
     private List<String> jsonList(Object value) { try { return objectMapper.readValue(String.valueOf(value), new TypeReference<>() { }); } catch (Exception ignored) { return List.of(); } }

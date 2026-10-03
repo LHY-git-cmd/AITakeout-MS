@@ -12,6 +12,7 @@ $requiredCsv = @{
     'dish_nutrition_collection.csv' = @('dish_id', 'serving_size_g', 'energy_kcal', 'source_reference', 'verification_status')
     'dish_recipe_simulated.csv' = @('dish_id', 'one_person_serving_g', 'oil_g', 'salt_g', 'contains_allergens')
     'dish_allergen_simulated.csv' = @('dish_id', 'contains_allergens', 'unknown_allergens', 'assumption_scope')
+    'dish_adaptation_simulated.csv' = @('dish_id', 'spicy_level', 'oil_level', 'salt_level', 'digestibility', 'simulation_version')
     'dish_data_quality.csv' = @('dish_id', 'ready_for_verification', 'next_action')
 }
 

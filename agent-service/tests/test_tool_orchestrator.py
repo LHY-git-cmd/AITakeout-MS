@@ -94,3 +94,45 @@ class ToolOrchestratorTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual("search_products", outputs[1].data["tool_name"])
         self.assertEqual("清蒸鱼", outputs[1].data["data"]["items"][0]["name"])
+
+    async def test_health_scene_rejects_normal_product_search(self):
+        gateway = FakeGateway([
+            response(calls=[call("call-health", "search_products", {"keyword": "酸菜鱼"})]),
+            response(content="不使用普通搜索结果。"),
+        ])
+        client = FakeClient(ToolResult(tool_call_id="unused", status="success"))
+        orchestrator = ToolOrchestrator(gateway, build_default_registry(), client)
+        context = ToolContext(task_id="task-health", trace_id="trace-health", actor_id=17,
+                              actor_type="USER", actor_role="CUSTOMER", scene="COMMON_COLD",
+                              risk_level="L1", allowed_tools=frozenset({
+                                  "get_diet_profile", "recommend_personalized_meals"}))
+
+        outputs = [value async for value in orchestrator.run(
+            [{"role": "user", "content": "感冒吃什么"}], context=context,
+            model="model", temperature=0.2)]
+
+        self.assertEqual([], client.calls)
+        self.assertEqual("TOOL_SCENE_DENIED", outputs[1].data["error"]["code"])
+
+    async def test_diet_explanation_is_generated_from_java_result_without_second_llm_round(self):
+        gateway = FakeGateway([response(calls=[call(
+            "call-diet", "recommend_personalized_meals", {"scene": "COMMON_COLD"})])])
+        client = FakeClient(ToolResult(
+            tool_call_id="call-diet", status="success", trace_id="trace-health",
+            data={"items": [{"name": "鸡蛋汤"}],
+                  "excludedItems": [{"name": "老坛酸菜鱼"}],
+                  "notices": ["当前使用开发模拟营养数据"]}))
+        orchestrator = ToolOrchestrator(gateway, build_default_registry(), client)
+        context = ToolContext(task_id="task-diet", trace_id="trace-health", actor_id=17,
+                              actor_type="USER", actor_role="CUSTOMER", scene="COMMON_COLD",
+                              risk_level="L1", allowed_tools=frozenset({
+                                  "get_diet_profile", "recommend_personalized_meals"}))
+
+        outputs = [value async for value in orchestrator.run(
+            [{"role": "user", "content": "感冒吃什么"}], context=context,
+            model="model", temperature=0.2)]
+
+        self.assertEqual(["tool_start", "tool_result", "token"], [item.event for item in outputs])
+        self.assertIn("鸡蛋汤", outputs[-1].data["content"])
+        self.assertIn("已排除", outputs[-1].data["content"])
+        self.assertEqual(1, len(gateway.requests))

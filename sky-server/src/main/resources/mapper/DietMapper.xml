@@ -51,6 +51,18 @@
         <foreach collection="dishIds" item="id" open="(" separator="," close=")">#{id}</foreach>
     </select>
 
+    <select id="listCandidateAdaptations" resultType="map">
+        select dish_id dishId,spicy_level spicyLevel,oil_level oilLevel,salt_level saltLevel,
+               temperature_type temperatureType,digestibility,alcohol_content alcoholContent,
+               pickled_food pickledFood,soup_base_type soupBaseType,
+               simulation_version simulationVersion,verification_status verificationStatus
+        from dish_diet_adaptation_profile
+        where dish_id in
+        <foreach collection="dishIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+          and verification_status in ('VERIFIED','SIMULATED')
+        order by profile_version desc
+    </select>
+
     <select id="listSeasonalMatches" resultType="map">
         select distinct di.dish_id dishId,s.weight
         from dish_ingredient di

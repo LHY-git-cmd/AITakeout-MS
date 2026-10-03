@@ -12,10 +12,12 @@ import java.util.Map;
 @Builder
 public class DietRecommendationVO {
     private String recommendationId;
+    private String scene;
     private String riskLevel;
     private String status;
     private List<String> notices;
     private List<Item> items;
+    private List<ExcludedItem> excludedItems;
 
     @Data
     @Builder
@@ -30,5 +32,14 @@ public class DietRecommendationVO {
         private List<String> matchReasons;
         private List<String> warnings;
         private List<String> ruleSources;
+    }
+
+    @Data
+    @Builder
+    public static class ExcludedItem {
+        private String productType;
+        private Long productId;
+        private String name;
+        private List<String> reasonCodes;
     }
 }

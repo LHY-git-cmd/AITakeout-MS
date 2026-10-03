@@ -56,6 +56,32 @@ class UserAgentWorkflowTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("NONE", result["retrieval_plan"])
         self.assertIn("不要诊断", result["system_instruction"])
 
+    async def test_common_cold_builds_controlled_decision_contract(self):
+        result = await UserAgentWorkflow().run(
+            task_id="task-cold", session_id=None,
+            query="我今天感冒了，能吃什么", context=None,
+        )
+        self.assertEqual("common_cold", result["intent"])
+        self.assertEqual("COMMON_COLD", result["slots"]["scene"])
+        self.assertIn("NO_SPICY", result["slots"]["hard_constraints"])
+        self.assertNotIn("search_products", result["system_instruction"].replace("禁止search_products", ""))
+
+    async def test_autumn_without_region_requires_clarification(self):
+        result = await UserAgentWorkflow().run(
+            task_id="task-autumn", session_id=None,
+            query="入秋了吃什么好", context=None,
+        )
+        self.assertEqual("seasonal_regional", result["intent"])
+        self.assertIn("region_code", result["missing_slots"])
+
+    async def test_autumn_with_hangzhou_builds_seasonal_contract(self):
+        result = await UserAgentWorkflow().run(
+            task_id="task-autumn-hz", session_id=None,
+            query="杭州入秋了吃什么好", context=None,
+        )
+        self.assertEqual("CN-ZJ-HZ", result["slots"]["region_code"])
+        self.assertEqual("AUTUMN", result["slots"]["season"])
+
 
 if __name__ == "__main__":
     unittest.main()

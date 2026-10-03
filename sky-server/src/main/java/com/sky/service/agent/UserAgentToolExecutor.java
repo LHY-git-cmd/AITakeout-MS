@@ -169,6 +169,10 @@ public class UserAgentToolExecutor {
         dto.setGoals(stringList(args, "goals"));
         dto.setConditions(stringList(args, "conditions"));
         dto.setPreferences(stringList(args, "preferences"));
+        dto.setHardConstraints(stringList(args, "hard_constraints"));
+        dto.setSoftPreferences(stringList(args, "soft_preferences"));
+        dto.setSeason(optionalText(args, "season"));
+        if (args != null && args.hasNonNull("confidence")) dto.setConfidence(args.get("confidence").decimalValue());
         dto.setLimit(optionalInt(args, "limit", 5, 1, 20));
         String idempotencyKey = hash(request.taskId() + ":" + request.toolCallId());
         return dietRecommendationService.recommend(userId, idempotencyKey, dto, null);
