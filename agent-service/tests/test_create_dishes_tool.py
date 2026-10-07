@@ -55,6 +55,14 @@ class CreateDishesToolTest(unittest.TestCase):
             "test_data": False, "dishes": [{"name": "米饭", "category_id": 1, "price": 2}]})
         self.assertIsNone(result.dishes[0].nutrition)
 
+    def test_invalid_arguments_report_field_path_without_echoing_input(self):
+        args = test_batch()
+        args["dishes"][0]["price"] = "private-invalid-price"
+        with self.assertRaises(ToolRegistryError) as raised:
+            self.registry.validate_arguments("create_dishes", ActorRole.ADMIN, args)
+        self.assertIn("dishes.0.price", str(raised.exception))
+        self.assertNotIn("private-invalid-price", str(raised.exception))
+
 
 class CreateDishConfirmationFlowTest(unittest.IsolatedAsyncioTestCase):
     async def test_preview_is_forwarded_and_only_approved_operations_execute(self):

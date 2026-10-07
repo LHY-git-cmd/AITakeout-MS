@@ -24,6 +24,11 @@ springdoc:
     operations-sorter: alpha
 
 spring:
+  servlet:
+    multipart:
+      # 与商品图片存储的5MB上限一致，请求额外预留表单开销。
+      max-file-size: 5MB
+      max-request-size: 6MB
   lifecycle:
     timeout-per-shutdown-phase: ${SHUTDOWN_TIMEOUT:30s}
   profiles:
