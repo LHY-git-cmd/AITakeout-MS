@@ -2,7 +2,8 @@ const path = require('path')
 const IS_PROD = ['production', 'development'].includes(process.env.NODE_ENV)
 
 module.exports = {
-  'publicPath': process.env.NODE_ENV === 'production' ? './' : '/', // TODO: Remember to change this to fit your need
+  // 管理端独立部署在站点根路径，使用绝对资源路径以支持任意SPA路由直接刷新。
+  'publicPath': '/',
   'lintOnSave': process.env.NODE_ENV === 'development',
   'pluginOptions': {
     'style-resources-loader': {

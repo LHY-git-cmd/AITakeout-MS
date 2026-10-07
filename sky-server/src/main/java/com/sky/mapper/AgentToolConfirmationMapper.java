@@ -6,7 +6,7 @@ import org.apache.ibatis.annotations.*;
 @Mapper
 public interface AgentToolConfirmationMapper {
     @Insert("""
-            insert ignore into agent_tool_confirmation
+            insert ignore into admin_agent_tool_confirmation
                 (confirmation_id, task_id, tool_call_id, employee_id, actor_role,
                  operation, arguments_json, argument_hash, resource_version, summary,
                  status, expires_at, create_time, update_time)
@@ -17,15 +17,15 @@ public interface AgentToolConfirmationMapper {
             """)
     int insertIgnore(AgentToolConfirmation value);
 
-    @Select("select * from agent_tool_confirmation where confirmation_id = #{id}")
+    @Select("select * from admin_agent_tool_confirmation where confirmation_id = #{id}")
     AgentToolConfirmation getByConfirmationId(String id);
 
-    @Select("select * from agent_tool_confirmation where task_id = #{taskId} and tool_call_id = #{toolCallId}")
+    @Select("select * from admin_agent_tool_confirmation where task_id = #{taskId} and tool_call_id = #{toolCallId}")
     AgentToolConfirmation getByTaskAndCall(@Param("taskId") String taskId,
                                            @Param("toolCallId") String toolCallId);
 
     @Update("""
-            update agent_tool_confirmation
+            update admin_agent_tool_confirmation
             set status = #{target},
                 confirmed_at = case when #{target} = 'CONFIRMED' then now() else confirmed_at end,
                 update_time = now()
@@ -36,14 +36,14 @@ public interface AgentToolConfirmationMapper {
                           @Param("expected") String expected, @Param("target") String target);
 
     @Update("""
-            update agent_tool_confirmation set status = #{target}, update_time = now()
+            update admin_agent_tool_confirmation set status = #{target}, update_time = now()
             where confirmation_id = #{id} and status = #{expected}
             """)
     int transition(@Param("id") String id, @Param("expected") String expected,
                    @Param("target") String target);
 
     @Update("""
-            update agent_tool_confirmation
+            update admin_agent_tool_confirmation
             set status = 'EXECUTED', executed_at = now(), update_time = now()
             where confirmation_id = #{id} and status = 'EXECUTING'
             """)

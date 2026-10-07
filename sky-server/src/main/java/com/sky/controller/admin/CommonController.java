@@ -2,7 +2,7 @@ package com.sky.controller.admin;
 
 
 import com.sky.result.Result;
-import com.sky.utils.AliOssUtil;
+import com.sky.service.storage.LocalProductImageStorage;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.extern.slf4j.Slf4j;
@@ -13,12 +13,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.UUID;
 
 /**
  * 通用接口控制器（管理端）
- * 提供文件上传等通用功能，集成阿里云OSS
+ * 提供菜品和套餐图片的本地上传能力
  */
 @RestController
 @RequestMapping("/admin/common")
@@ -27,7 +25,7 @@ import java.util.UUID;
 public class CommonController {
 
     @Autowired
-    private AliOssUtil aliOssUtil;
+    private LocalProductImageStorage imageStorage;
 
     /**
      * 文件上传
@@ -41,24 +39,6 @@ public class CommonController {
     public Result<String> upload(@RequestParam("file") MultipartFile file) {
         log.info("文件上传：{}", file.getOriginalFilename());
 
-        try {
-            // 获取原始文件名
-            String originalFilename = file.getOriginalFilename();
-            // 生成UUID作为文件名称
-            String uuid = UUID.randomUUID().toString();
-            // 获取文件后缀名
-            String suffix = originalFilename.substring(originalFilename.lastIndexOf("."));
-            // 拼接新的文件名
-            String fileName = uuid + suffix;
-
-            // 调用OSS工具类上传文件
-            String url = aliOssUtil.upload(file.getBytes(), fileName);
-
-            return Result.success(url);
-        } catch (IOException e) {
-            log.error("文件上传失败", e);
-
-        }
-        return Result.error("文件上传失败");
+        return Result.success(imageStorage.store(file));
     }
 }
