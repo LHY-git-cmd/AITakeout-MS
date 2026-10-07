@@ -32,28 +32,28 @@ public interface AgentEventMapper {
     /**
      * 查询指定taskId的所有事件
      */
-    @Select("select * from agent_event where task_id = #{taskId} order by seq_no asc")
+    @Select("select * from admin_agent_event where task_id = #{taskId} order by seq_no asc")
     List<AgentEvent> listByTaskId(String taskId);
 
     /**
      * 断线恢复：查询seq_no大于lastSeqNo的事件
      */
-    @Select("select * from agent_event where task_id = #{taskId} and seq_no > #{lastSeqNo} order by seq_no asc")
+    @Select("select * from admin_agent_event where task_id = #{taskId} and seq_no > #{lastSeqNo} order by seq_no asc")
     List<AgentEvent> listByTaskIdAfterSeqNo(@Param("taskId") String taskId,
                                             @Param("lastSeqNo") Integer lastSeqNo);
 
     /**
      * 统计指定taskId的事件总数
      */
-    @Select("select count(id) from agent_event where task_id = #{taskId}")
+    @Select("select count(id) from admin_agent_event where task_id = #{taskId}")
     int countByTaskId(String taskId);
 
     /**
      * 查询指定taskId的下一个seq_no
      */
-    @Select("select coalesce(max(seq_no), 0) + 1 from agent_event where task_id = #{taskId}")
+    @Select("select coalesce(max(seq_no), 0) + 1 from admin_agent_event where task_id = #{taskId}")
     int getNextSeqNo(String taskId);
 
-    @Select("select coalesce(max(seq_no), 0) from agent_event where task_id = #{taskId}")
+    @Select("select coalesce(max(seq_no), 0) from admin_agent_event where task_id = #{taskId}")
     int getMaxSeqNo(String taskId);
 }

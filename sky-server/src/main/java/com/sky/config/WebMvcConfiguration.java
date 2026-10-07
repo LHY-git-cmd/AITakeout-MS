@@ -54,6 +54,7 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .addPathPatterns("/admin/**")
                 .excludePathPatterns(
                         "/admin/employee/login",
+                        "/admin/uploads/products/**",
                         "/v3/api-docs/**",
                         "/swagger-ui/**",
                         "/swagger-resources/**",
@@ -62,7 +63,7 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
 
         registry.addInterceptor(adminPermissionInterceptor)
                 .addPathPatterns("/admin/**")
-                .excludePathPatterns("/admin/employee/login");
+                .excludePathPatterns("/admin/employee/login", "/admin/uploads/products/**");
 
         registry.addInterceptor(agentInternalServiceInterceptor)
                 .addPathPatterns("/internal/agent/**");

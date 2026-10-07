@@ -23,16 +23,16 @@ public interface AgentSessionMapper {
     /**
      * 根据DB主键查询
      */
-    @Select("select * from agent_session where id = #{id}")
+    @Select("select * from admin_agent_session where id = #{id}")
     AgentSession getById(Long id);
 
     /**
      * 根据业务sessionId查询
      */
-    @Select("select * from agent_session where session_id = #{sessionId}")
+    @Select("select * from admin_agent_session where session_id = #{sessionId}")
     AgentSession getBySessionId(String sessionId);
 
-    @Select("select * from agent_session where session_id = #{sessionId} for update")
+    @Select("select * from admin_agent_session where session_id = #{sessionId} for update")
     AgentSession getBySessionIdForUpdate(String sessionId);
 
     /**
