@@ -39,6 +39,12 @@ try {
     docker run --rm -v "${agentVolume}:/data:ro" -v "${destination}:/backup" alpine:3.22 `
         tar -czf /backup/agent-data.tar.gz -C /data .
     if ($LASTEXITCODE -ne 0) { throw 'Agent volume backup failed' }
+
+    # server-data保存本地商品图片和Java知识文件，必须与数据库一起备份。
+    $serverVolume = if ($env:SERVER_VOLUME_NAME) { $env:SERVER_VOLUME_NAME } else { 'sky-take-out-server-data' }
+    docker run --rm -v "${serverVolume}:/data:ro" -v "${destination}:/backup" alpine:3.22 `
+        tar -czf /backup/server-data.tar.gz -C /data .
+    if ($LASTEXITCODE -ne 0) { throw 'Server data volume backup failed' }
     $checksums = Get-ChildItem -LiteralPath $destination -Recurse -File |
         Where-Object Name -notin @('SHA256SUMS.txt', 'SHA256SUMS.json') |
         ForEach-Object {

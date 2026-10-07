@@ -6,13 +6,16 @@
 .env
 .env.*
 !.env.example
+!frontend/project-sky-admin-vue-ts/.env.production
+!frontend/project-sky-user-web/.env.production
 **/target
 **/.venv
 **/__pycache__
 **/*.pyc
 **/.pytest_cache
+**/node_modules
+**/dist
 data
-frontend
 scripts
 sky-agent
 sky-embedding
