@@ -35,7 +35,7 @@ class ToolRegistryTest(unittest.TestCase):
         super_names = set(self.registry.names_for_role(AdminRole.SUPER_ADMIN))
         admin_names = set(self.registry.names_for_role(AdminRole.ADMIN))
         self.assertEqual(super_names, admin_names)
-        self.assertEqual(18, len(super_names))
+        self.assertEqual(20, len(super_names))
 
     def test_registry_filters_role_restricted_definition(self):
         restricted = ToolDefinition(

@@ -187,6 +187,32 @@
                 <strong>{{ confirmationStateLabel(message) }}</strong>
               </div>
               <p class="confirmation-summary">{{ message.confirmation.summary }}</p>
+              <div v-if="message.confirmation.preview" class="dish-creation-preview" aria-label="待添加菜品预览">
+                <p v-if="message.confirmation.preview.test_data">测试数据 · 默认停售 · 营养待审核</p>
+                <article v-for="(dish, index) in message.confirmation.preview.dishes" :key="index">
+                  <strong>{{ dish.name }} · ¥{{ dish.price }}</strong>
+                  <p>分类：{{ dish.categoryName }} · {{ dish.image ? '已提供图片' : '图片待上传' }}</p>
+                  <p v-if="dish.description">{{ dish.description }}</p>
+                  <details v-if="dish.nutrition">
+                    <summary>查看食材、过敏原和每份营养（{{ dish.nutritionStatus }}）</summary>
+                    <p>每份 {{ dish.nutrition.servingSizeG }} g；热量 {{ dish.nutrition.energyKcal == null ? '未提供' : dish.nutrition.energyKcal + ' kcal' }}</p>
+                    <dl class="dish-nutrition-grid">
+                      <template v-for="metric in dishNutritionMetrics">
+                        <dt :key="metric.key + '-label'">{{ metric.label }}</dt>
+                        <dd :key="metric.key">{{ dish.nutrition[metric.key] == null ? '未提供' : dish.nutrition[metric.key] + ' ' + metric.unit }}</dd>
+                      </template>
+                    </dl>
+                    <p>食材：</p>
+                    <ul><li v-for="(ingredient, ingredientIndex) in dish.nutrition.ingredients" :key="ingredientIndex">{{ ingredient.name }}{{ ingredient.amountG == null ? '' : '（' + ingredient.amountG + ' g）' }}</li></ul>
+                    <p>过敏原声明：</p>
+                    <ul><li v-for="(allergen, allergenIndex) in dish.nutrition.allergens" :key="allergenIndex">{{ allergen.code }}：{{ allergenStatusLabel(allergen.status) }}；{{ allergen.sourceReference }}</li></ul>
+                    <p>来源：{{ dish.nutrition.sourceType }} · {{ dish.nutrition.sourceReference }}</p>
+                    <p v-if="dish.nutrition.uncertaintyNote">{{ dish.nutrition.uncertaintyNote }}</p>
+                  </details>
+                  <p v-else>营养信息未提供，可后续维护。</p>
+                  <p v-if="dish.flavors && dish.flavors.length">口味：{{ dish.flavors.map(flavor => flavor.name + ' ' + flavor.value).join('；') }}</p>
+                </article>
+              </div>
               <small v-if="!isConfirmationSettled(message)">请在 5 分钟内确认；确认后将立即执行。</small>
               <div v-if="!isConfirmationSettled(message)" class="confirmation-actions">
                 <el-button
@@ -341,6 +367,15 @@ export default Vue.extend({
       knowledgeBases: [] as any[],
       draft: '',
       messages: [] as ChatMessage[],
+      dishNutritionMetrics: [
+        { key: 'proteinG', label: '蛋白质', unit: 'g' },
+        { key: 'fatG', label: '脂肪', unit: 'g' },
+        { key: 'carbohydrateG', label: '碳水', unit: 'g' },
+        { key: 'dietaryFiberG', label: '膳食纤维', unit: 'g' },
+        { key: 'sugarG', label: '糖', unit: 'g' },
+        { key: 'sodiumMg', label: '钠', unit: 'mg' },
+        { key: 'purineMg', label: '嘌呤', unit: 'mg' },
+      ],
       running: false,
       cancelling: false,
       cancelRequested: false,
@@ -417,6 +452,14 @@ export default Vue.extend({
     }
   },
   methods: {
+    /** 将工具声明状态翻译为可核对的中文，不把未知信息显示成无过敏原。 */
+    allergenStatusLabel(status: string) {
+      const labels: Record<string, string> = {
+        FREE: '不含', CONTAINS: '含有', MAY_CONTAIN: '可能含有',
+        CROSS_CONTACT_RISK: '存在交叉接触风险', UNKNOWN: '未知',
+      }
+      return labels[status] || '未知'
+    },
     async refreshAgentHealth(): Promise<boolean> {
       try {
         const response: any = await getAgentHealth()
@@ -729,6 +772,7 @@ export default Vue.extend({
         assistant.confirmation = {
           id: body.confirmation_id,
           summary: body.summary || '执行业务状态修改',
+          preview: body.preview || null,
           expiresAt: body.expires_at,
           processing: false,
           decided: false,
@@ -954,6 +998,30 @@ export default Vue.extend({
 </script>
 
 <style lang="scss" scoped>
+.dish-creation-preview article {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.dish-creation-preview details summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  color: var(--text-2);
+}
+.dish-creation-preview details summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dish-creation-preview ul { padding-left: 20px; }
+.dish-nutrition-grid {
+  display: grid;
+  grid-template-columns: minmax(70px, 1fr) minmax(80px, 1fr);
+  gap: 6px 12px;
+  margin: 8px 0;
+}
+.dish-nutrition-grid dd { margin: 0; }
 .tool-confirmation {
   margin-top: 8px;
   padding: 9px 11px;

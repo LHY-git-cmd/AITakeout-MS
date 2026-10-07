@@ -46,6 +46,20 @@ function agentMethods() {
 }
 
 describe('AgentPage stream events', () => {
+  it('retains dish preview in the confirmation card and preserves unknown allergen status', () => {
+    const methods = agentMethods()
+    const preview = { test_data: true, dishes: [{ name: '测试米饭', categoryName: '主食', price: 2 }] }
+    const assistant: any = { content: '', citations: [], confirmation: null }
+    const context = { $nextTick: jest.fn(), scrollToBottom: jest.fn() }
+    methods.applyAgentEvent.call(context, {
+      taskId: 'create-task', seqNo: 1, event: 'tool_confirmation_required',
+      data: { confirmation_id: 'create-confirm', summary: '添加测试菜品', preview },
+    }, assistant)
+    expect(assistant.confirmation.preview).toEqual(preview)
+    expect(assistant.confirmation.decided).toBe(false)
+    expect(methods.allergenStatusLabel('UNKNOWN')).toBe('未知')
+    expect(methods.allergenStatusLabel('CONTAINS')).toBe('含有')
+  })
   it('starts with an unknown service state until the first health response arrives', () => {
     const state = (AgentPage as any).options.data()
 

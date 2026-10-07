@@ -18,6 +18,9 @@ import java.util.Map;
  */
 @Mapper
 public interface DishMapper {
+    /** 与数据库菜名唯一约束共同防止新增同名菜品。 */
+    @Select("select count(*) from dish where name = #{name}")
+    int countByName(String name);
 
     /**
      * 根据分类id查询菜品数量

@@ -8,6 +8,8 @@ Agent 核心逻辑模块
 
 ⚠️  重要：_call_llm 方法是需要你替换为真实 Agent 逻辑的入口
 """
+from app.tools.definitions.dish import DISH_CREATION_INSTRUCTION
+
 import asyncio
 import logging
 import time
@@ -90,7 +92,7 @@ class PythonAgent:
                 "确认只能通过界面中的操作确认卡片完成，不得要求用户在聊天框输入‘确认’。"
                 "当用户已经明确给出写操作目标和新值时，若需要先查询对象，查询结果返回后必须在同一轮继续调用对应的写工具，"
                 "不得仅用文字描述‘需要确认’或要求用户回复确认；写工具会自动生成界面确认卡片。"
-                "只有目标或参数确实缺失时才可以追问，不得把可从查询结果确定的目标当作缺失。")
+                "只有目标或参数确实缺失时才可以追问，不得把可从查询结果确定的目标当作缺失。" + DISH_CREATION_INSTRUCTION)
         user_instruction = (
                 "你是饱饱点餐用户助手，只帮助当前登录用户完成菜品推荐、购物车、本人订单、"
                 "售后状态和公开规则问答。价格、库存、订单及购物车事实必须调用用户工具，"

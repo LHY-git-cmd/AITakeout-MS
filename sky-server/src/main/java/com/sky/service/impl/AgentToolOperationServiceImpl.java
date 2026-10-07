@@ -23,6 +23,7 @@ import com.sky.properties.AgentProperties;
 import com.sky.result.PageResult;
 import com.sky.service.*;
 import com.sky.service.agent.UserAgentToolExecutor;
+import com.sky.service.agent.AdminDishCreationService;
 import com.sky.service.security.AdminAuthorizationService;
 import com.sky.vo.*;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +64,14 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
     private final RedisTemplate<String, Object> redisTemplate;
     private final AgentProperties agentProperties;
     private final ObjectMapper objectMapper;
+    private AdminDishCreationService dishCreationService;
+
+    /** 保留原构造契约，独立注入菜品批量创建服务。 */
+    @Autowired
+    public void setDishCreationService(AdminDishCreationService service) {
+        this.dishCreationService = service;
+    }
+
     private UserAgentToolExecutor userAgentToolExecutor;
     private UserAgentTaskMapper userTaskMapper;
     private UserAgentToolAuditMapper userAuditMapper;
@@ -189,7 +198,7 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
                 throw new IllegalArgumentException("工具调用ID已用于其他参数");
             if ("EXECUTED".equals(existing.getStatus())) {
                 response = AgentToolOperationResponse.success(request.toolCallId(),
-                        currentWriteResult(operation, request.arguments()), traceId);
+                        currentWriteResult(operation, request.arguments(), existing.getConfirmationId()), traceId);
                 saveAudit(request, task, role, operation, response,
                         Duration.ofNanos(System.nanoTime() - started).toMillis(), traceId);
                 return response;
@@ -301,7 +310,7 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
             String currentStatus = requiredConfirmation(confirmationId).getStatus();
             if ("EXECUTED".equals(currentStatus)) {
                 AgentToolOperationResponse response = AgentToolOperationResponse.success(
-                        confirmation.getToolCallId(), currentWriteResult(operation, arguments), traceId);
+                        confirmation.getToolCallId(), currentWriteResult(operation, arguments, confirmationId), traceId);
                 saveAudit(auditRequest, task, role, operation, response,
                         Duration.ofNanos(System.nanoTime() - started).toMillis(), traceId);
                 return response;
@@ -327,11 +336,13 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
             BaseContext.setCurrentRole(role.name());
             Object data;
             try {
-                data = dispatchWrite(operation, arguments);
+                data = operation == Operation.DISH_CREATE
+                        ? dishCreationService.create(confirmationId, arguments, actorId, confirmation.getResourceVersion())
+                        : dispatchWrite(operation, arguments);
             } finally {
                 BaseContext.removeCurrentId();
             }
-            if (confirmationMapper.markExecuted(confirmationId) == 0)
+            if (operation != Operation.DISH_CREATE && confirmationMapper.markExecuted(confirmationId) == 0)
                 throw new IllegalStateException("无法完成确认凭证状态转换");
             AgentToolOperationResponse response = AgentToolOperationResponse.success(
                     confirmation.getToolCallId(), data, traceId);
@@ -471,6 +482,7 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
             case ORDER_QUERY -> queryOrders(args);
             case ORDER_DETAIL -> order(orderService.details(requiredLong(args, "order_id")));
             case ORDER_STATISTICS -> orderService.statistics();
+            case DISH_CATEGORY_QUERY -> dishCreationService.categories();
             case DISH_QUERY -> queryDishes(args);
             case DISH_DETAIL -> dish(dishService.getById(requiredLong(args, "dish_id")));
             case SETMEAL_QUERY -> querySetmeals(args);
@@ -583,8 +595,9 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
         };
     }
 
-    private Object currentWriteResult(Operation operation, JsonNode args) {
+    private Object currentWriteResult(Operation operation, JsonNode args, String confirmationId) {
         return switch (operation) {
+            case DISH_CREATE -> dishCreationService.result(confirmationId);
             case ORDER_STATUS_UPDATE -> order(orderService.details(requiredLong(args, "order_id")));
             case DISH_UPDATE -> dish(dishService.getById(requiredLong(args, "dish_id")));
             case SETMEAL_UPDATE -> setmeal(setmealService.getByIdWithDish(requiredLong(args, "setmeal_id")));
@@ -683,11 +696,16 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
         result.put("expires_at", value.getExpiresAt());
         result.put("argument_hash", value.getArgumentHash());
         result.put("object_version", value.getResourceVersion());
+        if ("dish.create".equals(value.getOperation()) && !"EXECUTED".equals(value.getStatus())) {
+            try { result.put("preview", dishCreationService.preview(objectMapper.readTree(value.getArgumentsJson()))); }
+            catch (Exception ex) { result.put("preview_error", "分类或参数已变化，请重新发起添加"); }
+        }
         return result;
     }
 
     private String resourceVersion(Operation operation, JsonNode args) {
         return switch (operation) {
+            case DISH_CREATE -> sha256(dishCreationService.categoryVersion(args));
             case ORDER_STATUS_UPDATE -> {
                 OrderVO value = orderService.details(requiredLong(args, "order_id"));
                 if (value == null) throw new IllegalArgumentException("订单不存在");
@@ -712,6 +730,8 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
 
     private String summary(Operation operation, JsonNode args) {
         return switch (operation) {
+            case DISH_CREATE -> "添加" + (args.path("test_data").asBoolean() ? "测试" : "")
+                    + "菜品 " + args.path("dishes").size() + " 道（默认停售，图片可后续上传）";
             case ORDER_STATUS_UPDATE -> "将订单 " + requiredLong(args, "order_id")
                     + " 执行状态操作：" + requiredText(args, "action");
             case DISH_UPDATE -> "修改菜品 " + requiredLong(args, "dish_id");
@@ -818,6 +838,7 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
             case KNOWLEDGE_DOCUMENT_QUERY -> requiredText(args, "kb_id");
             case ORDER_DETAIL -> requiredLong(args, "order_id");
             case ORDER_STATUS_UPDATE -> validateOrderUpdate(args);
+            case DISH_CREATE -> dishCreationService.validate(args);
             case DISH_DETAIL -> requiredLong(args, "dish_id");
             case DISH_UPDATE -> validateEntityUpdate(args, "dish_id");
             case SETMEAL_DETAIL -> requiredLong(args, "setmeal_id");
@@ -1044,6 +1065,8 @@ public class AgentToolOperationServiceImpl implements AgentToolOperationService 
         ORDER_DETAIL("order.detail", AdminPermission.ORDER_READ, false, false, "order_id"),
         ORDER_STATISTICS("order.statistics", AdminPermission.ORDER_READ, false, false),
         ORDER_STATUS_UPDATE("order.status.update", AdminPermission.ORDER_STATUS_WRITE, true, false, "order_id", "action", "reason"),
+        DISH_CATEGORY_QUERY("dish.category.query", AdminPermission.DISH_READ, false, false),
+        DISH_CREATE("dish.create", AdminPermission.DISH_WRITE, true, false, "test_data", "dishes"),
         DISH_QUERY("dish.query", AdminPermission.DISH_READ, false, true, "page", "page_size", "name", "category_id", "status"),
         DISH_DETAIL("dish.detail", AdminPermission.DISH_READ, false, false, "dish_id"),
         DISH_UPDATE("dish.update", AdminPermission.DISH_WRITE, true, false, "dish_id", "name", "category_id", "price", "image", "description", "status"),

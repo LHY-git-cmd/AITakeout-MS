@@ -10,6 +10,7 @@ import com.sky.enumeration.AdminPermission;
 import com.sky.enumeration.AdminRole;
 import com.sky.enumeration.AgentActorType;
 import com.sky.exception.AgentConfirmationConflictException;
+import com.sky.exception.PermissionDeniedException;
 import com.sky.mapper.AgentKnowledgeMapper;
 import com.sky.mapper.AgentTaskMapper;
 import com.sky.mapper.AgentToolAuditMapper;
@@ -18,6 +19,7 @@ import com.sky.properties.AgentProperties;
 import com.sky.service.*;
 import com.sky.service.security.AdminAuthorizationService;
 import com.sky.service.agent.UserAgentToolExecutor;
+import com.sky.service.agent.AdminDishCreationService;
 import com.sky.vo.AgentToolOperationResponse;
 import com.sky.vo.EmployeeToolVO;
 import com.sky.vo.OrderVO;
@@ -50,6 +52,7 @@ class AgentToolOperationServiceImplTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AgentProperties agentProperties = new AgentProperties();
     private final UserAgentToolExecutor userAgentToolExecutor = mock(UserAgentToolExecutor.class);
+    private final AdminDishCreationService dishCreationService = mock(AdminDishCreationService.class);
     private AgentToolOperationServiceImpl service;
 
     @BeforeEach
@@ -60,6 +63,7 @@ class AgentToolOperationServiceImplTest {
                 authorizationService, employeeService, orderService, dishService, setmealService,
                 workspaceService, reportService, redisTemplate, agentProperties, objectMapper);
         service.setUserAgentToolExecutor(userAgentToolExecutor);
+        service.setDishCreationService(dishCreationService);
         when(taskMapper.getByTaskId("task-1")).thenReturn(AgentTask.builder()
                 .taskId("task-1").userId(9L).actorId(9L).actorType("ADMIN").build());
         when(authorizationService.resolveRole(9L)).thenReturn(AdminRole.ADMIN);
@@ -191,6 +195,32 @@ class AgentToolOperationServiceImplTest {
         assertEquals("success", response.status());
         verify(orderService).confirm(argThat(value -> value.getId().equals(8L)));
         verify(confirmationMapper).markExecuted("confirm-2");
+    }
+
+    /** 新增只能准备确认，不能从只读执行入口直接写入。 */
+    @Test
+    void creatingDishesRequiresConfirmationAndWritePermission() throws Exception {
+        var request = request("dish.create", "{\"test_data\":false,\"dishes\":[]}");
+        var response = service.execute(request);
+        assertEquals("confirmation_required", response.status());
+        verify(authorizationService).require(AdminRole.ADMIN, AdminPermission.DISH_WRITE);
+        verify(dishCreationService, never()).create(anyString(), any(), anyLong(), any());
+        doThrow(new PermissionDeniedException("无权添加菜品"))
+                .when(authorizationService).require(AdminRole.ADMIN, AdminPermission.DISH_WRITE);
+        assertEquals("PERMISSION_DENIED", service.prepare(request).error().get("code"));
+    }
+
+    @Test
+    void executedCreationReturnsStoredResultWithoutCreatingAgain() throws Exception {
+        var confirmation = AgentToolConfirmation.builder().confirmationId("created")
+                .taskId("task-1").toolCallId("call-1").actorType("ADMIN").actorId(9L)
+                .operation("dish.create").argumentsJson("{\"test_data\":false,\"dishes\":[]}")
+                .status("EXECUTED").build();
+        when(confirmationMapper.getByConfirmationId("created")).thenReturn(confirmation);
+        when(dishCreationService.result("created")).thenReturn(objectMapper.readTree("{\"dishes\":[{\"id\":12}]}"));
+        assertEquals("success", service.executeConfirmed("created").status());
+        verify(dishCreationService, never()).create(anyString(), any(), anyLong(), any());
+        verify(confirmationMapper, never()).markExecuted(anyString());
     }
 
     private AgentToolOperationRequest request(String operation, String arguments) throws Exception {
