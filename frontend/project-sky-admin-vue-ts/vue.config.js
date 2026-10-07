@@ -4,7 +4,8 @@ const IS_PROD = ['production', 'development'].includes(process.env.NODE_ENV)
 module.exports = {
   // 单进程构建可避免 Windows 低虚拟内存环境下 thread-loader 创建子进程失败。
   parallel: false,
-  'publicPath': process.env.NODE_ENV === 'production' ? './' : '/', // TODO: Remember to change this to fit your need
+  // 管理端部署在站点根路径，绝对资源路径支持SPA路由直接刷新。
+  'publicPath': '/',
   'lintOnSave': process.env.NODE_ENV === 'development',
   'pluginOptions': {
     'style-resources-loader': {

@@ -34,6 +34,7 @@ services:
       - "${MYSQL_PORT:-13306}:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      - ./deploy/mysql/001-core-schema.sql:/docker-entrypoint-initdb.d/001-core-schema.sql:ro
     healthcheck: # 定义容器的健康检查
       # test: 用于检查容器健康状况的命令。
       # "mysqladmin ping" 会检查 MySQL 服务器是否处于活动状态。
@@ -246,6 +247,8 @@ services:
       DB_NAME: ${DB_NAME:-sky_take_out}
       DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      SPRING_FLYWAY_USER: root
+      SPRING_FLYWAY_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
@@ -260,7 +263,7 @@ services:
       RAG_TOP_K: ${RAG_TOP_K:-8}
       RAG_SCORE_THRESHOLD: ${RAG_SCORE_THRESHOLD:-0.35}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-m3}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:9528,http://localhost:8081}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://localhost:8081}
       SHUTDOWN_TIMEOUT: ${SHUTDOWN_TIMEOUT:-30s}
       ORDER_TASK_BATCH_SIZE: ${ORDER_TASK_BATCH_SIZE:-200}
       ALIOSS_ENDPOINT: ${ALIOSS_ENDPOINT:-}
@@ -271,6 +274,13 @@ services:
       WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
       BAIDU_MAP_AK: ${BAIDU_MAP_AK:-}
       SHOP_ADDRESS: ${SHOP_ADDRESS:-北京市海淀区上地十街10号}
+      DELIVERY_MAP_PROVIDER: ${DELIVERY_MAP_PROVIDER:-mock}
+      CHECKOUT_PREVIEW_SECRET: ${CHECKOUT_PREVIEW_SECRET:?CHECKOUT_PREVIEW_SECRET is required}
+      BOOTSTRAP_ADMIN_ENABLED: ${BOOTSTRAP_ADMIN_ENABLED:-true}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?BOOTSTRAP_ADMIN_PASSWORD is required}
+      BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-系统管理员}
+      PRODUCT_IMAGE_LOCAL_ROOT: /app/data/uploads/products
       SKY_AGENT_KNOWLEDGE_STORAGE_PATH: /app/data/knowledge
     ports:
       - "${SKY_SERVER_PORT:-8080}:8080"
@@ -289,6 +299,26 @@ services:
       timeout: 5s
       retries: 8
       start_period: 45s
+    logging: *default-logging
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: ${SKY_WEB_IMAGE:-sky-web:1.0.0}
+    restart: unless-stopped
+    ports:
+      - "${ADMIN_WEB_PORT:-80}:80"
+      - "${USER_WEB_PORT:-8081}:8081"
+    depends_on:
+      sky-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ && wget -q --spider http://127.0.0.1:8081/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     logging: *default-logging
 
 volumes:
