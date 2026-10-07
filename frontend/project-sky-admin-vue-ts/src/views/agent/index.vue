@@ -762,7 +762,8 @@ export default Vue.extend({
       }
       if (event.event === 'task_end') {
         assistant.citations = (body.citations || []).map(this.normalizeCitation)
-        if (assistant.confirmation) {
+        if (assistant.confirmation && !assistant.confirmation.failed && !assistant.confirmation.cancelled &&
+            assistant.confirmation.decided && assistant.confirmation.decision === '已确认，正在执行…') {
           assistant.confirmation.processing = false
           assistant.confirmation.decided = true
           assistant.confirmation.decision = '已执行完成。'
@@ -780,6 +781,18 @@ export default Vue.extend({
           retryable: true,
           taskId: event.taskId,
         }
+      }
+      // 工具失败或确认过期不是“对话完成”；保留真实失败状态，不能被task_end覆盖。
+      if (event.event === 'tool_result' && body.error && assistant.confirmation &&
+          (!assistant.confirmation.decided || assistant.confirmation.decision === '已确认，正在执行…')) {
+        const rejected = body.error.code === 'CONFIRMATION_REJECTED'
+        assistant.confirmation.processing = false
+        assistant.confirmation.decided = true
+        assistant.confirmation.cancelled = rejected
+        assistant.confirmation.failed = !rejected
+        assistant.confirmation.retryable = false
+        assistant.confirmation.decision = rejected ? '已拒绝，本次操作不会执行。'
+          : `执行失败：${body.error.message || '操作未完成'}，请重新发起。`
       }
       if (event.event === 'task_cancelled') {
         assistant.content = assistant.content
@@ -925,7 +938,7 @@ export default Vue.extend({
       const confirmation: any = message.confirmation
       if (!confirmation) return false
       // 用户只点过「确认执行」、还没拿到终态事件 → 视为未结束：显示「正在执行」
-      return !this.isConfirmationInFlight(message)
+      return Boolean(confirmation.decided) && !this.isConfirmationInFlight(message)
     },
     // 已确认正在执行：decided=true 且尚无终态标记，decision 仍是进行中文案
     isConfirmationInFlight(message: ChatMessage) {

@@ -63,4 +63,9 @@ class ToolRegistry:
         try:
             return definition.arguments_model.model_validate(values)
         except ValidationError as exception:
-            raise ToolRegistryError("INVALID_TOOL_ARGUMENTS", "工具参数校验失败") from exception
+            # 只返回字段路径和约束，不输出原始参数；模型可据此纠正后重试。
+            details = []
+            for error in exception.errors(include_input=False, include_url=False)[:5]:
+                field = ".".join(str(part) for part in error["loc"]) or "arguments"
+                details.append(f"{field}: {error['msg']}")
+            raise ToolRegistryError("INVALID_TOOL_ARGUMENTS", "工具参数校验失败：" + "；".join(details)) from exception
