@@ -182,8 +182,9 @@ export default class extends Vue {
     const token = getToken()
     const configuredSocketUrl = process.env.VUE_APP_SOCKET_URL
     const socketBaseUrl = configuredSocketUrl || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/`
-    const socketUrl = `${socketBaseUrl}${clientId}?role=admin&token=${encodeURIComponent(token || '')}`
-    console.log(socketUrl, 'socketUrl')
+    // Token 仅放在认证首帧中，避免代理日志记录带凭据的 URL。
+    const socketUrl = `${socketBaseUrl}${clientId}`
+    if (!token) return
     if (typeof WebSocket == 'undefined') {
       that.$notify({
         title: '提示',
@@ -196,7 +197,7 @@ export default class extends Vue {
       // 监听socket打开
       this.websocket.onopen = function () {
         window.clearTimeout(that.websocketReconnectTimer)
-        console.log('浏览器WebSocket已打开')
+        that.websocket.send(JSON.stringify({ event: 'authenticate', role: 'admin', token }))
       }
       // 监听socket消息接收
       this.websocket.onmessage = function (msg) {
@@ -204,7 +205,6 @@ export default class extends Vue {
         that.$refs.audioVo.currentTime = 0
         that.$refs.audioVo2.currentTime = 0
 
-        console.log(msg, JSON.parse(msg.data), 'msg')
         // const h = this.$createElement
         const jsonMsg = JSON.parse(msg.data)
         // connected/pong 等控制帧不属于新单或催单通知
@@ -246,8 +246,9 @@ export default class extends Vue {
         })
       }
       // 监听socket关闭
-      this.websocket.onclose = function () {
-        console.log('WebSocket已关闭')
+      this.websocket.onclose = function (event) {
+        // 凭据失效时等待重新登录，避免无效令牌不断重连。
+        if (event.code === 1008) return
         if (!that.websocketClosedByUser) {
           window.clearTimeout(that.websocketReconnectTimer)
           that.websocketReconnectTimer = window.setTimeout(() => that.webSocket(), 3000)

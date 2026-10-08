@@ -51,7 +51,7 @@
 | Embedding | `http://localhost:8001` | BGE-M3向量服务 |
 | Qdrant | `http://localhost:6333` | 向量数据库 |
 
-实际端口可通过 `.env` 调整。
+实际端口通过项目外私有环境文件调整。PowerShell 脚本优先接受 `-EnvFile` 或 `SKY_ENV_FILE`。详见[私有配置与公开交付说明](项目文档/私有配置与公开交付说明.md)。
 
 ## 首次部署
 
@@ -66,11 +66,17 @@ JDK、Maven、Node和Python只在脱离Docker进行开发时需要，交付部�
 ### 2. 准备配置
 
 ```powershell
-Copy-Item .env.example .env
-notepad .env
+$privateDirectory = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'metrics-backend/private-config'
+New-Item -ItemType Directory -Force -Path $privateDirectory | Out-Null
+$env:SKY_ENV_FILE = Join-Path $privateDirectory 'sky-take-out.env'
+# 已有私有配置时保留原文件，避免覆盖账号和密钥。
+if (-not (Test-Path -LiteralPath $env:SKY_ENV_FILE)) {
+    Copy-Item .env.example $env:SKY_ENV_FILE
+}
+notepad $env:SKY_ENV_FILE
 ```
 
-把所有 `replace-with-*` 和空的必填密钥替换为真实配置。不要提交 `.env`。
+把所有 `replace-with-*` 和空的必填密钥替换为真实配置。私有文件存放在项目外，并限制为当前操作系统用户可读。后续 Compose 命令使用 `pwsh -File scripts/sky-compose.ps1`，或显式传入 `docker compose --env-file`。
 
 首次管理员由以下配置创建，数据库已有员工时不会重复创建：
 
@@ -128,20 +134,20 @@ Docker卷 server-data:/app/data/uploads/products
 
 ```powershell
 # 查看状态
-docker compose ps
+pwsh -File scripts/sky-compose.ps1 ps
 
 # 查看日志
-docker compose logs --tail 100 sky-server
-docker compose logs --tail 100 sky-agent
+pwsh -File scripts/sky-compose.ps1 logs --tail 100 sky-server
+pwsh -File scripts/sky-compose.ps1 logs --tail 100 sky-agent
 
 # 自动冒烟
 .\scripts\test-delivery-smoke.ps1
 
 # 停止但保留数据
-docker compose down
+pwsh -File scripts/sky-compose.ps1 down
 
 # 重新构建
-docker compose up -d --build
+pwsh -File scripts/sky-compose.ps1 up -d --build
 
 # 备份
 .\scripts\backup-ai-runtime.ps1 -BackupDirectory C:\backup\sky
@@ -153,7 +159,7 @@ docker compose up -d --build
 除非明确要删除全部业务数据，否则不要执行：
 
 ```powershell
-docker compose down -v
+pwsh -File scripts/sky-compose.ps1 down -v
 ```
 
 ## 自动测试

@@ -1,4 +1,5 @@
-"""Agent 配置：环境变量优先，项目根目录 .env 仅供本地开发。"""
+"""Agent 配置：环境变量优先，SKY_AGENT_ENV_FILE 可指向项目外私有配置。"""
+import os
 from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -6,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=os.getenv("SKY_AGENT_ENV_FILE", ".env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",

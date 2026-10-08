@@ -2,7 +2,15 @@
     <springProperty scope="context" name="environment" source="spring.profiles.active" defaultValue="default"/>
     <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <jsonGeneratorDecorator class="net.logstash.logback.decorate.PrettyPrintingJsonGeneratorDecorator"/>
+            <!-- 只遮盖日志，不影响 API 返回的认证令牌。 -->
+            <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <path>password</path>
+                <path>initialPassword</path>
+                <path>token</path>
+                <path>authorization</path>
+                <path>cookie</path>
+                <valueMasker class="com.sky.logging.SensitiveDataMasker"/>
+            </jsonGeneratorDecorator>
             <customFields>{"service":"sky-server"}</customFields>
             <includeMdcKeyName>trace_id</includeMdcKeyName>
             <includeMdcKeyName>task_id</includeMdcKeyName>

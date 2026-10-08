@@ -14,6 +14,7 @@
 #>
 [CmdletBinding()]
 param(
+    [string]$EnvFile,
     [string[]]$ComposeFile = @('compose.yml'),
     [string]$ProjectName = 'sky-take-out',
     [string]$BatchId,
@@ -30,6 +31,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'private-env.ps1')
+$resolvedEnv = Resolve-SkyEnvFile -EnvFile $EnvFile
 if (-not $BatchId) { $BatchId = 'agent-v1-acceptance-' + (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss') }
 if ($BatchId -notmatch '^agent-v1-acceptance-[A-Za-z0-9-]+$') { throw 'BatchId must use the fixed agent-v1-acceptance- prefix' }
 if (-not $Output) { $Output = Join-Path $projectRoot ("build/reports/{0}.json" -f $BatchId) }
@@ -39,7 +42,7 @@ New-Item -ItemType Directory -Force -Path $reportDirectory | Out-Null
 
 function Invoke-Compose {
     param([string[]]$Arguments)
-    $args = @('--project-name', $ProjectName)
+    $args = @('--env-file', $resolvedEnv, '--project-name', $ProjectName)
     foreach ($file in $ComposeFile) { $args += @('--file', (Join-Path $projectRoot $file)) }
     $args += $Arguments
     $script:lastComposeOutput = @(& docker compose @args 2>&1)
@@ -115,7 +118,7 @@ try {
     $configCode = Invoke-Compose @('config', '--quiet')
     Add-Check 'compose-config' ($(if ($configCode -eq 0) { 'PASS' } else { 'FAIL' })) 'Compose configuration parsed without rendering secrets'
 
-    $envPath = Join-Path $projectRoot '.env'
+    $envPath = $resolvedEnv
     $tokenEntry = if (Test-Path $envPath) { Get-Content $envPath | Where-Object { $_ -match '^AGENT_INTERNAL_SERVICE_TOKEN=' } | Select-Object -First 1 } else { $null }
     $token = if ($tokenEntry) { $tokenEntry.Substring('AGENT_INTERNAL_SERVICE_TOKEN='.Length).Trim() } else { '' }
     if ($token.Length -ge 32 -and $token -notmatch 'replace-with|change-me') {

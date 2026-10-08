@@ -17,14 +17,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.nio.channels.ClosedChannelException;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 订单实时消息通道
  * 基于WebSocket实现的双向通信服务，用于管理端来单提醒和用户端订单状态推送
- * 支持通过URL参数携带role和token进行鉴权
+ * 连接建立后通过首条 authenticate 消息鉴权，避免 Token 进入 URL 和代理日志。
  */
 @Component
 @ServerEndpoint("/ws/{sid}")
@@ -33,6 +32,10 @@ public class WebSocketServer {
 
     private static final String ADMIN = "admin";
     private static final String USER = "user";
+    private static final String AUTH_SID = "sky.auth.sid";
+    private static final String AUTH_STARTED = "sky.auth.started";
+    private static final String PREVIOUS_IDLE_TIMEOUT = "sky.auth.idleTimeout";
+    private static final long AUTH_TIMEOUT_MILLIS = 10_000L;
     /** 所有客户端连接映射（sessionId -> ClientConnection） */
     private static final Map<String, ClientConnection> connections = new ConcurrentHashMap<>();
     /** 管理端JWT密钥，由WebSocketConfiguration注入 */
@@ -54,23 +57,23 @@ public class WebSocketServer {
 
     /**
      * 客户端连接建立时的回调
-     * 鉴权成功后将连接信息存入内存映射，并发送连接成功消息
+     * 等待认证首帧；未认证连接不加入广播映射，10秒内未认证自动关闭。
      *
      * @param session WebSocket会话
      * @param sid     会话标识（URL路径参数）
      */
     @OnOpen
     public void onOpen(Session session, @PathParam("sid") String sid) {
-        try {
-            ClientConnection connection = authenticate(session, sid);
-            connections.put(session.getId(), connection);
-            log.info("WebSocket客户端建立连接：role={}, principal={}, online={}",
-                    connection.role(), connection.principalId(), connections.size());
-            send(session, message("connected", null, null, "实时连接已建立"));
-        } catch (Exception exception) {
-            log.warn("WebSocket握手认证失败：sid={}", sid);
+        // 旧客户端必须刷新；继续接受 URL Token 会让日志泄露再次发生。
+        if (session.getRequestParameterMap().containsKey("token")) {
             close(session, CloseReason.CloseCodes.VIOLATED_POLICY, "unauthorized");
+            return;
         }
+        session.getUserProperties().put(AUTH_SID, sid);
+        session.getUserProperties().put(AUTH_STARTED, System.currentTimeMillis());
+        session.getUserProperties().put(PREVIOUS_IDLE_TIMEOUT, session.getMaxIdleTimeout());
+        session.setMaxIdleTimeout(AUTH_TIMEOUT_MILLIS);
+        session.setMaxTextMessageBufferSize(8192);
     }
 
     /**
@@ -84,7 +87,7 @@ public class WebSocketServer {
     public void onMessage(String payload, Session session) {
         ClientConnection connection = connections.get(session.getId());
         if (connection == null) {
-            close(session, CloseReason.CloseCodes.VIOLATED_POLICY, "unauthorized");
+            authenticateFirstMessage(payload, session);
             return;
         }
         try {
@@ -183,16 +186,40 @@ public class WebSocketServer {
 
     /**
      * 客户端鉴权
-     * 解析URL参数中的role和token，校验JWT令牌并返回连接信息
+     * 校验首帧中的角色与 JWT；任何失败只返回通用原因，不记录载荷或令牌。
+     */
+    private void authenticateFirstMessage(String payload, Session session) {
+        try {
+            Object started = session.getUserProperties().get(AUTH_STARTED);
+            if (!(started instanceof Long) || System.currentTimeMillis() - (Long) started > AUTH_TIMEOUT_MILLIS) {
+                throw new IllegalArgumentException("authentication expired");
+            }
+            JSONObject request = JSON.parseObject(payload);
+            if (request == null || !"authenticate".equals(request.getString("event"))) {
+                throw new IllegalArgumentException("authentication required");
+            }
+            String sid = (String) session.getUserProperties().get(AUTH_SID);
+            ClientConnection connection = authenticate(session, sid, request.getString("role"), request.getString("token"));
+            // 完成认证后恢复常规空闲超时，并且只在此处开放业务广播。
+            session.setMaxIdleTimeout((Long) session.getUserProperties().get(PREVIOUS_IDLE_TIMEOUT));
+            session.getUserProperties().remove(AUTH_STARTED);
+            connections.put(session.getId(), connection);
+            send(session, message("connected", null, null, "实时连接已建立"));
+        } catch (Exception exception) {
+            connections.remove(session.getId());
+            session.getUserProperties().remove(AUTH_STARTED);
+            close(session, CloseReason.CloseCodes.VIOLATED_POLICY, "unauthorized");
+        }
+    }
+
+    /**
+     * 根据认证消息校验对应角色的签名密钥。
      *
      * @param session WebSocket会话
      * @param sid     会话标识
      * @return 客户端连接信息
      */
-    private ClientConnection authenticate(Session session, String sid) {
-        Map<String, List<String>> params = session.getRequestParameterMap();
-        String role = first(params, "role");
-        String token = first(params, "token");
+    private ClientConnection authenticate(Session session, String sid, String role, String token) {
         if (role == null || token == null) throw new IllegalArgumentException("missing credentials");
 
         if (USER.equals(role)) {
@@ -207,18 +234,6 @@ public class WebSocketServer {
             return new ClientConnection(session, ADMIN, employeeId, sid);
         }
         throw new IllegalArgumentException("invalid role");
-    }
-
-    /**
-     * 从请求参数中获取第一个值
-     *
-     * @param params 参数映射
-     * @param name   参数名
-     * @return 第一个值，不存在返回null
-     */
-    private String first(Map<String, List<String>> params, String name) {
-        List<String> values = params.get(name);
-        return values == null || values.isEmpty() ? null : values.get(0);
     }
 
     /**

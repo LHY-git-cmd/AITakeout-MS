@@ -3,11 +3,13 @@ package com.sky.service.impl;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.sky.constant.MessageConstant;
-import com.sky.constant.PasswordConstant;
+import com.sky.exception.BaseException;
 import com.sky.constant.StatusConstant;
 import com.sky.dto.EmployeeDTO;
 import com.sky.dto.EmployeeLoginDTO;
 import com.sky.dto.EmployeePageQueryDTO;
+import com.sky.dto.EmployeePasswordDTO;
+import com.sky.context.BaseContext;
 import com.sky.entity.Employee;
 import com.sky.enumeration.AdminRole;
 import com.sky.exception.AccountLockedException;
@@ -82,11 +84,16 @@ public class EmployeeServiceImpl implements EmployeeService {
      * @param employeeDTO 员工数据传输对象
      */
     public void save(EmployeeDTO employeeDTO) {
+        String initialPassword = employeeDTO.getInitialPassword();
+        // 使用每个账号独立的初始密码，限制在 BCrypt 不会截断的字节长度以内。
+        if (initialPassword == null || !initialPassword.matches("[\\x21-\\x7E]{12,64}")) {
+            throw new BaseException("请设置12至64位初始密码，使用字母、数字或符号，不含空格");
+        }
         Employee employee = new Employee();
         BeanUtils.copyProperties(employeeDTO, employee);
         employee.setStatus(StatusConstant.ENABLE);
         employee.setRole(AdminRole.ADMIN.name());
-        employee.setPassword(passwordEncoder.encode(PasswordConstant.DEFAULT_PASSWORD));
+        employee.setPassword(passwordEncoder.encode(initialPassword));
         employeeMapper.insert(employee);
     }
 
@@ -138,8 +145,25 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public void update(EmployeeDTO employeeDTO) {
         Employee employee = new Employee();
-        BeanUtils.copyProperties(employeeDTO, employee);
+        // 资料编辑不接受密码字段，防止把空值或明文写入已有账号。
+        BeanUtils.copyProperties(employeeDTO, employee, "password", "initialPassword");
         employeeMapper.update(employee);
+    }
+
+    /** 通过当前登录身份和原密码双重校验，避免替其他员工修改密码。 */
+    @Override
+    public void changePassword(EmployeePasswordDTO request) {
+        Long employeeId = BaseContext.getCurrentId();
+        if (employeeId == null) throw new BaseException("请先登录");
+        Employee employee = employeeMapper.getById(employeeId);
+        if (employee == null || !matchesPassword(request.getOldPassword(), employee.getPassword())) {
+            throw new PasswordErrorException("原密码不正确");
+        }
+        if (request.getNewPassword() == null || !request.getNewPassword().matches("[\\x21-\\x7E]{12,64}")) {
+            throw new BaseException("新密码须为12至64位字母、数字或符号，不含空格");
+        }
+        employeeMapper.update(Employee.builder().id(employeeId)
+                .password(passwordEncoder.encode(request.getNewPassword())).build());
     }
 
     /**

@@ -6,6 +6,7 @@ import com.sky.enumeration.AdminPermission;
 import com.sky.dto.EmployeeDTO;
 import com.sky.dto.EmployeeLoginDTO;
 import com.sky.dto.EmployeePageQueryDTO;
+import com.sky.dto.EmployeePasswordDTO;
 import com.sky.entity.Employee;
 import com.sky.properties.JwtProperties;
 import com.sky.result.PageResult;
@@ -48,7 +49,7 @@ public class EmployeeController {
     @PostMapping("/login")
     @Operation(summary = "员工登录")
     public Result<EmployeeLoginVO> login(@Valid @RequestBody EmployeeLoginDTO employeeLoginDTO) {
-        log.info("员工登录：username={}", employeeLoginDTO.getUsername());
+        log.info("收到员工登录请求");
 
         Employee employee = employeeService.login(employeeLoginDTO);
 
@@ -83,6 +84,14 @@ public class EmployeeController {
         return Result.success();
     }
 
+    /** 当前员工修改自己的密码，不要求员工管理权限。 */
+    @PutMapping("/editPassword")
+    @Operation(summary = "修改当前员工密码")
+    public Result<String> changePassword(@Valid @RequestBody EmployeePasswordDTO request) {
+        employeeService.changePassword(request);
+        return Result.success();
+    }
+
     /**
      * 新增员工
      *
@@ -93,7 +102,7 @@ public class EmployeeController {
     @RequireAdminPermission(AdminPermission.EMPLOYEE_WRITE)
     @Operation(summary = "新增员工")
     public Result save(@Valid @RequestBody EmployeeDTO employeeDTO){
-        log.info("新增员工，员工数据：{}",employeeDTO);
+        log.info("收到新增员工请求");
 
         employeeService.save(employeeDTO);
 
@@ -154,7 +163,7 @@ public class EmployeeController {
     @RequireAdminPermission(AdminPermission.EMPLOYEE_WRITE)
     @Operation(summary = "编辑员工信息")
     public Result update(@Valid @RequestBody EmployeeDTO employeeDTO){
-        log.info("编辑员工信息：{}", employeeDTO);
+        log.info("编辑员工信息：id={}", employeeDTO.getId());
         employeeService.update(employeeDTO);
         return Result.success();
     }

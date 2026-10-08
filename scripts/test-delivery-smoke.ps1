@@ -1,11 +1,12 @@
 # 对已启动的交付栈执行只读冒烟检查：服务、前端、Flyway和核心表。
 param(
-    [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env')
+    [string]$EnvFile
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$resolvedEnv = (Resolve-Path -LiteralPath $EnvFile).Path
+. (Join-Path $PSScriptRoot 'private-env.ps1')
+$resolvedEnv = Resolve-SkyEnvFile -EnvFile $EnvFile
 $values = @{}
 foreach ($line in Get-Content -LiteralPath $resolvedEnv -Encoding UTF8) {
     if ($line -match '^\s*#' -or $line -notmatch '=') { continue }

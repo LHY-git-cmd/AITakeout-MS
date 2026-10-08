@@ -24,21 +24,25 @@ class OrderSocket {
       && (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING)) return
 
     const base = import.meta.env.VITE_WS_URL || `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws/`
-    const separator = base.includes('?') ? '&' : '?'
     const sid = `${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const url = `${base}${sid}${separator}role=user&token=${encodeURIComponent(token)}`
+    const url = `${base}${sid}`
     const socket = new WebSocket(url)
     this.socket = socket
 
     socket.onopen = () => {
-      this.reconnectAttempt = 0
-      this.startHeartbeat()
-      this.send({ event: 'orders.subscribe' })
-      window.dispatchEvent(new CustomEvent('sky:socket-connected'))
+      // 浏览器 WebSocket 无法设置自定义认证请求头，使用认证首帧。
+      this.send({ event: 'authenticate', role: 'user', token })
     }
     socket.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data) as OrderStatusEvent
+        if (event.event === 'connected') {
+          this.reconnectAttempt = 0
+          this.startHeartbeat()
+          this.send({ event: 'orders.subscribe' })
+          window.dispatchEvent(new CustomEvent('sky:socket-connected'))
+          return
+        }
         if (event.event === 'order.status.changed') {
           window.dispatchEvent(new CustomEvent<OrderStatusEvent>('sky:order-status', { detail: event }))
         } else if ((event as OrderStatusEvent & { notificationId?: number }).notificationId) {

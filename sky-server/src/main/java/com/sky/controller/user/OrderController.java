@@ -51,7 +51,7 @@ public class OrderController {
     @Operation(summary = "用户下单")
     public Result<OrderSubmitVO> submit(@Valid @RequestBody OrdersSubmitDTO ordersSubmitDTO,
                                         @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
-        log.info("用户下单：{}", ordersSubmitDTO);
+        log.info("收到用户下单请求");
         OrderSubmitVO orderSubmitVO = orderService.submitOrder(ordersSubmitDTO, idempotencyKey);
         return Result.success(orderSubmitVO);
     }
@@ -65,7 +65,7 @@ public class OrderController {
     @PutMapping("/payment")
     @Operation(summary = "订单支付")
     public Result<OrderPaymentVO> payment(@Valid @RequestBody OrdersPaymentDTO ordersPaymentDTO) throws Exception {
-        log.info("订单支付：{}", ordersPaymentDTO);
+        log.info("收到订单支付请求");
         OrderPaymentVO orderPaymentVO = orderService.payment(ordersPaymentDTO);
         log.info("生成预支付交易单：{}", orderPaymentVO);
         return Result.success(orderPaymentVO);

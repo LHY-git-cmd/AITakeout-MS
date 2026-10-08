@@ -13,3 +13,31 @@ sky-embedding/models/
 sky-embedding/.cache/
 sky-agent/data/
 sky-agent/.env
+
+# 私有状态与可重新生成的开发/测试输出。
+**/.env
+**/.env.local
+**/.env.*.local
+**/node_modules/
+**/dist/
+**/.pytest_cache/
+**/.cache/
+**/test-results/
+**/playwright-report/
+**/coverage/
+**/*.log
+**/*.pid
+**/*.sqlite3*
+**/*.sqlite*
+**/*.db
+**/*.tsbuildinfo
+**/report.*.json
+.claude/
+.vscode/
+.codex-temp/
+.codex-tmp/
+/data/*
+# 经过审查的模拟数据是功能与验证依赖；仅运行时数据保持私有。
+!/data/diet-seed/
+!/data/diet-seed/**
+/agent-service/data/

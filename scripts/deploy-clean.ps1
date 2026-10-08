@@ -1,12 +1,13 @@
 # 从源码构建并启动完整交付栈，不删除任何已有数据卷。
 param(
-    [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env'),
+    [string]$EnvFile,
     [int]$TimeoutSeconds = 480
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$resolvedEnv = (Resolve-Path -LiteralPath $EnvFile).Path
+. (Join-Path $PSScriptRoot 'private-env.ps1')
+$resolvedEnv = Resolve-SkyEnvFile -EnvFile $EnvFile
 & (Join-Path $PSScriptRoot 'test-delivery-preflight.ps1') -EnvFile $resolvedEnv | Out-Null
 
 Push-Location $projectRoot

@@ -1,6 +1,8 @@
 package com.sky.entity;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import lombok.ToString;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,7 +22,9 @@ public class Employee implements Serializable {
     private Long id;                // 唯一标识符
     private String username;        // 用户名
     private String name;            // 姓名
-    private String password;        // 密码
+    @JsonIgnore
+    @ToString.Exclude
+    private String password;        // 仅服务端使用，响应和日志不包含密码哈希
     private String phone;           // 手机号
     private String sex;             // 性别
     private String idNumber;        // 身份证号

@@ -1,11 +1,12 @@
 # 在构建或启动前检查交付环境、配置占位符、模型文件和Compose语法。
 param(
-    [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env')
+    [string]$EnvFile
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$resolvedEnv = (Resolve-Path -LiteralPath $EnvFile).Path
+. (Join-Path $PSScriptRoot 'private-env.ps1')
+$resolvedEnv = Resolve-SkyEnvFile -EnvFile $EnvFile
 
 foreach ($command in @('docker', 'git')) {
     if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
