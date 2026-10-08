@@ -14,24 +14,34 @@ sky-embedding/.cache/
 sky-agent/data/
 sky-agent/.env
 
-# 私有状态与可重新生成的开发/测试输出。
+# Repository privacy policy: keep runtime state and local output out of commits.
 **/.env
 **/.env.local
 **/.env.*.local
+**/.idea/
+**/.vscode/
+**/.worktrees/
+**/.venv/
 **/node_modules/
-**/dist/
+**/__pycache__/
 **/.pytest_cache/
-**/.cache/
+**/target/
+**/dist/
 **/test-results/
 **/playwright-report/
-**/coverage/
+**/.codex-tmp/
+**/.codex-temp/
 **/*.log
-**/*.pid
+**/*.pyc
 **/*.sqlite3*
 **/*.sqlite*
 **/*.db
 **/*.tsbuildinfo
 **/report.*.json
+**/project.private.config.json
+*_backup.sql
+!/data/
+/data/*
 .claude/
 .vscode/
 .codex-temp/
