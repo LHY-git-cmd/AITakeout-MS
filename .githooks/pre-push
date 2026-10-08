@@ -1,0 +1,9 @@
+#!/bin/sh
+# 推送前检查所有新增分支的可达历史，防止旧副本重新带回敏感文件。
+set -eu
+hook_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+cd "$(git rev-parse --show-toplevel)"
+if command -v python >/dev/null 2>&1; then
+    exec python "$hook_root/scripts/check-git-security.py" --pre-push
+fi
+exec python3 "$hook_root/scripts/check-git-security.py" --pre-push
