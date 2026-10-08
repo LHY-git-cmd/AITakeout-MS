@@ -5,6 +5,16 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface AgentToolConfirmationMapper {
+    /** 新增业务在事务内锁定确认记录，并原子保存结果及执行状态。 */
+    @Select("select status from admin_agent_tool_confirmation where confirmation_id=#{id} for update")
+    String lockStatus(String id);
+
+    @Select("select result_json from admin_agent_tool_confirmation where confirmation_id=#{id}")
+    String getResult(String id);
+
+    @Update("update admin_agent_tool_confirmation set result_json=#{result}, status='EXECUTED', " +
+            "executed_at=now(), update_time=now() where confirmation_id=#{id} and status='EXECUTING'")
+    int completeDishCreation(@Param("id") String id, @Param("result") String result);
     @Insert("""
             insert ignore into admin_agent_tool_confirmation
                 (confirmation_id, task_id, tool_call_id, employee_id, actor_type, actor_id, actor_role,

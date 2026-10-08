@@ -28,28 +28,17 @@
                     placeholder="请输入员工姓名"
                     maxlength="12" />
         </el-form-item>
-        <!-- <el-form-item
-          label="密码:"
-          prop="password"
-        >
-          <el-input
-            v-model="ruleForm.password"
-            type="password"
-            autocomplete="off"
-            placeholder="请输入密码"
-          />
-        </el-form-item> -->
-        <!-- <el-form-item
-          label="确认密码:"
-          prop="rePassword"
-        >
-          <el-input
-            v-model="ruleForm.rePassword"
-            type="password"
-            autocomplete="off"
-            placeholder="请输入确认密码"
-          />
-        </el-form-item> -->
+        <!-- 初始密码仅在创建时提交；编辑资料不会更改账号密码。 -->
+        <el-form-item v-if="actionType === 'add'"
+                      label="初始密码:"
+                      prop="initialPassword">
+          <el-input v-model="ruleForm.initialPassword"
+                    type="password"
+                    show-password
+                    autocomplete="new-password"
+                    placeholder="请输入12至64位独立密码"
+                    maxlength="64" />
+        </el-form-item>
         <el-form-item label="手机号:"
                       prop="phone">
           <el-input v-model="ruleForm.phone"
@@ -109,22 +98,11 @@ export default class extends Vue {
   private ruleForm = {
     name: '',
     phone: '',
-    // 'password': '',
-    // 'rePassword': '',
+    initialPassword: '',
     sex: '男',
     idNumber: '',
     username: ''
   }
-
-  // private validateRepassword (rule:any, value:any, callback:any) {
-  //   if (value === '') {
-  //     callback(new Error('请再次输入密码'))
-  //   } else if (value !== this.ruleForm.password) {
-  //     callback(new Error('两次输入密码不一致!'))
-  //   } else {
-  //     callback()
-  //   }
-  // }
 
   private isCellPhone(val: any) {
     if (!/^1(3|4|5|6|7|8)\d{9}$/.test(val)) {
@@ -160,6 +138,14 @@ export default class extends Vue {
 
   get rules() {
     return {
+      initialPassword: [{
+        validator: (rule: any, value: string, callback: Function) => {
+          if (this.actionType === 'add' && !/^[\x21-\x7E]{12,64}$/.test(value || '')) {
+            callback(new Error('请输入12至64位字母、数字或符号，不含空格'))
+          } else { callback() }
+        },
+        trigger: 'blur'
+      }],
       name: [
         {
           required: true,
@@ -217,7 +203,7 @@ export default class extends Vue {
     queryEmployeeById(id).then((res: any) => {
       // String(res.status) === '200'
       if (res.data.code === 1) {
-        this.ruleForm = res.data.data
+        this.ruleForm = { ...res.data.data, initialPassword: '' }
         this.ruleForm.sex = res.data.data.sex === '0' ? '女' : '男'
         // this.ruleForm.password = ''
       } else {
@@ -253,8 +239,7 @@ export default class extends Vue {
                     username: '',
                     name: '',
                     phone: '',
-                    // 'password': '',
-                    // 'rePassword': '',/
+                    initialPassword: '',
                     sex: '男',
                     idNumber: ''
                   }
@@ -271,6 +256,7 @@ export default class extends Vue {
             ...this.ruleForm,
             sex: this.ruleForm.sex === '女' ? '0' : '1'
           }
+          delete params.initialPassword
           editEmployee(params)
             .then((res: any) => {
               if (res.data.code === 1) {

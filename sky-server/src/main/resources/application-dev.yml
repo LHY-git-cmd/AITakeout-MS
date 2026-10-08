@@ -77,4 +77,4 @@ sky:
     far-fee-cent: 800
     preview-ttl-seconds: 300
     pricing-rule-version: delivery-v1
-    preview-secret: ${CHECKOUT_PREVIEW_SECRET:development-checkout-preview-secret-change-me}
+    preview-secret: ${CHECKOUT_PREVIEW_SECRET}

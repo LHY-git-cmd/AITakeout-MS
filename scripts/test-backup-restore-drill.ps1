@@ -3,6 +3,7 @@ $suffix = [Guid]::NewGuid().ToString('N').Substring(0, 10)
 $mysqlName = "sky-drill-mysql-$suffix"
 $qdrantName = "sky-drill-qdrant-$suffix"
 $agentVolume = "sky-drill-agent-$suffix"
+$serverVolume = "sky-drill-server-$suffix"
 $temporaryBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath())
 $drillRoot = [System.IO.Path]::GetFullPath((Join-Path $temporaryBase "sky-runtime-drill-$suffix"))
 if (-not $drillRoot.StartsWith($temporaryBase) -or (Split-Path $drillRoot -Leaf) -notlike 'sky-runtime-drill-*') {
@@ -44,6 +45,23 @@ try {
         tar -xzf /backup/agent-data.tar.gz -C /data
     $agentProof = docker run --rm -v "${agentVolume}:/data:ro" alpine:3.22 cat /data/state.txt
     if ($agentProof.Trim() -ne 'agent-ok') { throw 'Agent volume restore verification failed' }
+
+    # 验证本地商品图片等server-data也能备份和恢复。
+    docker volume create $serverVolume | Out-Null
+    docker run --rm -v "${serverVolume}:/data" alpine:3.22 `
+        sh -c 'mkdir -p /data/uploads/products && printf image-ok > /data/uploads/products/proof.txt'
+    if ($LASTEXITCODE -ne 0) { throw 'Server data proof creation failed' }
+    docker run --rm -v "${serverVolume}:/data:ro" -v "${drillRoot}:/backup" alpine:3.22 `
+        tar -czf /backup/server-data.tar.gz -C /data .
+    docker volume rm $serverVolume | Out-Null
+    docker volume create $serverVolume | Out-Null
+    docker run --rm -v "${serverVolume}:/data" -v "${drillRoot}:/backup:ro" alpine:3.22 `
+        tar -xzf /backup/server-data.tar.gz -C /data
+    $serverProof = docker run --rm -v "${serverVolume}:/data:ro" alpine:3.22 `
+        cat /data/uploads/products/proof.txt
+    if (-not $serverProof -or $serverProof.Trim() -ne 'image-ok') {
+        throw 'Server data restore verification failed'
+    }
 
     docker run -d --name $qdrantName -p 127.0.0.1::6333 qdrant/qdrant:v1.15.5 | Out-Null
     $binding = docker port $qdrantName 6333/tcp
@@ -90,10 +108,11 @@ try {
         -LiteralPath (Join-Path $drillRoot 'SHA256SUMS.json') -Encoding utf8
     & (Join-Path $PSScriptRoot 'verify-backup.ps1') -BackupPath $drillRoot | Out-Null
 
-    Write-Output 'DRILL_SUCCESS: mysql, qdrant, agent-volume, checksums'
+    Write-Output 'DRILL_SUCCESS: mysql, qdrant, agent-volume, server-volume, checksums'
 } finally {
     docker rm -f $mysqlName $qdrantName 2>$null | Out-Null
     docker volume rm $agentVolume 2>$null | Out-Null
+    docker volume rm $serverVolume 2>$null | Out-Null
     $safeBase = $drillRoot.StartsWith($temporaryBase)
     $safeLeaf = (Split-Path $drillRoot -Leaf) -like 'sky-runtime-drill-*'
     if ((Test-Path -LiteralPath $drillRoot) -and $safeBase -and $safeLeaf) {

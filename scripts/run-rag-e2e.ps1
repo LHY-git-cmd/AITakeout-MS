@@ -1,4 +1,6 @@
+# 使用统一私有配置定位本地 RAG 端到端测试依赖。
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'private-env.ps1')
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $agentRoot = Join-Path $projectRoot 'agent-service'
@@ -9,7 +11,7 @@ if ($embedding.status -ne 'healthy' -or $embedding.dimension -ne 1024) {
 }
 
 $qdrantPort = 6333
-$envFile = Join-Path $projectRoot '.env'
+$envFile = Resolve-SkyEnvFile
 if ($env:QDRANT_HTTP_PORT -match '^\d+$') {
     $qdrantPort = [int]$env:QDRANT_HTTP_PORT
 }

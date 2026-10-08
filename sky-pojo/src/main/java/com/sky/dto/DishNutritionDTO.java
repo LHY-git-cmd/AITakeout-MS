@@ -1,6 +1,9 @@
 package com.sky.dto;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,31 +20,31 @@ public class DishNutritionDTO {
     private int profileVersion = 1;
     @Min(1)
     private int recipeVersion = 1;
-    @NotNull @DecimalMin("0.01")
+    @NotNull @DecimalMin("0.01") @Digits(integer = 8, fraction = 2)
     private BigDecimal servingSizeG;
-    @DecimalMin("0") private BigDecimal energyKcal;
-    @DecimalMin("0") private BigDecimal proteinG;
-    @DecimalMin("0") private BigDecimal fatG;
-    @DecimalMin("0") private BigDecimal carbohydrateG;
-    @DecimalMin("0") private BigDecimal dietaryFiberG;
-    @DecimalMin("0") private BigDecimal sugarG;
-    @DecimalMin("0") private BigDecimal sodiumMg;
-    @DecimalMin("0") private BigDecimal purineMg;
+    @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal energyKcal;
+    @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal proteinG;
+    @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal fatG;
+    @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal carbohydrateG;
+    @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal dietaryFiberG;
+    @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal sugarG;
+    @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal sodiumMg;
+    @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal purineMg;
     @NotBlank
-    private String sourceType;
+    @Size(max = 32) private String sourceType;
     @NotBlank
-    private String sourceReference;
-    private String calculationMethod;
-    private String uncertaintyNote;
-    private List<IngredientItem> ingredients = new ArrayList<>();
-    private List<AllergenItem> allergens = new ArrayList<>();
+    @Size(max = 500) private String sourceReference;
+    @Size(max = 128) private String calculationMethod;
+    @Size(max = 500) private String uncertaintyNote;
+    @Valid private List<@NotNull IngredientItem> ingredients = new ArrayList<>();
+    @Valid private List<@NotNull AllergenItem> allergens = new ArrayList<>();
 
     /** 食材统一使用标准编码，避免依赖自由文本做安全判断。 */
     @Data
     public static class IngredientItem {
-        @NotBlank private String code;
-        @NotBlank private String name;
-        @DecimalMin("0") private BigDecimal amountG;
+        @NotBlank @Size(max = 64) private String code;
+        @NotBlank @Size(max = 128) private String name;
+        @DecimalMin("0") @Digits(integer = 8, fraction = 2) private BigDecimal amountG;
         private String roleType = "PRIMARY";
         private boolean replaceable;
     }
@@ -49,8 +52,8 @@ public class DishNutritionDTO {
     /** 声明状态仅允许 FREE/CONTAINS/MAY_CONTAIN/CROSS_CONTACT_RISK/UNKNOWN。 */
     @Data
     public static class AllergenItem {
-        @NotBlank private String code;
+        @NotBlank @Size(max = 64) private String code;
         @NotBlank private String status;
-        @NotBlank private String sourceReference;
+        @NotBlank @Size(max = 500) private String sourceReference;
     }
 }

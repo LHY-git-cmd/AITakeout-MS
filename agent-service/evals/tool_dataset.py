@@ -45,9 +45,13 @@ def validate_dataset(data):
             raise ValueError(f"{identity}: unknown category")
         counts[case["category"]] += 1
         role = AdminRole(case["actor_role"])
-        if not case["allowed_roles"] or any(r not in AdminRole for r in case["allowed_roles"]):
+        # JSON 角色使用枚举值；显式比较避免 Python 3.11 的 Enum 容器检查报错。
+        allowed_roles = case["allowed_roles"]
+        valid_roles = {member.value for member in AdminRole}
+        if (not isinstance(allowed_roles, list) or not allowed_roles
+                or any(not isinstance(r, str) or r not in valid_roles for r in allowed_roles)):
             raise ValueError(f"{identity}: invalid allowed roles")
-        if role not in case["allowed_roles"]:
+        if role.value not in allowed_roles:
             raise ValueError(f"{identity}: actor outside allowed roles")
         if not isinstance(case["question"], str) or not case["question"].strip():
             raise ValueError(f"{identity}: question required")

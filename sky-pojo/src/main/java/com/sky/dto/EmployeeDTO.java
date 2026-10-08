@@ -2,6 +2,8 @@ package com.sky.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.ToString;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -19,6 +21,12 @@ public class EmployeeDTO implements Serializable {
     @Size(max = 32, message = "用户名长度不能超过32个字符")
     @Schema(description = "用户名")
     private String username;
+
+    /** 仅创建员工时使用，不随响应返回，也不进入 DTO 日志字符串。 */
+    @ToString.Exclude
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @Schema(description = "创建员工时设置的独立初始密码，12至64位可打印ASCII字符")
+    private String initialPassword;
 
     @NotBlank(message = "姓名不能为空")
     @Size(max = 32, message = "姓名长度不能超过32个字符")

@@ -8,6 +8,7 @@ import com.sky.entity.Category;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
 import java.util.List;
 
 /**
@@ -16,6 +17,12 @@ import java.util.List;
  */
 @Mapper
 public interface CategoryMapper {
+    /** 创建批次前校验分类；执行阶段加锁，避免分类并发删除或停用。 */
+    @Select("select * from category where id = #{id}")
+    Category getById(Long id);
+
+    @Select("select * from category where id = #{id} for update")
+    Category lockById(Long id);
 
     /**
      * 新增分类

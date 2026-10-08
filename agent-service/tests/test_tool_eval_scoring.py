@@ -13,6 +13,37 @@ import unittest
 from unittest.mock import patch
 
 
+class ToolDatasetRoleTest(unittest.TestCase):
+    """验证角色格式及 Python 3.11 兼容性，不依赖先通过数据集加载。"""
+
+    def setUp(self):
+        from evals import tool_dataset
+        self.dataset = tool_dataset
+        self.data = json.loads(tool_dataset.DEFAULT_DATASET.read_text(encoding="utf-8-sig"))
+
+    def test_string_roles_do_not_use_enum_containment(self):
+        """模拟 Python 3.11：字符串对枚举执行 in 会抛 TypeError。"""
+        from app.tools.models import AdminRole
+        with patch.object(type(AdminRole), "__contains__", side_effect=TypeError("legacy enum containment")):
+            self.dataset.validate_dataset(self.data)
+
+    def test_invalid_allowed_roles_raise_value_error(self):
+        """非法值与错误容器格式应报契约错误，而不是 Python 类型错误。"""
+        for roles in ([], ["ROOT"], [None], [[]], "ADMIN", None):
+            with self.subTest(roles=roles):
+                data = copy.deepcopy(self.data)
+                data["cases"][0]["allowed_roles"] = roles
+                with self.assertRaisesRegex(ValueError, "invalid allowed roles"):
+                    self.dataset.validate_dataset(data)
+
+    def test_actor_must_be_in_allowed_roles(self):
+        """有效角色仍须满足当前用例的授权范围。"""
+        case = self.data["cases"][0]
+        case["allowed_roles"] = ["SUPER_ADMIN" if case["actor_role"] != "SUPER_ADMIN" else "ADMIN"]
+        with self.assertRaisesRegex(ValueError, "actor outside allowed roles"):
+            self.dataset.validate_dataset(self.data)
+
+
 class ToolEvalTest(unittest.TestCase):
     def setUp(self):
         # 缺少实现应产生明确断言失败，而不是导入错误掩盖 RED 证据。

@@ -42,6 +42,12 @@ sky-agent/.env
 *_backup.sql
 !/data/
 /data/*
+.claude/
+.vscode/
+.codex-temp/
+.codex-tmp/
+/data/*
+# 经过审查的模拟数据是功能与验证依赖；仅运行时数据保持私有。
 !/data/diet-seed/
 !/data/diet-seed/**
 /agent-service/data/

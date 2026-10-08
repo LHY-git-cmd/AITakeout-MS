@@ -18,5 +18,6 @@ public class DeliveryProperties {
     private long farFeeCent = 800;
     private int previewTtlSeconds = 300;
     private String pricingRuleVersion = "delivery-v1";
-    private String previewSecret = "development-checkout-preview-secret-change-me";
+    // 必须由环境配置注入，禁止使用所有部署共享的默认签名密钥。
+    private String previewSecret;
 }

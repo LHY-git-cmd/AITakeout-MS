@@ -46,6 +46,53 @@ function agentMethods() {
 }
 
 describe('AgentPage stream events', () => {
+  it('keeps a newly received confirmation pending so its action buttons remain visible', () => {
+    const methods = agentMethods()
+    const message = { confirmation: { decided: false, decision: '', processing: false } }
+    const context = { isConfirmationInFlight: (value) => methods.isConfirmationInFlight(value) }
+    expect(methods.isConfirmationSettled.call(context, message)).toBe(false)
+  })
+
+  it('does not replace a rejected confirmation with success when the conversation ends', () => {
+    const methods = agentMethods()
+    const assistant: any = { content: '', citations: [], confirmation: {
+      decided: true, decision: '已拒绝，本次操作不会执行。', cancelled: true,
+    } }
+    methods.applyAgentEvent.call({ normalizeCitation: methods.normalizeCitation, $nextTick: jest.fn() }, {
+      taskId: 'task', seqNo: 3, event: 'task_end', data: { result: '本次未添加菜品' },
+    }, assistant)
+    expect(assistant.confirmation.decision).toContain('已拒绝')
+  })
+
+  it('keeps an expired tool confirmation failed after task_end', () => {
+    const methods = agentMethods()
+    const assistant: any = { content: '', citations: [], confirmation: { decided: false, decision: '' } }
+    const context = { normalizeCitation: methods.normalizeCitation, $nextTick: jest.fn() }
+    methods.applyAgentEvent.call(context, {
+      taskId: 'task', seqNo: 2, event: 'tool_result', data: { status: 'expired',
+        error: { code: 'CONFIRMATION_TIMEOUT', message: '等待管理员确认超时' } },
+    }, assistant)
+    methods.applyAgentEvent.call(context, {
+      taskId: 'task', seqNo: 3, event: 'task_end', data: { result: '确认超时' },
+    }, assistant)
+    expect(assistant.confirmation.failed).toBe(true)
+    expect(assistant.confirmation.decision).toContain('确认超时')
+    expect(assistant.confirmation.retryable).toBe(false)
+  })
+  it('retains dish preview in the confirmation card and preserves unknown allergen status', () => {
+    const methods = agentMethods()
+    const preview = { test_data: true, dishes: [{ name: '测试米饭', categoryName: '主食', price: 2 }] }
+    const assistant: any = { content: '', citations: [], confirmation: null }
+    const context = { $nextTick: jest.fn(), scrollToBottom: jest.fn() }
+    methods.applyAgentEvent.call(context, {
+      taskId: 'create-task', seqNo: 1, event: 'tool_confirmation_required',
+      data: { confirmation_id: 'create-confirm', summary: '添加测试菜品', preview },
+    }, assistant)
+    expect(assistant.confirmation.preview).toEqual(preview)
+    expect(assistant.confirmation.decided).toBe(false)
+    expect(methods.allergenStatusLabel('UNKNOWN')).toBe('未知')
+    expect(methods.allergenStatusLabel('CONTAINS')).toBe('含有')
+  })
   it('starts with an unknown service state until the first health response arrives', () => {
     const state = (AgentPage as any).options.data()
 

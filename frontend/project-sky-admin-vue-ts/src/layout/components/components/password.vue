@@ -11,6 +11,8 @@
         <el-input
           v-model="form.oldPassword"
           type="password"
+          show-password
+          autocomplete="current-password"
           placeholder="请输入"
         ></el-input>
       </el-form-item>
@@ -18,13 +20,18 @@
         <el-input
           v-model="form.newPassword"
           type="password"
-          placeholder="6 - 20位密码，数字或字母，区分大小写"
+          show-password
+          autocomplete="new-password"
+          maxlength="64"
+          placeholder="12至64位字母、数字或符号，不含空格"
         ></el-input>
       </el-form-item>
       <el-form-item label="确认密码：" prop="affirmPassword">
         <el-input
           v-model="form.affirmPassword"
           type="password"
+          show-password
+          autocomplete="new-password"
           placeholder="请输入"
         ></el-input>
       </el-form-item>
@@ -46,11 +53,11 @@ import { editPassword } from '@/api/users'
 export default class extends Vue {
   @Prop() private dialogFormVisible!: any
   private validatePwd = (rule: any, value: any, callback: Function) => {
-    const reg = /^[0-9A-Za-z]{6,20}$/
+    const reg = /^[\x21-\x7E]{12,64}$/
     if (!value) {
       callback(new Error('请输入'))
     } else if (!reg.test(value)) {
-      callback(new Error('6 - 20位密码，数字或字母，区分大小写'))
+      callback(new Error('请输入12至64位字母、数字或符号，不含空格'))
     } else {
       callback()
     }
@@ -65,7 +72,8 @@ export default class extends Vue {
     }
   }
   rules = {
-    oldPassword: [{ validator: this.validatePwd, trigger: 'blur' }],
+    // 原密码允许旧账号原有格式；新密码执行当前强度规则。
+    oldPassword: [{ required: true, message: '请输入原密码', trigger: 'blur' }],
     newPassword: [{ validator: this.validatePwd, trigger: 'blur' }],
     affirmPassword: [{ validator: this.validatePass2, trigger: 'blur' }],
   }
@@ -78,7 +86,12 @@ export default class extends Vue {
           oldPassword: this.form.oldPassword,
           newPassword: this.form.newPassword,
         }
-        await editPassword(parnt)
+        const response: any = await editPassword(parnt)
+        if (response.data.code !== 1) {
+          this.$message.error(response.data.msg || '密码修改失败')
+          return
+        }
+        this.$message.success('密码已修改，请妥善保存新密码')
         this.$emit('handleclose')
         ;(this.$refs.form as ElForm).resetFields()
       } else {
