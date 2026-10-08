@@ -30,7 +30,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog :title="`维护营养 · ${selectedDish?.name || ''}`" :visible.sync="dialog" width="720px">
+    <el-dialog class="nutrition-dialog" :title="`维护营养 · ${selectedDish?.name || ''}`" :visible.sync="dialog" width="720px">
       <el-alert type="warning" :closable="false" title="成分或过敏原未知时请明确选择 UNKNOWN，不能用 FREE 代替未知。" />
       <el-form label-position="top" class="nutrition-form">
         <el-form-item label="标准份量（g）"><el-input-number v-model="form.servingSizeG" :min="1" /></el-form-item>
@@ -89,5 +89,17 @@ export default Vue.extend({
 </script>
 
 <style scoped lang="scss">
-.diet-admin-page { padding: 0 24px 30px; color: var(--text-2); }.diet-header { margin: 0 -24px 18px; padding: 20px 28px; border-bottom: 1px solid var(--field-border); background: var(--surface-card); }.diet-header h1,.diet-header p { margin:0 }.diet-header p { margin-top:5px; color:var(--text-3) }.diet-toolbar { display:flex; max-width:520px; gap:8px; margin-bottom:14px }.diet-toolbar--rules { max-width:none; align-items:center; justify-content:space-between }.diet-table { width:100% }.diet-hint { color:var(--text-3); font-size:13px }.danger { color:#dc2626 }.nutrition-form { display:grid; grid-template-columns:repeat(4,1fr); gap:0 12px; margin-top:14px }.nutrition-form .full { grid-column:1/-1 }.allergen-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px }.allergen-grid label { display:flex; align-items:center; justify-content:space-between; gap:6px }.allergen-grid .el-select { width:145px }.rule-form { margin-top:14px } @media(max-width:900px){.nutrition-form{grid-template-columns:repeat(2,1fr)}.allergen-grid{grid-template-columns:1fr}}
+.diet-admin-page { padding: 0 24px 30px; color: var(--text-2); }.diet-header { margin: 0 -24px 18px; padding: 20px 28px; border-bottom: 1px solid var(--field-border); background: var(--surface-card); }.diet-header h1,.diet-header p { margin:0 }.diet-header p { margin-top:5px; color:var(--text-3) }.diet-toolbar { display:flex; max-width:520px; gap:8px; margin-bottom:14px }.diet-toolbar--rules { max-width:none; align-items:center; justify-content:space-between }.diet-table { width:100% }.diet-hint { color:var(--text-3); font-size:13px }.danger { color:#dc2626 }.nutrition-form { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0 12px; margin-top:14px }.nutrition-form .full { grid-column:1/-1 }.allergen-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px }.allergen-grid label { display:flex; align-items:center; justify-content:space-between; gap:6px }.allergen-grid .el-select { width:145px }.rule-form { margin-top:14px } @media(max-width:900px){.nutrition-form{grid-template-columns:repeat(2,minmax(0,1fr))}.allergen-grid{grid-template-columns:1fr}}
+/* Element数字输入默认固定宽度；网格项与控件必须一起允许收缩。 */
+.nutrition-form > .el-form-item { min-width: 0; }
+.nutrition-form ::v-deep .el-form-item__content { min-width: 0; }
+.nutrition-form ::v-deep .el-input-number,
+.nutrition-form ::v-deep .el-input,
+.nutrition-form ::v-deep .el-textarea { width: 100%; max-width: 100%; }
+.nutrition-dialog ::v-deep .el-dialog { max-width: calc(100vw - 32px); }
+.allergen-grid label { min-width: 0; }
+.allergen-grid .el-select { min-width: 0; max-width: 100%; flex: 1; }
+@media (max-width: 420px) {
+  .nutrition-form { grid-template-columns: minmax(0, 1fr); }
+}
 </style>

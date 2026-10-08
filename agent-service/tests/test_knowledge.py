@@ -2,6 +2,7 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.core.agent import PythonAgent
 from app.knowledge.chunker import StructureChunker
@@ -12,6 +13,12 @@ from app.knowledge.vector_store import MemoryVectorStore
 
 class KnowledgeServiceTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
+        # RAG 检索测试不使用模型；禁止初始化真实客户端或发起模型请求。
+        gateway_patch = patch("app.core.agent.LLMGateway", autospec=True)
+        gateway = gateway_patch.start().return_value
+        self.addCleanup(gateway_patch.stop)
+        gateway.complete.side_effect = AssertionError("RAG retrieval tests must not call the LLM")
+        gateway.stream.side_effect = AssertionError("RAG retrieval tests must not call the LLM")
         self.temp = tempfile.TemporaryDirectory()
         self.store = MemoryVectorStore()
         self.service = KnowledgeService(
