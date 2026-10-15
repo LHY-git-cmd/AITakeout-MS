@@ -29,27 +29,14 @@
   letter-spacing: 1.5px;
 }
 
-/* 朱砂印式标识：双线内框 + 内阴影 */
+/* 页头与浏览器图标共用“饱”字印章，字形轮廓由 SVG 固定。 */
 .brand__mark {
-  display: grid;
-  position: relative;
+  display: block;
+  flex-shrink: 0;
   width: 38px;
   height: 38px;
-  place-items: center;
-  border: 1px solid rgb(232 217 184 / 55%);
   border-radius: 5px;
-  color: #fff7ec;
-  background: linear-gradient(160deg, #c2452f, #93301f);
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 18%), 0 3px 10px rgb(0 0 0 / 30%);
-}
-
-.brand__mark::after {
-  position: absolute;
-  inset: 3px;
-  border: 1px solid rgb(255 247 236 / 34%);
-  border-radius: 3px;
-  content: '';
-  pointer-events: none;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 30%);
 }
 
 .desktop-nav {

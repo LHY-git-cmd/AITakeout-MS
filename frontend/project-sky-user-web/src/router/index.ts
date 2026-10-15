@@ -105,7 +105,7 @@ const router = createRouter({
 })
 
 router.afterEach((to) => {
-  document.title = '智能点餐平台'
+  document.title = '饱饱点餐'
 })
 
 export default router

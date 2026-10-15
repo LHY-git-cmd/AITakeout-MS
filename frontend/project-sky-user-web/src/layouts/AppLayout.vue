@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { Bell, Bot, CircleUserRound, History, House, ShoppingBag, UtensilsCrossed, X } from '@lucide/vue'
+import { Bell, Bot, CircleUserRound, History, House, ShoppingBag, X } from '@lucide/vue'
 import LoginDialog from '@/components/LoginDialog.vue'
 import CartPanel from '@/components/CartPanel.vue'
 import CartFloatingWidget from '@/components/CartFloatingWidget.vue'
@@ -87,9 +87,9 @@ watch(() => authStore.token, (token, previousToken) => {
   <div class="app-shell">
     <header class="site-header">
       <div class="site-header__inner">
-        <RouterLink class="brand" to="/" aria-label="智能点餐平台首页">
-            <span class="brand__mark" aria-hidden="true"><UtensilsCrossed :size="21" /></span>
-          <span class="brand__name">智能点餐平台</span>
+        <RouterLink class="brand" to="/" aria-label="饱饱点餐首页">
+          <img class="brand__mark" src="/favicon.svg?v=baobao" width="38" height="38" alt="" aria-hidden="true" />
+          <span class="brand__name">饱饱点餐</span>
         </RouterLink>
 
         <nav class="desktop-nav" aria-label="主导航">
